@@ -33,6 +33,16 @@
 - `build.gradle`, `application.yml` 변경도 A 담당. 필요하면 요청할 것.
 - `HostingRequest` 엔티티는 B 소유. C는 생성(U-11)/조회(U-12) API만 얹는다.
 
+## 🔐 보안 규칙 (필수)
+
+**민감 정보는 절대 소스에 커밋하지 않는다.** DB 자격 증명, API 키, 시크릿 등은 코드/설정 파일에 평문으로 두지 마라.
+
+- `application.yml`을 포함한 `*.yml` / `*.yaml`은 `.gitignore`로 커밋 금지 (`docker-compose.yml`만 예외로 추적).
+- 실제 값은 루트/`backend`의 `.env`로 관리하고, `application.yml`에는 `${DB_URL}`, `${DB_USERNAME}`, `${DB_PASSWORD}` 형태의 **플레이스홀더만** 둔다. 기본값(`${DB_PASSWORD:비밀번호}`)에 실제 값을 넣지 마라.
+- 이미 커밋된 파일은 `.gitignore` 추가만으로 빠지지 않는다. `git rm --cached <파일>`로 추적을 끊어야 한다.
+- 히스토리에 이미 노출된 자격 증명은 파일 수정과 별개로 **비밀번호/키 로테이션**이 필요하다.
+- 새 설정 파일을 추가할 때 시크릿이 들어갈 여지가 있으면 반드시 `.env`로 분리한다.
+
 ## 컨벤션
 
 - **응답**: 모든 컨트롤러는 `ApiResponse.ok(data)` 로 감싼다. 에러는 던지기만 하면 `GlobalExceptionHandler`가 처리.
