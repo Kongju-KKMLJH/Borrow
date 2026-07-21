@@ -29,8 +29,8 @@ public record MatchRequest(
         @Positive(message = "수용 인원은 1명 이상이어야 합니다.")
         int headcount,
         List<FacilityType> requiredFacilities,
-        boolean noisy,
-        boolean messy,
+        Boolean noisy,
+        Boolean messy,
         @NotNull(message = "활동 분야는 필수입니다.")
         ActivityField field,
         @NotNull(message = "활동 날짜는 필수입니다.")
@@ -41,6 +41,14 @@ public record MatchRequest(
         LocalTime endTime,
         List<Long> excludeSpaceIds
 ) {
+    public boolean noisyOrFalse() {
+        return Boolean.TRUE.equals(noisy);
+    }
+
+    public boolean messyOrFalse() {
+        return Boolean.TRUE.equals(messy);
+    }
+
     public String regionOrEmpty() {
         return region == null ? "" : region.trim();
     }

@@ -46,7 +46,10 @@ public class SpaceMatchingService {
     private final SpaceMatchRepository spaceRepo;
     private final SpaceSlotMatchRepository slotRepo;
     private final AnthropicClient anthropic;
-    private final ObjectMapper objectMapper;
+
+    // 초기화자가 있는 final 필드는 @RequiredArgsConstructor 대상에서 제외된다.
+    // Spring Boot 4 webmvc 스타터는 Jackson 자동설정(ObjectMapper 빈)을 포함하지 않으므로 직접 생성.
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional(readOnly = true)
     public List<SpaceMatchResponse> match(MatchRequest request) {
@@ -66,8 +69,8 @@ public class SpaceMatchingService {
         List<Space> filtered = byQuery.stream()
                 .filter(s -> !excluded.contains(s.getId()))
                 // 소음·오염 제한 (B-04 제한 조건)
-                .filter(s -> !req.noisy() || s.isNoiseAllowed())
-                .filter(s -> !req.messy() || s.isMessAllowed())
+                .filter(s -> !req.noisyOrFalse() || s.isNoiseAllowed())
+                .filter(s -> !req.messyOrFalse() || s.isMessAllowed())
                 .toList();
 
         if (filtered.isEmpty()) {
@@ -161,8 +164,8 @@ public class SpaceMatchingService {
                 req.headcount(),
                 req.field(),
                 req.requiredFacilitiesOrEmpty().isEmpty() ? "(없음)" : req.requiredFacilitiesOrEmpty(),
-                req.noisy() ? "예" : "아니오",
-                req.messy() ? "예" : "아니오",
+                req.noisyOrFalse() ? "예" : "아니오",
+                req.messyOrFalse() ? "예" : "아니오",
                 candidatesJson
         );
     }
