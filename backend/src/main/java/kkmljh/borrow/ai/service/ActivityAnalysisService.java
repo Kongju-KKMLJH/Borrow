@@ -1,11 +1,9 @@
 package kkmljh.borrow.ai.service;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.StructuredMessage;
 import kkmljh.borrow.ai.dto.AnalyzeRequest;
 import kkmljh.borrow.ai.dto.AnalyzedRequirement;
 import kkmljh.borrow.ai.dto.RequirementResponse;
+import kkmljh.borrow.ai.llm.LlmClient;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -23,9 +21,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ActivityAnalysisService {
 
-    private static final String MODEL = "claude-opus-4-8";
-
-    private final AnthropicClient anthropic;
+    private final LlmClient llm;
 
     public RequirementResponse analyze(AnalyzeRequest request) {
         String prompt = """
@@ -43,19 +39,12 @@ public class ActivityAnalysisService {
                 """.formatted(request.description());
 
         try {
-            MessageCreateParams.Builder base = MessageCreateParams.builder()
-                    .model(MODEL)
-                    .maxTokens(512L)
-                    .addUserMessage(prompt);
-
-            StructuredMessage<AnalyzedRequirement> message =
-                    anthropic.messages().create(base.outputConfig(AnalyzedRequirement.class).build());
-
-            AnalyzedRequirement analyzed = message.content().stream()
-                    .flatMap(block -> block.text().stream())
-                    .map(text -> text.text())
-                    .findFirst()
-                    .orElseThrow(() -> new BusinessException(ErrorCode.AI_ANALYSIS_FAILED));
+            // 2048: Gemini 등 thinking 모델이 추론 토큰을 소비해도 JSON이 잘리지 않도록 여유를 둔다
+            // (Anthropic/OpenAI엔 단순 상한이라 무해). 512로는 Gemini에서 출력 전 잘림.
+            AnalyzedRequirement analyzed = llm.complete(prompt, AnalyzedRequirement.class, 2048L);
+            if (analyzed == null) {
+                throw new BusinessException(ErrorCode.AI_ANALYSIS_FAILED);
+            }
 
             return new RequirementResponse(
                     request.region() == null ? "" : request.region().trim(),
