@@ -1,0 +1,44 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1784615814762,
+  "projectRoot": "/Users/taehyunjeon/taehyun/dev/project/Borrow",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "frontend": {
+      "path": "frontend",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1784615814757,
+      "keyFiles": [
+        "claude.md"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}
