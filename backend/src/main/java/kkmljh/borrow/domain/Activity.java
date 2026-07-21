@@ -1,13 +1,18 @@
 package kkmljh.borrow.domain;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OrderColumn;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
 import lombok.AccessLevel;
@@ -17,6 +22,8 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /** 활동(취미 모임/전문 클래스) — U-06/U-07 개설, U-08 요구조건, S-01 공개 */
 @Entity
@@ -53,6 +60,13 @@ public class Activity {
     @Column(length = 2000)
     private String description;
 
+    /** 활동 사진 URL 목록 (앱에서 촬영/선택 후 업로드하여 받은 상대 URL들, 순서 보존) */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "activity_image", joinColumns = @JoinColumn(name = "activity_id"))
+    @OrderColumn(name = "sort_order")
+    @Column(name = "image_url", length = 1000)
+    private List<String> imageUrls = new ArrayList<>();
+
     @Column(nullable = false)
     private LocalDate date;
 
@@ -80,7 +94,7 @@ public class Activity {
     @Builder
     private Activity(String guestId, String hostNickname, boolean hostCertified,
                      ActivityType type, ActivityField field,
-                     String title, String description, LocalDate date,
+                     String title, String description, List<String> imageUrls, LocalDate date,
                      LocalTime startTime, LocalTime endTime,
                      int capacity, int entryFee, SpaceRequirement requirement) {
         this.guestId = guestId;
@@ -90,6 +104,7 @@ public class Activity {
         this.field = field;
         this.title = title;
         this.description = description;
+        if (imageUrls != null) this.imageUrls = imageUrls;
         this.date = date;
         this.startTime = startTime;
         this.endTime = endTime;
