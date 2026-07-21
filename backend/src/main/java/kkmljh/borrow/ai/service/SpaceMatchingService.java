@@ -1,13 +1,11 @@
 package kkmljh.borrow.ai.service;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.StructuredMessage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kkmljh.borrow.ai.dto.MatchRequest;
 import kkmljh.borrow.ai.dto.SpaceMatchResponse;
 import kkmljh.borrow.ai.dto.SpaceScores;
+import kkmljh.borrow.ai.llm.LlmClient;
 import kkmljh.borrow.ai.repository.SpaceMatchRepository;
 import kkmljh.borrow.ai.repository.SpaceSlotMatchRepository;
 import kkmljh.borrow.domain.FacilityType;
@@ -40,12 +38,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SpaceMatchingService {
 
-    private static final String MODEL = "claude-opus-4-8";
     private static final int MAX_CANDIDATES = 12;
 
     private final SpaceMatchRepository spaceRepo;
     private final SpaceSlotMatchRepository slotRepo;
-    private final AnthropicClient anthropic;
+    private final LlmClient llm;
 
     // 초기화자가 있는 final 필드는 @RequiredArgsConstructor 대상에서 제외된다.
     // Spring Boot 4 webmvc 스타터는 Jackson 자동설정(ObjectMapper 빈)을 포함하지 않으므로 직접 생성.
@@ -107,23 +104,11 @@ public class SpaceMatchingService {
                 .toList();
     }
 
-    /** Claude 호출로 spaceId→점수 맵을 얻는다. 실패하면 빈 맵(→ 규칙 기반 폴백). */
+    /** LLM 호출로 spaceId→점수 맵을 얻는다. 실패하면 빈 맵(→ 규칙 기반 폴백). */
     private Map<Long, SpaceScores.SpaceScore> tryAiScores(List<Space> candidates, MatchRequest req) {
         try {
             String prompt = buildScoringPrompt(candidates, req);
-            MessageCreateParams.Builder base = MessageCreateParams.builder()
-                    .model(MODEL)
-                    .maxTokens(2048L)
-                    .addUserMessage(prompt);
-
-            StructuredMessage<SpaceScores> message =
-                    anthropic.messages().create(base.outputConfig(SpaceScores.class).build());
-
-            SpaceScores result = message.content().stream()
-                    .flatMap(block -> block.text().stream())
-                    .map(text -> text.text())
-                    .findFirst()
-                    .orElse(null);
+            SpaceScores result = llm.complete(prompt, SpaceScores.class, 2048L);
 
             if (result == null || result.scores() == null) {
                 return Map.of();
@@ -132,7 +117,7 @@ public class SpaceMatchingService {
                     .collect(Collectors.toMap(SpaceScores.SpaceScore::spaceId, Function.identity(),
                             (a, b) -> a));
         } catch (Exception e) {
-            log.warn("A-03 Claude 점수 산출 실패 — 규칙 기반 폴백 사용", e);
+            log.warn("A-03 LLM 점수 산출 실패 — 규칙 기반 폴백 사용", e);
             return Map.of();
         }
     }
