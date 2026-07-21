@@ -3,7 +3,7 @@ package kkmljh.borrow.activity.controller;
 import jakarta.validation.Valid;
 import kkmljh.borrow.activity.dto.HostingRequestCreateRequest;
 import kkmljh.borrow.activity.dto.HostingRequestResponse;
-import kkmljh.borrow.activity.service.HostingRequestService;
+import kkmljh.borrow.activity.service.ActivityHostingRequestService;
 import kkmljh.borrow.common.guest.GuestId;
 import kkmljh.borrow.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -18,9 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/activities/{activityId}/hosting-request")
 @RequiredArgsConstructor
-public class HostingRequestController {
+public class ActivityHostingRequestController {
 
-    private final HostingRequestService hostingRequestService;
+    private final ActivityHostingRequestService hostingRequestService;
 
     /** U-11 개최 요청 전송 (AI 매칭으로 선택한 공간으로) */
     @PostMapping
