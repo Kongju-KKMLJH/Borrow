@@ -60,9 +60,12 @@ export default function Activities() {
       </ScrollView>
 
       {/* 결과 */}
-      <View style={{ paddingHorizontal: Spacing.xl, flexDirection: 'row', justifyContent: 'space-between' }}>
+      <View style={{ paddingHorizontal: Spacing.xl, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <AppText variant="caption" color="textMuted">총 {list.length}개 활동</AppText>
-        <AppText variant="caption" color="textSecondary">추천순</AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+          <AppText variant="caption" color="textSecondary">추천순</AppText>
+          <Ionicons name="chevron-down" size={14} color={theme.textSecondary} />
+        </View>
       </View>
 
       <View style={{ paddingHorizontal: Spacing.xl, gap: Spacing.md }}>

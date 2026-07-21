@@ -61,17 +61,20 @@ export function TabBar({ state, navigation, items }: TabBarProps) {
   );
 }
 
-/** 모드 전환 알약 — 현재 모드 반대편으로 이동 */
+/** 모드 전환 알약 — 현재 모드 반대편으로 이동. 사용자→제공자는 틸 솔리드, 제공자→사용자는 코랄 틴트. */
 export function ModeSwitch({ current }: { current: 'user' | 'provider' }) {
   const theme = useTheme();
   const target = current === 'user' ? 'provider' : 'user';
-  const label = current === 'user' ? '공간 제공자' : '일반 사용자';
+  const toProvider = target === 'provider';
+  const label = toProvider ? '공간 제공자' : '일반 사용자';
+  const bg = toProvider ? theme.secondary : theme.primarySoft;
+  const fg = toProvider ? theme.textInverse : theme.primary;
   return (
     <Pressable
-      onPress={() => router.replace(target === 'provider' ? '/(provider)' : '/(user)')}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full }}>
-      <Ionicons name="swap-horizontal" size={14} color={theme.textSecondary} />
-      <AppText variant="small" color="textSecondary">{label}</AppText>
+      onPress={() => router.replace(toProvider ? '/(provider)' : '/(user)')}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: bg, paddingHorizontal: Spacing.md, paddingVertical: 7, borderRadius: Radius.full }}>
+      <Ionicons name="swap-horizontal" size={14} color={fg} />
+      <AppText variant="small" tint={fg}>{label}</AppText>
     </Pressable>
   );
 }

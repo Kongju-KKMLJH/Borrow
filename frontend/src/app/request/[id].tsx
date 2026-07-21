@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { requestsApi } from '@/api';
 import { ScreenHeader } from '@/components/nav';
 import { RequestStatusBadge } from '@/components/status-badge';
+import { VerifiedBadge } from '@/components/verified-badge';
 import { AppText, Avatar, Badge, Button, Card } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { ActivityTypeLabel, DifficultyLabel, FieldLabel } from '@/data/types';
@@ -48,10 +49,13 @@ export default function RequestDetail() {
           <AppText variant="h1">{activity.title}</AppText>
           <AppText variant="body" color="textSecondary">{activity.intro}</AppText>
           <Card tone="muted" padding="lg" radius="lg" shadow="none" style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
-            <Avatar name={req.requester.name} size={36} />
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <AppText variant="title">{req.requester.name}</AppText>
-              {req.requester.verifiedArtist && <Badge label="인증 예술가" tone="accent" />}
+            <Avatar name={req.requester.name} size={40} />
+            <View style={{ flex: 1, gap: 3 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <AppText variant="title">{req.requester.name}</AppText>
+                {req.requester.verifiedArtist && <VerifiedBadge size={17} />}
+              </View>
+              <AppText variant="caption" color="textMuted">진행자 · 활동 3회 개최</AppText>
             </View>
           </Card>
         </View>

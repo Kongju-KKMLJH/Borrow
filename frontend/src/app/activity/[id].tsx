@@ -7,6 +7,7 @@ import { activitiesApi } from '@/api';
 import { ImagePlaceholder } from '@/components/placeholder';
 import { ScreenHeader } from '@/components/nav';
 import { ActivityStatusBadge } from '@/components/status-badge';
+import { VerifiedBadge } from '@/components/verified-badge';
 import { AppText, Avatar, Badge, Button, Card } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { ActivityTypeLabel, DifficultyLabel, FieldLabel } from '@/data/types';
@@ -57,7 +58,7 @@ export default function ActivityDetail() {
             <View style={{ flex: 1, gap: 3 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <AppText variant="title">{activity.host.name}</AppText>
-                {activity.host.verifiedArtist && <Badge label="인증 예술가" tone="accent" />}
+                {activity.host.verifiedArtist && <VerifiedBadge size={17} />}
               </View>
               <AppText variant="caption" color="textMuted">{activity.host.bio}</AppText>
             </View>
@@ -90,8 +91,22 @@ export default function ActivityDetail() {
                   </View>
                 ))}
               </View>
+              {activity.space.notes && (
+                <AppText variant="caption" color="textMuted" style={{ paddingTop: Spacing.sm }}>{activity.space.notes}</AppText>
+              )}
             </Section>
           )}
+
+          {/* 참가비 */}
+          <Section title="참가비">
+            <Row label="참가비" value={`${activity.fee.toLocaleString()}원`} />
+            <Row label="공간 이용료" value="참가비 포함" />
+            <Row label="재료비" value="참가비 포함" />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: Spacing.md }}>
+              <AppText variant="body" color="textMuted">총 결제 금액</AppText>
+              <AppText variant="h3" tint={theme.primary}>{activity.fee.toLocaleString()}원</AppText>
+            </View>
+          </Section>
 
           {/* 준비물 */}
           {activity.preparation && (

@@ -4,6 +4,7 @@ import { Pressable, View } from 'react-native';
 import { AppText, Avatar, Badge } from '@/components/ui';
 import { ImagePlaceholder } from '@/components/placeholder';
 import { ActivityStatusBadge } from '@/components/status-badge';
+import { VerifiedBadge } from '@/components/verified-badge';
 import { Radius, Spacing } from '@/constants/theme';
 import { ActivityTypeLabel, FieldLabel, type Activity } from '@/data/types';
 import { useTheme } from '@/hooks/use-theme';
@@ -48,7 +49,7 @@ export function ActivityCard({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Avatar name={activity.host.name} uri={activity.host.avatar} size={20} />
           <AppText variant="small" color="textSecondary">{activity.host.name}</AppText>
-          {activity.host.verifiedArtist && <Badge label="인증 예술가" tone="accent" />}
+          {activity.host.verifiedArtist && <VerifiedBadge size={14} />}
         </View>
 
         <MetaRow icon="calendar-outline" text={`${activity.date} ${activity.time.split(' ~ ')[0] ?? ''}`} />

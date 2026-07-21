@@ -21,10 +21,10 @@ export default function ProviderHome() {
     <Screen
       header={<BrandHeader right={<ModeSwitch current="provider" />} subtitle={`${currentUser.businessName} · 사장님, 안녕하세요 👋`} />}
       contentContainerStyle={{ gap: Spacing.xxl, paddingBottom: Spacing.huge }}>
-      {/* 요약 히어로 (프라이머리) */}
+      {/* 요약 히어로 (화이트 + 코랄 아웃라인) */}
       <View style={{ paddingHorizontal: Spacing.xl }}>
-        <View style={{ backgroundColor: theme.primary, borderRadius: Radius.xl, padding: Spacing.xl, gap: Spacing.lg }}>
-          <AppText variant="label" tint="#FFFFFF" style={{ opacity: 0.85 }}>이번 주 공간 현황</AppText>
+        <View style={{ backgroundColor: theme.surface, borderRadius: Radius.xl, borderWidth: 1.5, borderColor: theme.primary + '40', padding: Spacing.xl, gap: Spacing.lg }}>
+          <AppText variant="label" color="text">이번 주 공간 현황</AppText>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Stat n={providerSummary.pending} label="승인 대기" />
             <Divider />
@@ -71,13 +71,14 @@ export default function ProviderHome() {
 function Stat({ n, label }: { n: number; label: string }) {
   return (
     <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
-      <AppText variant="h1" tint="#FFFFFF">{n}</AppText>
-      <AppText variant="caption" tint="#FFFFFF" style={{ opacity: 0.85 }}>{label}</AppText>
+      <AppText variant="h1" color="text">{n}</AppText>
+      <AppText variant="caption" color="textMuted">{label}</AppText>
     </View>
   );
 }
 function Divider() {
-  return <View style={{ width: 1, height: 34, backgroundColor: '#FFFFFF', opacity: 0.25 }} />;
+  const theme = useTheme();
+  return <View style={{ width: 1, height: 34, backgroundColor: theme.border }} />;
 }
 function Upcoming({ title, date, people, last }: { title: string; date: string; people: string; last?: boolean }) {
   const theme = useTheme();

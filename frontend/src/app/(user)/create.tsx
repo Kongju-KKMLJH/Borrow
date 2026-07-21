@@ -20,8 +20,6 @@ export default function Create() {
   const theme = useTheme();
   const [step, setStep] = useState(1);
   const [type, setType] = useState<'hobby' | 'class'>('hobby');
-  const [field, setField] = useState<'drawing' | 'photo'>('drawing');
-  const [detail, setDetail] = useState('드로잉');
   const [difficulty, setDifficulty] = useState('초보 환영');
   const [facilities, setFacilities] = useState<string[]>(['넓은 테이블', '자연광', '물 사용', '콘센트']);
   const [mess, setMess] = useState(true);
@@ -86,8 +84,6 @@ export default function Create() {
         {step === 2 && (
           <>
             <Title title="활동 정보를 입력해주세요" />
-            <ChipGroup label="활동 분야" options={[{ label: '그림', value: 'drawing' }, { label: '촬영', value: 'photo' }]} selected={[field]} onToggle={(v) => setField(v as any)} />
-            <ChipGroup label="세부 활동" options={['드로잉', '수채화', '캐릭터 그리기', '사진 산책', '인물 촬영', '기타'].map((v) => ({ label: v, value: v }))} selected={[detail]} onToggle={setDetail} />
             <TextField label="활동 제목" placeholder="예) 수채화로 그리는 주말 오후 드로잉" />
             <TextField label="활동 설명" placeholder="어떤 활동인지 자유롭게 소개해주세요" multiline />
             <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
@@ -99,6 +95,7 @@ export default function Create() {
               <View style={{ flex: 1 }}><TextField label="참가비" placeholder="15,000원" keyboardType="numeric" /></View>
             </View>
             <ChipGroup label="난이도" options={['초보 환영', '경험자', '제한 없음'].map((v) => ({ label: v, value: v }))} selected={[difficulty]} onToggle={setDifficulty} />
+            <TextField label="준비물" placeholder="앞치마, 편한 복장" />
           </>
         )}
 
@@ -126,13 +123,30 @@ export default function Create() {
               <AppText variant="h1">AI 분석 완료</AppText>
             </View>
             <AppText variant="body" color="textSecondary">입력한 활동을 바탕으로 필요한 공간 조건을 추출했어요.</AppText>
-            <Card tone="flat" padding="lg" radius="lg" style={{ gap: Spacing.md }}>
-              <Row label="필요한 공간 규모" value="중형 (8~12인)" />
-              <Row label="필요 시설" value="테이블·자연광·물·콘센트" />
-              <Row label="허용 활동" value="물감·수채 사용" />
-              <Row label="추천 공간 유형" value="카페 · 갤러리" last />
-            </Card>
-            <AppText variant="caption" color="textMuted">조건이 맞지 않으면 이전 단계에서 수정할 수 있어요.</AppText>
+
+            {/* 활동 요약 */}
+            <View style={{ gap: Spacing.sm }}>
+              <AppText variant="h3">활동 요약</AppText>
+              <Card tone="flat" padding="lg" radius="lg" style={{ gap: Spacing.md }}>
+                <Row label="활동 유형" value="취미 모임 · 그림" />
+                <Row label="날짜 · 시간" value="10월 24일 오후 2시" />
+                <Row label="활동 인원" value="8명" />
+                <Row label="난이도" value="초보 환영" last />
+              </Card>
+            </View>
+
+            {/* AI 추출 공간 조건 */}
+            <View style={{ gap: Spacing.sm }}>
+              <AppText variant="h3">AI 추출 공간 조건</AppText>
+              <Card tone="flat" padding="lg" radius="lg" shadow="none" style={{ gap: Spacing.lg, borderWidth: 1.5, borderColor: theme.primary + '40', backgroundColor: theme.primarySoft }}>
+                <CondBlock label="필요한 공간 규모" value="중형 (8~12인 수용)" />
+                <CondBlock label="필요 시설" value="넓은 테이블, 자연광, 물 사용 가능, 콘센트" />
+                <CondBlock label="허용되어야 할 활동" value="물감·수채 사용 (오염 가능성 있음)" />
+                <CondBlock label="추천 공간 유형" value="카페 · 갤러리 · 스튜디오" />
+              </Card>
+            </View>
+
+            <AppText variant="caption" color="textMuted">조건이 맞지 않으면 위 항목을 직접 수정할 수 있어요.</AppText>
           </>
         )}
 
@@ -148,18 +162,34 @@ export default function Create() {
         {step === 6 && (
           <>
             <Title title="개최 요청을 확인해주세요" sub="공간 제공자에게 아래 내용으로 요청이 전달돼요." />
-            <Card tone="flat" padding="lg" radius="lg" style={{ gap: Spacing.md }}>
-              <Row label="활동명" value="수채화로 그리는 주말 오후 드로잉" />
-              <Row label="유형 · 분야" value="취미 모임 · 그림" />
-              <Row label="날짜 · 시간" value="10월 24일 오후 2:00~4:00" />
-              <Row label="모집 인원" value="8명" />
-              <Row label="참가비" value="15,000원" last />
-            </Card>
-            <Card tone="flat" padding="lg" radius="lg" style={{ gap: Spacing.md }}>
-              <Row label="선택 공간" value={space?.name ?? '-'} />
-              <Row label="위치" value={space?.address ?? '-'} />
-              <Row label="이용 조건" value={space?.notes ?? '-'} last />
-            </Card>
+
+            <View style={{ gap: Spacing.sm }}>
+              <AppText variant="h3">활동 정보</AppText>
+              <Card tone="flat" padding="lg" radius="lg" style={{ gap: Spacing.md }}>
+                <Row label="활동명" value="수채화로 그리는 주말 오후 드로잉" />
+                <Row label="유형 · 분야" value="취미 모임 · 그림" />
+                <Row label="날짜 · 시간" value="10월 24일 오후 2:00~4:00" />
+                <Row label="모집 인원" value="8명" />
+                <Row label="참가비" value="15,000원" last />
+              </Card>
+            </View>
+
+            <View style={{ gap: Spacing.sm }}>
+              <AppText variant="h3">선택한 공간</AppText>
+              <Card tone="flat" padding="lg" radius="lg" style={{ gap: Spacing.md }}>
+                <Row label="공간" value={space?.name ?? '브루 랩 카페'} />
+                <Row label="위치" value={space?.address ?? '천안 서북구 두정동'} />
+                <Row label="공간 이용료" value={`${((space?.pricePerHour ?? 15000) * 2).toLocaleString()}원 / 2시간`} tint={theme.primary} />
+                <Row label="이용 조건" value={space?.notes ?? '음료 1잔 주문 · 정리 후 퇴실'} last />
+              </Card>
+            </View>
+
+            <View style={{ gap: Spacing.sm }}>
+              <AppText variant="h3">전달될 요청사항</AppText>
+              <Card tone="muted" padding="lg" radius="lg" shadow="none">
+                <AppText variant="body" color="textSecondary">소규모 수채화 모임입니다. 물감을 사용하니 오염에 양해 부탁드리며, 정리 후 퇴실하겠습니다.</AppText>
+              </Card>
+            </View>
           </>
         )}
       </ScrollView>
@@ -187,12 +217,22 @@ function Title({ title, sub }: { title: string; sub?: string }) {
   );
 }
 
-function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
+function Row({ label, value, last, tint }: { label: string; value: string; last?: boolean; tint?: string }) {
   const theme = useTheme();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: Spacing.xs, borderBottomWidth: last ? 0 : 1, borderBottomColor: theme.border, paddingBottom: last ? 0 : Spacing.md }}>
       <AppText variant="body" color="textMuted">{label}</AppText>
-      <AppText variant="title" style={{ flex: 1, textAlign: 'right' }} numberOfLines={1}>{value}</AppText>
+      <AppText variant="title" tint={tint} style={{ flex: 1, textAlign: 'right' }} numberOfLines={1}>{value}</AppText>
+    </View>
+  );
+}
+
+/** AI 추출 공간 조건 블록 — 코랄 라벨 + 다크 값 (세로 배치) */
+function CondBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ gap: 3 }}>
+      <AppText variant="label" color="primary">{label}</AppText>
+      <AppText variant="body">{value}</AppText>
     </View>
   );
 }
