@@ -108,7 +108,9 @@ public class SpaceMatchingService {
     private Map<Long, SpaceScores.SpaceScore> tryAiScores(List<Space> candidates, MatchRequest req) {
         try {
             String prompt = buildScoringPrompt(candidates, req);
-            SpaceScores result = llm.complete(prompt, SpaceScores.class, 2048L);
+            // 4096: 후보 다수 점수 출력 + thinking 모델(Gemini)의 추론 토큰까지 감안한 여유 상한.
+            // 부족해 잘려도 규칙 기반 폴백이 있어 데모는 안정적이다.
+            SpaceScores result = llm.complete(prompt, SpaceScores.class, 4096L);
 
             if (result == null || result.scores() == null) {
                 return Map.of();

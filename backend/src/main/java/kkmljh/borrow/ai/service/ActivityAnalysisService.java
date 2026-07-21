@@ -39,7 +39,9 @@ public class ActivityAnalysisService {
                 """.formatted(request.description());
 
         try {
-            AnalyzedRequirement analyzed = llm.complete(prompt, AnalyzedRequirement.class, 512L);
+            // 2048: Gemini 등 thinking 모델이 추론 토큰을 소비해도 JSON이 잘리지 않도록 여유를 둔다
+            // (Anthropic/OpenAI엔 단순 상한이라 무해). 512로는 Gemini에서 출력 전 잘림.
+            AnalyzedRequirement analyzed = llm.complete(prompt, AnalyzedRequirement.class, 2048L);
             if (analyzed == null) {
                 throw new BusinessException(ErrorCode.AI_ANALYSIS_FAILED);
             }

@@ -21,7 +21,7 @@ import org.springframework.context.annotation.Configuration;
  *
  * <ul>
  *   <li>{@code ai.provider} — {@code anthropic}(기본) | {@code openai} | {@code gemini}</li>
- *   <li>{@code ai.model} — 비우면 provider 기본값(anthropic=claude-opus-4-8, openai=gpt-4o-mini, gemini=gemini-2.0-flash)</li>
+ *   <li>{@code ai.model} — 비우면 provider 기본값(anthropic=claude-opus-4-8, openai=gpt-4o-mini, gemini=gemini-flash-latest)</li>
  *   <li>{@code ai.openai.base-url} — OpenAI 호환 엔드포인트. 비우면 api.openai.com. Groq/OpenRouter 등 사용 시 지정</li>
  * </ul>
  *
@@ -55,7 +55,7 @@ public class AiConfig {
                 yield new OpenAiLlmClient(openAiClient(openAiApiKey, openAiBaseUrl), m);
             }
             case "gemini" -> {
-                String m = model.isBlank() ? "gemini-2.0-flash" : model.trim();
+                String m = model.isBlank() ? "gemini-flash-latest" : model.trim();
                 String url = geminiBaseUrl.isBlank() ? GEMINI_OPENAI_BASE_URL : geminiBaseUrl.trim();
                 log.info("LLM provider=gemini model={} baseUrl={}", m, url);
                 yield new OpenAiLlmClient(openAiClient(geminiApiKey, url), m);
