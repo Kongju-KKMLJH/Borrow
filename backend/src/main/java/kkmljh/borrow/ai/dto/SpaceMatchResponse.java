@@ -17,7 +17,7 @@ public record SpaceMatchResponse(
         String region,
         int capacity,
         int hourlyFee,
-        String imageUrl,
+        List<String> imageUrls,
         Set<FacilityType> facilities,
         Set<ActivityField> allowedFields,
         int score,
@@ -27,7 +27,7 @@ public record SpaceMatchResponse(
     public static SpaceMatchResponse of(kkmljh.borrow.domain.Space s, int score, String reason, boolean aiScored) {
         return new SpaceMatchResponse(
                 s.getId(), s.getName(), s.getRegion(), s.getCapacity(), s.getHourlyFee(),
-                s.getImageUrl(), s.getFacilities(), s.getAllowedFields(),
+                s.getImageUrls(), s.getFacilities(), s.getAllowedFields(),
                 score, reason, aiScored);
     }
 

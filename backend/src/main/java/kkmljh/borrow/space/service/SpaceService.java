@@ -30,7 +30,7 @@ public class SpaceService {
                 .name(req.name())
                 .region(req.region())
                 .address(req.address())
-                .imageUrl(req.imageUrl())
+                .imageUrls(req.imageUrlsOrEmpty())
                 .capacity(req.capacity())
                 .hourlyFee(req.hourlyFee())
                 .conditions(req.conditions())
@@ -55,7 +55,7 @@ public class SpaceService {
     @Transactional
     public SpaceResponse update(Long id, SpaceRequest req) {
         Space space = getSpace(id);
-        space.updateBasicInfo(req.name(), req.region(), req.address(), req.imageUrl(), req.capacity());
+        space.updateBasicInfo(req.name(), req.region(), req.address(), req.imageUrlsOrEmpty(), req.capacity());
         space.updateFacilities(req.facilitiesOrEmpty());
         space.updateAllowedActivities(req.allowedFieldsOrEmpty(), req.noiseAllowed(), req.messAllowed());
         space.updateFeeAndConditions(req.hourlyFee(), req.conditions());

@@ -9,6 +9,7 @@ import kkmljh.borrow.domain.ActivityField;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 /**
  * 취미 모임 개설 (U-06 기본정보 / U-07 일정·정원 / U-08 공간 요구조건).
@@ -19,6 +20,7 @@ public record ActivityCreateRequest(
         @NotNull ActivityField field,
         @NotBlank String title,
         String description,
+        List<String> imageUrls,
         @NotNull LocalDate date,
         @NotNull LocalTime startTime,
         @NotNull LocalTime endTime,

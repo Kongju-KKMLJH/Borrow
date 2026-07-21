@@ -7,6 +7,7 @@ import kkmljh.borrow.domain.ActivityType;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 /** U-03 활동 상세. hostCertified 배지(F-01 Mock) 표시 포함 */
 public record ActivityDetailResponse(
@@ -15,6 +16,7 @@ public record ActivityDetailResponse(
         ActivityField field,
         String title,
         String description,
+        List<String> imageUrls,
         String hostNickname,
         boolean hostCertified,
         LocalDate date,
@@ -35,6 +37,7 @@ public record ActivityDetailResponse(
                 a.getField(),
                 a.getTitle(),
                 a.getDescription(),
+                a.getImageUrls(),
                 a.getHostNickname(),
                 a.isHostCertified(),
                 a.getDate(),

@@ -41,6 +41,7 @@ public class ActivityService {
                 .field(req.field())
                 .title(req.title())
                 .description(req.description())
+                .imageUrls(req.imageUrls())
                 .date(req.date())
                 .startTime(req.startTime())
                 .endTime(req.endTime())
