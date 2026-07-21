@@ -8,4 +8,6 @@ import java.util.List;
 public interface SpaceSlotRepository extends JpaRepository<SpaceSlot, Long> {
 
     List<SpaceSlot> findBySpaceIdOrderByDayOfWeekAscStartTimeAsc(Long spaceId);
+
+    long deleteBySpaceId(Long spaceId);
 }

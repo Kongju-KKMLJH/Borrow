@@ -15,4 +15,6 @@ public interface HostingRequestRepository extends JpaRepository<HostingRequest, 
     List<HostingRequest> findByStatusOrderByIdDesc(RequestStatus status);
 
     long countByStatus(RequestStatus status);
+
+    boolean existsBySpaceId(Long spaceId);
 }
