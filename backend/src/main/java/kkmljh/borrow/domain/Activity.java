@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
-/** 활동 (U-06 유형, U-07 기본정보, U-08 요구조건, U-13 공개) */
+/** 활동(취미 모임/전문 클래스) — U-06/U-07 개설, U-08 요구조건, S-01 공개 */
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -34,6 +34,10 @@ public class Activity {
 
     /** 개설자 표시 이름 */
     private String hostNickname;
+
+    /** 인증 예술가 여부 — Mock (F-01). U-03 상세에서 배지 표시용, 시드 데이터로만 true 설정 */
+    @Column(nullable = false)
+    private boolean hostCertified;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -74,12 +78,14 @@ public class Activity {
     private SpaceRequirement requirement;
 
     @Builder
-    private Activity(String guestId, String hostNickname, ActivityType type, ActivityField field,
+    private Activity(String guestId, String hostNickname, boolean hostCertified,
+                     ActivityType type, ActivityField field,
                      String title, String description, LocalDate date,
                      LocalTime startTime, LocalTime endTime,
                      int capacity, int entryFee, SpaceRequirement requirement) {
         this.guestId = guestId;
         this.hostNickname = hostNickname;
+        this.hostCertified = hostCertified;
         this.type = type;
         this.field = field;
         this.title = title;
@@ -105,7 +111,7 @@ public class Activity {
         this.status = ActivityStatus.PENDING;
     }
 
-    /** 사업자 승인 시 모집 목록에 공개 (B-09 → U-13) */
+    /** 사업자 승인 시 모집 목록에 자동 공개 (B-09 → S-01) */
     public void publish() {
         this.status = ActivityStatus.PUBLISHED;
     }

@@ -52,7 +52,7 @@ public class HostingRequest {
         this.status = RequestStatus.PENDING;
     }
 
-    /** 승인 (B-09): 요청 승인 + 활동 공개 */
+    /** 승인 (B-09): 요청 승인 + 활동 자동 공개 (S-01) */
     public void approve() {
         ensurePending();
         this.status = RequestStatus.APPROVED;
