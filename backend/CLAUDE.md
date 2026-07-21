@@ -59,13 +59,32 @@ docker compose up -d          # MySQL 기동 (최초 1회)
 
 AI 기능(A 담당)은 `ANTHROPIC_API_KEY` 환경변수가 필요하다 (Anthropic Java SDK가 자동 인식).
 
-## Git 규칙
+## Git 규칙 (이슈 기반 워크플로우)
 
-- 작업 브랜치: `feat/ai`(A), `feat/space`(B), `feat/activity`(C). 분기/머지 대상은 **`backend` 브랜치** (main 아님).
-- 작업 시작 전: `git pull --rebase origin backend`
-- 기능 하나 완료 시마다(2~3시간 단위) backend에 머지. 오래 묵히지 말 것.
-- **머지 전 `./gradlew compileJava` 통과 필수. backend 브랜치는 항상 컴파일되는 상태를 유지한다.**
-- `backend → main` 머지는 팀 합의 시점에만.
+모든 기능 개발·버그 수정은 **이슈 발급 → 브랜치 분기 → 작은 단위 커밋/푸시 → PR** 순서로 진행한다.
+분기/머지 대상은 항상 **`backend` 브랜치** (main 아님).
+
+1. **이슈 먼저 발급 (필수).** 작업 착수 전 `.github/ISSUE_TEMPLATE/`의 템플릿으로 GitHub 이슈를 만든다.
+   - 기능 개발 → `Feature`(feature.md) / 외부 요청 작업 → `Feature request`(feature_request.md)
+   - 버그 수정 → `Bug`(bug.md) / 질문 → `Question`(question.md)
+   - 템플릿의 상세·체크리스트 항목을 채운다. 발급된 **이슈 번호**를 이후 브랜치·커밋·PR에 사용한다.
+   - 예: `gh issue create --template feature.md` (gh 인증 필요) 또는 GitHub 웹의 이슈 템플릿.
+
+2. **브랜치.** `backend`에서 이슈 단위로 `feat/<기능이름>` 브랜치를 분기해 작업한다.
+   - `git switch backend && git pull --rebase origin backend` 후 `git switch -c feat/<기능이름>`.
+   - 작업은 항상 자기 담당 패키지 안에서만 (위 소유권 경계 표 유지).
+
+3. **커밋.** 작은 작업 단위마다 `[#이슈번호] 커밋 메시지` 형태로 커밋하고 바로 push한다.
+   - 예: `[#12] A-01 활동 분석 서비스 추가`. 한 커밋 = 한 논리 단위, 큰 덩어리로 몰아 커밋하지 말 것.
+
+4. **PR.** 이슈 단위 작업이 모두 끝나면 `.github/PullRequestTemplate.md` 템플릿으로 PR을 생성한다.
+   - 제목 `[#이슈번호] 작업내용`, base 브랜치 **`backend`**.
+   - 본문의 `Closes #<이슈번호>`를 채워 머지 시 이슈가 자동으로 닫히게 한다.
+   - 예: `gh pr create --base backend --title "[#12] AI 공간 매칭" --body-file .github/PullRequestTemplate.md`.
+
+5. **품질 게이트.** PR 올리기 전 `./gradlew compileJava` 통과 필수. `backend` 브랜치는 항상 컴파일되는 상태를 유지한다.
+
+6. `backend → main` 머지는 팀 합의 시점에만.
 
 ## AI 매칭 구현 방침 (A 참고)
 
