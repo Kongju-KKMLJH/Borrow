@@ -3,18 +3,20 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { activitiesApi } from '@/api';
 import { ActivityCard } from '@/components/activity-card';
 import { ActivityStatusBadge } from '@/components/status-badge';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { ImagePlaceholder } from '@/components/placeholder';
 import { Spacing } from '@/constants/theme';
-import { myCreated, myJoined } from '@/data/mock';
-import type { Activity } from '@/data/types';
+import type { ActivitySummary } from '@/data/types';
+import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function MyActivities() {
-  const theme = useTheme();
   const [tab, setTab] = useState<'joined' | 'created'>('created');
+  const { data: participations } = useAsync(() => activitiesApi.getMyParticipations(), [], { refetchOnFocus: true });
+  const { data: created } = useAsync(() => activitiesApi.getMyActivities(), [], { refetchOnFocus: true });
 
   return (
     <Screen
@@ -31,11 +33,65 @@ export default function MyActivities() {
       </View>
 
       <View style={{ paddingHorizontal: Spacing.xl, gap: Spacing.md }}>
-        {tab === 'joined'
-          ? myJoined.map((a) => <ActivityCard key={a.id} activity={a} onPress={() => router.push(`/activity/${a.id}`)} />)
-          : myCreated.map((a) => (a.status === 'rejected' ? <RejectedCard key={a.id} activity={a} /> : <CreatedRow key={a.id} activity={a} onPress={() => router.push(`/activity/${a.id}`)} />))}
+        {tab === 'joined' ? (
+          (participations ?? []).length === 0 ? (
+            <EmptyState
+              icon="ticket-outline"
+              title="참여한 활동이 없어요"
+              body="관심 있는 활동에 참여하면 여기에 모여요."
+              actionLabel="활동 둘러보기"
+              onAction={() => router.push('/(user)/activities')}
+            />
+          ) : (
+            (participations ?? []).map((p) => (
+              <ActivityCard key={p.participationId} activity={p.activity} onPress={() => router.push(`/activity/${p.activity.id}`)} />
+            ))
+          )
+        ) : (created ?? []).length === 0 ? (
+          <EmptyState
+            icon="add-circle-outline"
+            title="만든 활동이 없어요"
+            body="원하는 활동을 만들면 AI가 딱 맞는 공간을 추천해드려요."
+            actionLabel="활동 만들기"
+            onAction={() => router.push('/(user)/create')}
+          />
+        ) : (
+          (created ?? []).map((a) =>
+            a.status === 'REJECTED' ? (
+              <RejectedCard key={a.id} activity={a} />
+            ) : (
+              <CreatedRow key={a.id} activity={a} onPress={() => router.push(`/activity/${a.id}`)} />
+            ),
+          )
+        )}
       </View>
     </Screen>
+  );
+}
+
+function EmptyState({
+  icon,
+  title,
+  body,
+  actionLabel,
+  onAction,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  body: string;
+  actionLabel: string;
+  onAction: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={{ alignItems: 'center', paddingVertical: Spacing.huge, gap: Spacing.md }}>
+      <Ionicons name={icon} size={40} color={theme.textMuted} />
+      <View style={{ alignItems: 'center', gap: 4 }}>
+        <AppText variant="title" color="textSecondary">{title}</AppText>
+        <AppText variant="caption" color="textMuted" style={{ textAlign: 'center' }}>{body}</AppText>
+      </View>
+      <Button label={actionLabel} variant="outline" onPress={onAction} />
+    </View>
   );
 }
 
@@ -49,7 +105,7 @@ function Tab({ label, active, onPress }: { label: string; active: boolean; onPre
   );
 }
 
-function CreatedRow({ activity, onPress }: { activity: Activity; onPress?: () => void }) {
+function CreatedRow({ activity, onPress }: { activity: ActivitySummary; onPress?: () => void }) {
   const theme = useTheme();
   return (
     <Card onPress={onPress} tone="flat" padding="md" radius="lg" style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
@@ -57,22 +113,22 @@ function CreatedRow({ activity, onPress }: { activity: Activity; onPress?: () =>
       <View style={{ flex: 1, gap: 6 }}>
         <ActivityStatusBadge status={activity.status} />
         <AppText variant="title" numberOfLines={1}>{activity.title}</AppText>
-        <AppText variant="caption" color="textMuted">{activity.space?.name} · 모집 {activity.joined}/{activity.capacity}명</AppText>
+        <AppText variant="caption" color="textMuted">모집 {activity.currentHeadcount}/{activity.capacity}명</AppText>
       </View>
       <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
     </Card>
   );
 }
 
-function RejectedCard({ activity }: { activity: Activity }) {
+function RejectedCard({ activity }: { activity: ActivitySummary }) {
   const theme = useTheme();
   return (
     <Card padding="lg" radius="lg" style={{ gap: Spacing.md, backgroundColor: theme.dangerSoft, borderWidth: 1, borderColor: theme.danger + '40' }} shadow="none">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-        <ActivityStatusBadge status="rejected" />
+        <ActivityStatusBadge status="REJECTED" />
         <AppText variant="title" style={{ flex: 1 }} numberOfLines={1}>{activity.title}</AppText>
       </View>
-      <AppText variant="caption" tint={theme.danger}>거절 사유: 요청 시간에 다른 예약이 있어 공간 제공이 어렵습니다.</AppText>
+      <AppText variant="caption" tint={theme.danger}>공간 제공자가 개최 요청을 거절했어요. 다른 공간을 다시 추천받아보세요.</AppText>
       <Button label="대체 공간 추천받기" variant="outline" fullWidth onPress={() => router.push('/(user)/create')} />
     </Card>
   );

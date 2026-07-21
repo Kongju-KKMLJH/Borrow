@@ -2,16 +2,18 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { AnimatedSplash } from '@/components/splash';
 import { Colors } from '@/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colors = Colors.light; // 디자인이 라이트 전용이라 라이트 고정
+  const [splashDone, setSplashDone] = useState(false);
 
   const [loaded] = useFonts({
     'Pretendard-Regular': require('@/assets/fonts/Pretendard-Regular.otf'),
@@ -37,6 +39,7 @@ export default function RootLayout() {
           <Stack.Screen name="activity/[id]" options={{ presentation: 'card' }} />
           <Stack.Screen name="request/[id]" options={{ presentation: 'card' }} />
         </Stack>
+        {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

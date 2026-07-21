@@ -1,35 +1,74 @@
-import { activities, myCreated, myJoined } from '@/data/mock';
-import type { Activity, FieldType } from '@/data/types';
+import type {
+  ActivityCreatePayload,
+  ActivityDetail,
+  ActivityField,
+  ActivityHostingRequest,
+  ActivitySummary,
+  ActivityType,
+  MyParticipation,
+  Participation,
+  ParticipationPayload,
+  SpaceRequirement,
+} from '@/data/types';
 
-import { simulate } from './client';
+import { http } from './client';
 
-export type ActivityFilter = { type?: 'hobby' | 'class'; field?: FieldType; query?: string };
+export type ActivityFilter = { type?: ActivityType; field?: ActivityField; keyword?: string };
 
-/** GET /activities */
-export function listActivities(filter?: ActivityFilter): Promise<Activity[]> {
-  let list = activities;
-  if (filter?.type) list = list.filter((a) => a.type === filter.type);
-  if (filter?.field) list = list.filter((a) => a.field === filter.field);
-  if (filter?.query) list = list.filter((a) => a.title.includes(filter.query!));
-  return simulate(list);
+/** GET /api/activities */
+export function listActivities(filter?: ActivityFilter): Promise<ActivitySummary[]> {
+  const params = new URLSearchParams();
+  if (filter?.type) params.set('type', filter.type);
+  if (filter?.field) params.set('field', filter.field);
+  if (filter?.keyword) params.set('keyword', filter.keyword);
+  const qs = params.toString();
+  return http<ActivitySummary[]>(`/api/activities${qs ? `?${qs}` : ''}`);
 }
 
-/** GET /activities/:id */
-export function getActivity(id: string): Promise<Activity | undefined> {
-  return simulate(activities.find((a) => a.id === id));
+/** GET /api/activities/{id} */
+export function getActivity(id: number): Promise<ActivityDetail> {
+  return http<ActivityDetail>(`/api/activities/${id}`);
 }
 
-/** GET /me/activities */
-export function getMyActivities(): Promise<{ joined: Activity[]; created: Activity[] }> {
-  return simulate({ joined: myJoined, created: myCreated });
+/** POST /api/activities — U-06~U-08 취미 모임 개설 */
+export function createActivity(payload: ActivityCreatePayload): Promise<ActivityDetail> {
+  return http<ActivityDetail>('/api/activities', { method: 'POST', body: payload });
 }
 
-/** POST /activities — 개최 요청 생성. 생성 직후 상태는 '공간 승인 대기'. */
-export function createActivity(payload: Partial<Activity>): Promise<Activity> {
-  return simulate({ ...activities[0], ...payload, id: `a${Date.now()}`, status: 'pending' } as Activity);
+/** PATCH /api/activities/{id}/requirement — U-08 공간 요구조건 수정 */
+export function updateRequirement(id: number, requirement: SpaceRequirement): Promise<ActivityDetail> {
+  return http<ActivityDetail>(`/api/activities/${id}/requirement`, { method: 'PATCH', body: { requirement } });
 }
 
-/** POST /activities/:id/join */
-export function joinActivity(id: string): Promise<{ ok: true }> {
-  return simulate({ ok: true });
+/** POST /api/activities/{id}/hosting-request — U-11 개최 요청 전송 */
+export function sendHostingRequest(activityId: number, spaceId: number): Promise<ActivityHostingRequest> {
+  return http<ActivityHostingRequest>(`/api/activities/${activityId}/hosting-request`, {
+    method: 'POST',
+    body: { spaceId },
+  });
+}
+
+/** GET /api/activities/{id}/hosting-request — U-12 개최 요청 상태 조회 */
+export function getHostingRequestStatus(activityId: number): Promise<ActivityHostingRequest> {
+  return http<ActivityHostingRequest>(`/api/activities/${activityId}/hosting-request`);
+}
+
+/** POST /api/activities/{id}/participations — U-04 참여 신청 */
+export function participate(activityId: number, payload: ParticipationPayload): Promise<Participation> {
+  return http<Participation>(`/api/activities/${activityId}/participations`, { method: 'POST', body: payload });
+}
+
+/** DELETE /api/activities/{id}/participations — U-05 참여 취소 */
+export function cancelParticipation(activityId: number): Promise<void> {
+  return http<void>(`/api/activities/${activityId}/participations`, { method: 'DELETE' });
+}
+
+/** GET /api/me/activities — U-13 내가 개설한 활동 */
+export function getMyActivities(): Promise<ActivitySummary[]> {
+  return http<ActivitySummary[]>('/api/me/activities');
+}
+
+/** GET /api/me/participations — U-14 내가 참여한 활동 */
+export function getMyParticipations(): Promise<MyParticipation[]> {
+  return http<MyParticipation[]>('/api/me/participations');
 }

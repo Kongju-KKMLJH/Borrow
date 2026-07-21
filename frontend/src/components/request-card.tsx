@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AppText, Badge, Button, Card } from '@/components/ui';
 import { RequestStatusBadge } from '@/components/status-badge';
 import { Spacing } from '@/constants/theme';
-import { ActivityTypeLabel, FieldLabel, type HostingRequest } from '@/data/types';
+import type { HostingRequestDetail } from '@/data/types';
+import { ActivityFieldLabel, formatDateTime } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 
 export function RequestCard({
@@ -13,28 +14,26 @@ export function RequestCard({
   onApprove,
   onReject,
 }: {
-  request: HostingRequest;
+  request: HostingRequestDetail;
   onPress?: () => void;
   onApprove?: () => void;
   onReject?: () => void;
 }) {
-  const theme = useTheme();
-  const { activity, requester, requestedTime, headcount, status } = request;
-  const showActions = status === 'pending' && (onApprove || onReject);
+  const { activity, status } = request;
+  const showActions = status === 'PENDING' && (onApprove || onReject);
   return (
     <Card padding="lg" radius="lg" tone="flat" style={{ gap: Spacing.md }} onPress={onPress}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
-          <Badge label={ActivityTypeLabel[activity.type]} tone="neutral" />
-          <Badge label={FieldLabel[activity.field]} tone="primary" />
+          <Badge label={ActivityFieldLabel[activity.field]} tone="primary" />
         </View>
         <RequestStatusBadge status={status} />
       </View>
 
       <AppText variant="h3" numberOfLines={2}>{activity.title}</AppText>
 
-      <Meta icon="calendar-outline" text={requestedTime} />
-      <Meta icon="people-outline" text={`진행자 ${requester.name} · 요청 인원 ${headcount}명`} />
+      <Meta icon="calendar-outline" text={formatDateTime(activity.date, activity.startTime, activity.endTime)} />
+      <Meta icon="people-outline" text={`진행자 ${activity.hostNickname} · 모집 인원 ${activity.capacity}명`} />
 
       {showActions && (
         <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: 2 }}>

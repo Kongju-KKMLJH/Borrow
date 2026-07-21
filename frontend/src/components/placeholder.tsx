@@ -2,12 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, type ViewStyle } from 'react-native';
 
 import { Radius } from '@/constants/theme';
-import type { FieldType } from '@/data/types';
+import type { ActivityField } from '@/data/types';
 import { useTheme } from '@/hooks/use-theme';
 
-const FIELD_ICON: Record<FieldType, keyof typeof Ionicons.glyphMap> = {
-  drawing: 'color-palette',
-  photo: 'camera',
+const FIELD_ICON: Record<ActivityField, keyof typeof Ionicons.glyphMap> = {
+  ART: 'color-palette',
+  PHOTO: 'camera',
 };
 
 /**
@@ -22,7 +22,7 @@ export function ImagePlaceholder({
   iconSize,
   children,
 }: {
-  field?: FieldType;
+  field?: ActivityField;
   height: number;
   radius?: keyof typeof Radius;
   style?: ViewStyle;
@@ -36,7 +36,7 @@ export function ImagePlaceholder({
         { height, borderRadius: Radius[radius], backgroundColor: theme.surfaceDeep, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
         style,
       ]}>
-      <Ionicons name={FIELD_ICON[field ?? 'drawing']} size={iconSize ?? Math.min(height * 0.32, 48)} color={theme.textMuted} />
+      <Ionicons name={FIELD_ICON[field ?? 'ART']} size={iconSize ?? Math.min(height * 0.32, 48)} color={theme.textMuted} />
       {children}
     </View>
   );

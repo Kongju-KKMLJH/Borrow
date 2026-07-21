@@ -2,20 +2,16 @@ import { View } from 'react-native';
 
 import { AppText } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
-import {
-  ActivityStatusLabel,
-  RequestStatusLabel,
-  type ActivityStatus,
-  type RequestStatus,
-} from '@/data/types';
+import { ActivityStatusLabel, RequestStatusLabel } from '@/lib/format';
+import type { ActivityStatus, RequestStatus } from '@/data/types';
 import { useTheme } from '@/hooks/use-theme';
 
 type Tone = 'primary' | 'secondary' | 'accent' | 'neutral' | 'danger';
 
 const ACTIVITY_TONE: Record<ActivityStatus, Tone> = {
-  draft: 'neutral', pending: 'accent', recruiting: 'secondary', closed: 'neutral', ended: 'neutral', cancelled: 'neutral', rejected: 'danger',
+  DRAFT: 'neutral', PENDING: 'accent', PUBLISHED: 'secondary', REJECTED: 'danger',
 };
-const REQUEST_TONE: Record<RequestStatus, Tone> = { pending: 'accent', approved: 'secondary', rejected: 'danger' };
+const REQUEST_TONE: Record<RequestStatus, Tone> = { PENDING: 'accent', APPROVED: 'secondary', REJECTED: 'danger' };
 
 function Dot({ label, tone }: { label: string; tone: Tone }) {
   const theme = useTheme();

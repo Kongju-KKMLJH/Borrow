@@ -1,31 +1,46 @@
 /**
  * API 클라이언트 베이스.
- * 현재는 목업을 반환하는 `simulate()`를 쓰고, 서버 준비 시 `http`로 교체한다.
+ * 백엔드 공통 규약: 응답은 { success, data, error } 로 감싸지고, 인증은 X-Guest-Id 헤더(UUID)로 한다.
  */
 import Constants from 'expo-constants';
+
+import { getGuestId } from '@/lib/guest';
+import type { ApiResponse } from '@/data/types';
 
 export const API_BASE_URL: string =
   (Constants.expoConfig?.extra?.apiBaseUrl as string) ??
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   'http://localhost:8080';
 
-/** 목업 지연 시뮬레이션 — 실제 네트워크 대체. */
-export function simulate<T>(data: T, ms = 250): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(data), ms));
+/** 서버가 주는 상대 이미지 경로("/files/a.jpg")에 base URL을 붙인다. 이미 절대 URL이면 그대로 둔다. */
+export function imageUri(path?: string | null): string | undefined {
+  if (!path) return undefined;
+  return /^https?:\/\//.test(path) ? path : `${API_BASE_URL}${path}`;
 }
 
-type HttpOptions = { method?: string; body?: unknown; headers?: Record<string, string> };
+export class ApiError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.code = code;
+  }
+}
 
-/**
- * 실제 서버 연동용 fetch 래퍼. 엔드포인트 확정 후 서비스에서 simulate() 대신 사용.
- * 예) return http<Activity[]>('/activities');
- */
+type HttpOptions = { method?: string; body?: unknown };
+
 export async function http<T>(path: string, opts: HttpOptions = {}): Promise<T> {
+  const guestId = await getGuestId();
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: opts.method ?? 'GET',
-    headers: { 'Content-Type': 'application/json', ...opts.headers },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    headers: { 'Content-Type': 'application/json', 'X-Guest-Id': guestId },
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
-  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
-  return res.json() as Promise<T>;
+
+  if (res.status === 204) return undefined as T;
+
+  const json = (await res.json()) as ApiResponse<T>;
+  if (!json.success) {
+    throw new ApiError(json.error?.code ?? 'UNKNOWN', json.error?.message ?? `API ${res.status}: ${path}`);
+  }
+  return json.data;
 }

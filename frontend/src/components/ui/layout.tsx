@@ -79,7 +79,7 @@ export function SectionHeader({
   );
 }
 
-/** 상단 브랜드 바 — 좌측 Borrow 로고 + 우측 액션(역할 전환 등) */
+/** 상단 브랜드 바 — 좌측 아트민 로고 + 우측 액션(역할 전환 등) */
 export function BrandBar({
   right,
   onLogoPress,
@@ -100,7 +100,7 @@ export function BrandBar({
       <Pressable onPress={onLogoPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Ionicons name="cube" size={22} color={theme.primary} />
         <AppText variant="h2" tint={theme.primary}>
-          Borrow
+          아트민
         </AppText>
       </Pressable>
       {right}

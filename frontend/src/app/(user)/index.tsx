@@ -12,7 +12,7 @@ import { useAsync } from '@/hooks/use-async';
 const CATEGORIES = ['취미 모임', '전문 클래스', '그림', '촬영'];
 
 export default function UserHome() {
-  const { data: activities } = useAsync(() => activitiesApi.listActivities());
+  const { data: activities } = useAsync(() => activitiesApi.listActivities(), [], { refetchOnFocus: true });
   const list = activities ?? [];
 
   return (

@@ -85,7 +85,7 @@ export function BrandHeader({ right, subtitle }: { right?: React.ReactNode; subt
   return (
     <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.sm, gap: Spacing.sm }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <AppText variant="h2" tint={theme.primary}>Borrow</AppText>
+        <AppText variant="h2" tint={theme.primary}>아트민</AppText>
         {right}
       </View>
       {subtitle ? <AppText variant="caption" color="textMuted">{subtitle}</AppText> : null}
