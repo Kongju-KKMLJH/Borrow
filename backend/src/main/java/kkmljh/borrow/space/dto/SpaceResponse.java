@@ -4,6 +4,7 @@ import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.FacilityType;
 import kkmljh.borrow.domain.Space;
 
+import java.util.List;
 import java.util.Set;
 
 /** 공간 상세/목록 응답 */
@@ -12,7 +13,7 @@ public record SpaceResponse(
         String name,
         String region,
         String address,
-        String imageUrl,
+        List<String> imageUrls,
         int capacity,
         int hourlyFee,
         String conditions,
@@ -27,7 +28,7 @@ public record SpaceResponse(
                 space.getName(),
                 space.getRegion(),
                 space.getAddress(),
-                space.getImageUrl(),
+                space.getImageUrls(),
                 space.getCapacity(),
                 space.getHourlyFee(),
                 space.getConditions(),

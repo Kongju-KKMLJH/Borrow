@@ -7,6 +7,7 @@ import kkmljh.borrow.domain.ActivityType;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 /** U-01 목록 / U-13 내 활동 카드용 요약 응답 */
 public record ActivitySummaryResponse(
@@ -14,6 +15,7 @@ public record ActivitySummaryResponse(
         ActivityType type,
         ActivityField field,
         String title,
+        List<String> imageUrls,
         String hostNickname,
         boolean hostCertified,
         LocalDate date,
@@ -32,6 +34,7 @@ public record ActivitySummaryResponse(
                 a.getType(),
                 a.getField(),
                 a.getTitle(),
+                a.getImageUrls(),
                 a.getHostNickname(),
                 a.isHostCertified(),
                 a.getDate(),
