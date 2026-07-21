@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Dimensions, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { activitiesApi } from '@/api';
+import { activitiesApi, imageUri } from '@/api';
 import { ApiError } from '@/api/client';
 import { ImagePlaceholder } from '@/components/placeholder';
 import { ScreenHeader } from '@/components/nav';
@@ -66,7 +67,12 @@ export default function ActivityDetail() {
       <ScreenHeader title="활동 상세" />
       <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xxxl }} showsVerticalScrollIndicator={false}>
         {/* 히어로 */}
-        <ImagePlaceholder field={activity.field} height={220} radius="sm" style={{ borderRadius: 0, marginHorizontal: 0 }}>
+        <View style={{ height: 220 }}>
+          {activity.imageUrls && activity.imageUrls.length > 0 ? (
+            <ImageGallery urls={activity.imageUrls} />
+          ) : (
+            <ImagePlaceholder field={activity.field} height={220} radius="sm" style={{ borderRadius: 0, marginHorizontal: 0 }} />
+          )}
           <View style={{ position: 'absolute', top: Spacing.lg, left: Spacing.lg, flexDirection: 'row', gap: 6 }}>
             <Badge label={ActivityTypeLabel[activity.type]} tone="solid" />
             <Badge label={ActivityFieldLabel[activity.field]} tone="primary" />
@@ -74,7 +80,7 @@ export default function ActivityDetail() {
           <View style={{ position: 'absolute', top: Spacing.lg, right: Spacing.lg }}>
             <ActivityStatusBadge status={activity.status} />
           </View>
-        </ImagePlaceholder>
+        </View>
 
         <View style={{ padding: Spacing.xl, gap: Spacing.xl }}>
           {/* 소개 */}
@@ -166,6 +172,35 @@ export default function ActivityDetail() {
         </View>
       )}
     </SafeAreaView>
+  );
+}
+
+/** 활동 이미지 가로 스와이프 갤러리 + 페이지 인디케이터. */
+function ImageGallery({ urls }: { urls: string[] }) {
+  const [page, setPage] = useState(0);
+  const width = Dimensions.get('window').width;
+  return (
+    <View style={{ width, height: 220 }}>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}>
+        {urls.map((u, i) => (
+          <Image key={`${u}-${i}`} source={{ uri: imageUri(u) }} style={{ width, height: 220 }} contentFit="cover" transition={150} />
+        ))}
+      </ScrollView>
+      {urls.length > 1 && (
+        <View style={{ position: 'absolute', bottom: Spacing.md, alignSelf: 'center', flexDirection: 'row', gap: 5 }}>
+          {urls.map((_, i) => (
+            <View
+              key={i}
+              style={{ width: i === page ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: i === page ? '#FFFFFF' : 'rgba(255,255,255,0.5)' }}
+            />
+          ))}
+        </View>
+      )}
+    </View>
   );
 }
 
