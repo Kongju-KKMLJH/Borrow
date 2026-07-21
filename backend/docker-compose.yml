@@ -1,0 +1,19 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: borrow-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: borrow
+      MYSQL_USER: borrow
+      MYSQL_PASSWORD: borrow1234
+      MYSQL_ROOT_PASSWORD: root1234
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+volumes:
+  mysql-data:
