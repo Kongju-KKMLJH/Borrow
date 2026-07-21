@@ -24,6 +24,7 @@ public enum ErrorCode {
 
     // 공간 / 개최요청 (B)
     SPACE_NOT_FOUND(HttpStatus.NOT_FOUND, "공간을 찾을 수 없습니다."),
+    SLOT_NOT_FOUND(HttpStatus.NOT_FOUND, "유휴 시간대를 찾을 수 없습니다."),
     REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "개최 요청을 찾을 수 없습니다."),
     ALREADY_REQUESTED(HttpStatus.CONFLICT, "이미 개최 요청이 존재합니다."),
     REQUEST_ALREADY_HANDLED(HttpStatus.CONFLICT, "이미 처리된 요청입니다."),
