@@ -3,7 +3,7 @@ package kkmljh.borrow.activity.service;
 import jakarta.persistence.EntityManager;
 import kkmljh.borrow.activity.dto.HostingRequestResponse;
 import kkmljh.borrow.activity.repository.ActivityRepository;
-import kkmljh.borrow.activity.repository.HostingRequestRepository;
+import kkmljh.borrow.activity.repository.ActivityHostingRequestRepository;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
 import kkmljh.borrow.domain.Activity;
@@ -21,10 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class HostingRequestService {
+public class ActivityHostingRequestService {
 
     private final ActivityRepository activityRepository;
-    private final HostingRequestRepository hostingRequestRepository;
+    private final ActivityHostingRequestRepository hostingRequestRepository;
     private final EntityManager entityManager;
 
     /**
