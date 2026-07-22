@@ -11,12 +11,15 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OrderColumn;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /** 유휴 공간 (B-02 기본정보, B-03 시설, B-04 허용활동, B-06 이용조건) */
@@ -38,7 +41,12 @@ public class Space {
 
     private String address;
 
-    private String imageUrl;
+    /** 공간 사진 URL 목록 (앱에서 촬영/선택 후 업로드하여 받은 상대 URL들, 순서 보존) */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "space_image", joinColumns = @JoinColumn(name = "space_id"))
+    @OrderColumn(name = "sort_order")
+    @Column(name = "image_url", length = 1000)
+    private List<String> imageUrls = new ArrayList<>();
 
     @Column(nullable = false)
     private int capacity;
@@ -71,14 +79,14 @@ public class Space {
     private boolean messAllowed;
 
     @Builder
-    private Space(String name, String region, String address, String imageUrl,
+    private Space(String name, String region, String address, List<String> imageUrls,
                   int capacity, int hourlyFee, String conditions,
                   Set<FacilityType> facilities, Set<ActivityField> allowedFields,
                   boolean noiseAllowed, boolean messAllowed) {
         this.name = name;
         this.region = region;
         this.address = address;
-        this.imageUrl = imageUrl;
+        if (imageUrls != null) this.imageUrls = imageUrls;
         this.capacity = capacity;
         this.hourlyFee = hourlyFee;
         this.conditions = conditions;
@@ -88,11 +96,12 @@ public class Space {
         this.messAllowed = messAllowed;
     }
 
-    public void updateBasicInfo(String name, String region, String address, String imageUrl, int capacity) {
+    public void updateBasicInfo(String name, String region, String address, List<String> imageUrls, int capacity) {
         this.name = name;
         this.region = region;
         this.address = address;
-        this.imageUrl = imageUrl;
+        this.imageUrls.clear();
+        if (imageUrls != null) this.imageUrls.addAll(imageUrls);
         this.capacity = capacity;
     }
 

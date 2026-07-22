@@ -5,3 +5,10 @@ build/
 .DS_Store
 out/
 bin/
+
+# 민감 정보 노출 방지: yml 설정 파일은 커밋 금지 (DB 자격 증명 등)
+# 실제 값은 .env로 관리, application.yml은 ${플레이스홀더}만 사용
+# docker-compose.yml은 공유가 필요하므로 예외
+*.yml
+*.yaml
+!docker-compose.yml

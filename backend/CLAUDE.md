@@ -22,6 +22,9 @@
 세 명이 각자 브랜치에서 병렬 작업 중이다. **담당 패키지 밖의 파일은 읽기만 하고 절대 수정하지 마라.**
 수정이 꼭 필요하면 코드를 고치지 말고 사용자에게 알리고 멈춰라.
 
+> **백엔드 리더 예외 (A):** A는 백엔드 리더로서 **모든 파일·영역(common/domain/ai/space/activity, build.gradle, application.yml 포함)을 수정할 권한**을 가진다. 단 A는 남의 도메인을 건드릴 때 해당 담당자와 공유하고, 도메인 엔티티(`domain/`) 구조 변경은 여전히 팀에 공지한다.
+> **B, C는 이 리더 예외의 대상이 아니다.** B와 C는 위 소유권 경계를 **반드시** 준수하며, 담당 패키지 밖은 읽기만 한다.
+
 | 패키지 | 담당 | 내용 |
 |---|---|---|
 | `common/` | A | 응답 포맷, 예외, 게스트 인터셉터, 설정 — **동결됨, A만 수정** |
@@ -32,6 +35,16 @@
 
 - `build.gradle`, `application.yml` 변경도 A 담당. 필요하면 요청할 것.
 - `HostingRequest` 엔티티는 B 소유. C는 생성(U-11)/조회(U-12) API만 얹는다.
+
+## 🔐 보안 규칙 (필수)
+
+**민감 정보는 절대 소스에 커밋하지 않는다.** DB 자격 증명, API 키, 시크릿 등은 코드/설정 파일에 평문으로 두지 마라.
+
+- `application.yml`을 포함한 `*.yml` / `*.yaml`은 `.gitignore`로 커밋 금지 (`docker-compose.yml`만 예외로 추적).
+- 실제 값은 루트/`backend`의 `.env`로 관리하고, `application.yml`에는 `${DB_URL}`, `${DB_USERNAME}`, `${DB_PASSWORD}` 형태의 **플레이스홀더만** 둔다. 기본값(`${DB_PASSWORD:비밀번호}`)에 실제 값을 넣지 마라.
+- 이미 커밋된 파일은 `.gitignore` 추가만으로 빠지지 않는다. `git rm --cached <파일>`로 추적을 끊어야 한다.
+- 히스토리에 이미 노출된 자격 증명은 파일 수정과 별개로 **비밀번호/키 로테이션**이 필요하다.
+- 새 설정 파일을 추가할 때 시크릿이 들어갈 여지가 있으면 반드시 `.env`로 분리한다.
 
 ## 컨벤션
 
@@ -59,13 +72,32 @@ docker compose up -d          # MySQL 기동 (최초 1회)
 
 AI 기능(A 담당)은 `ANTHROPIC_API_KEY` 환경변수가 필요하다 (Anthropic Java SDK가 자동 인식).
 
-## Git 규칙
+## Git 규칙 (이슈 기반 워크플로우)
 
-- 작업 브랜치: `feat/ai`(A), `feat/space`(B), `feat/activity`(C). 분기/머지 대상은 **`backend` 브랜치** (main 아님).
-- 작업 시작 전: `git pull --rebase origin backend`
-- 기능 하나 완료 시마다(2~3시간 단위) backend에 머지. 오래 묵히지 말 것.
-- **머지 전 `./gradlew compileJava` 통과 필수. backend 브랜치는 항상 컴파일되는 상태를 유지한다.**
-- `backend → main` 머지는 팀 합의 시점에만.
+모든 기능 개발·버그 수정은 **이슈 발급 → 브랜치 분기 → 작은 단위 커밋/푸시 → PR** 순서로 진행한다.
+분기/머지 대상은 항상 **`backend` 브랜치** (main 아님).
+
+1. **이슈 먼저 발급 (필수).** 작업 착수 전 `.github/ISSUE_TEMPLATE/`의 템플릿으로 GitHub 이슈를 만든다.
+   - 기능 개발 → `Feature`(feature.md) / 외부 요청 작업 → `Feature request`(feature_request.md)
+   - 버그 수정 → `Bug`(bug.md) / 질문 → `Question`(question.md)
+   - 템플릿의 상세·체크리스트 항목을 채운다. 발급된 **이슈 번호**를 이후 브랜치·커밋·PR에 사용한다.
+   - 예: `gh issue create --template feature.md` (gh 인증 필요) 또는 GitHub 웹의 이슈 템플릿.
+
+2. **브랜치.** `backend`에서 이슈 단위로 `feat/<기능이름>` 브랜치를 분기해 작업한다.
+   - `git switch backend && git pull --rebase origin backend` 후 `git switch -c feat/<기능이름>`.
+   - 작업은 항상 자기 담당 패키지 안에서만 (위 소유권 경계 표 유지).
+
+3. **커밋.** 작은 작업 단위마다 `[#이슈번호] 커밋 메시지` 형태로 커밋하고 바로 push한다.
+   - 예: `[#12] A-01 활동 분석 서비스 추가`. 한 커밋 = 한 논리 단위, 큰 덩어리로 몰아 커밋하지 말 것.
+
+4. **PR.** 이슈 단위 작업이 모두 끝나면 `.github/PullRequestTemplate.md` 템플릿으로 PR을 생성한다.
+   - 제목 `[#이슈번호] 작업내용`, base 브랜치 **`backend`**.
+   - 본문의 `Closes #<이슈번호>`를 채워 머지 시 이슈가 자동으로 닫히게 한다.
+   - 예: `gh pr create --base backend --title "[#12] AI 공간 매칭" --body-file .github/PullRequestTemplate.md`.
+
+5. **품질 게이트.** PR 올리기 전 `./gradlew compileJava` 통과 필수. `backend` 브랜치는 항상 컴파일되는 상태를 유지한다.
+
+6. `backend → main` 머지는 팀 합의 시점에만.
 
 ## AI 매칭 구현 방침 (A 참고)
 

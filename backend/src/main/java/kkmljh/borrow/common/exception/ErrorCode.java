@@ -14,6 +14,9 @@ public enum ErrorCode {
     GUEST_ID_REQUIRED(HttpStatus.BAD_REQUEST, "X-Guest-Id 헤더가 필요합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "권한이 없습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다."),
+    EMPTY_FILE(HttpStatus.BAD_REQUEST, "빈 파일은 업로드할 수 없습니다."),
+    UNSUPPORTED_FILE_TYPE(HttpStatus.BAD_REQUEST, "이미지 파일만 업로드할 수 있습니다."),
+    FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "파일 업로드에 실패했습니다."),
 
     // 활동 (C)
     ACTIVITY_NOT_FOUND(HttpStatus.NOT_FOUND, "활동을 찾을 수 없습니다."),
@@ -24,7 +27,9 @@ public enum ErrorCode {
 
     // 공간 / 개최요청 (B)
     SPACE_NOT_FOUND(HttpStatus.NOT_FOUND, "공간을 찾을 수 없습니다."),
+    SLOT_NOT_FOUND(HttpStatus.NOT_FOUND, "유휴 시간대를 찾을 수 없습니다."),
     REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "개최 요청을 찾을 수 없습니다."),
+    SPACE_HAS_REQUESTS(HttpStatus.CONFLICT, "개최 요청이 있는 공간은 삭제할 수 없습니다."),
     ALREADY_REQUESTED(HttpStatus.CONFLICT, "이미 개최 요청이 존재합니다."),
     REQUEST_ALREADY_HANDLED(HttpStatus.CONFLICT, "이미 처리된 요청입니다."),
 
