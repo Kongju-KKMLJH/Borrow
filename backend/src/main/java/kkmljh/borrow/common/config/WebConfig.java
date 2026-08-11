@@ -4,7 +4,6 @@ import kkmljh.borrow.common.guest.GuestIdArgumentResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -36,12 +35,6 @@ public class WebConfig implements WebMvcConfigurer {
                 .addResourceLocations(location);
     }
 
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        // 해커톤용: 전체 허용 (Expo 앱/웹에서 접근)
-        registry.addMapping("/**")
-                .allowedOriginPatterns("*")
-                .allowedMethods("*")
-                .allowedHeaders("*");
-    }
+    // CORS 설정은 SecurityConfig 의 CorsConfigurationSource 빈으로 옮겼다.
+    // WebMvc의 addCorsMappings는 Security 필터체인에 적용되지 않아 프리플라이트가 401로 막힌다.
 }
