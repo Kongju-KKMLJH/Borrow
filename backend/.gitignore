@@ -17,3 +17,6 @@ bin/
 *.yml
 *.yaml
 !docker-compose.yml
+
+# 작업용 문서는 커밋하지 않는다
+docs/
