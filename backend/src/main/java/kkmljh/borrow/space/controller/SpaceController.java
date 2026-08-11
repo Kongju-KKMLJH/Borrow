@@ -3,6 +3,7 @@ package kkmljh.borrow.space.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import kkmljh.borrow.common.guest.GuestId;
 import kkmljh.borrow.common.response.ApiResponse;
 import kkmljh.borrow.space.dto.SpaceRequest;
 import kkmljh.borrow.space.dto.SpaceResponse;
@@ -28,34 +29,43 @@ public class SpaceController {
 
     private final SpaceService spaceService;
 
-    @Operation(summary = "B-02 공간 등록", description = "새 공간을 등록한다.")
+    @Operation(summary = "B-02 공간 등록", description = "새 공간을 등록한다. 로그인한 공간 제공자(HOST)가 소유자가 된다.")
     @PostMapping
-    public ApiResponse<SpaceResponse> create(@RequestBody @Valid SpaceRequest request) {
-        return ApiResponse.ok(spaceService.create(request));
+    public ApiResponse<SpaceResponse> create(@GuestId String ownerId,
+                                             @RequestBody @Valid SpaceRequest request) {
+        return ApiResponse.ok(spaceService.create(ownerId, request));
     }
 
-    @Operation(summary = "B-03 공간 목록", description = "등록된 공간 전체 목록.")
+    @Operation(summary = "B-03 공간 목록", description = "등록된 공간 전체 목록. 비로그인 열람 가능.")
     @GetMapping
     public ApiResponse<List<SpaceResponse>> list() {
         return ApiResponse.ok(spaceService.findAll());
     }
 
-    @Operation(summary = "B-04 공간 상세", description = "공간 단건 상세 조회.")
+    @Operation(summary = "내 공간 목록", description = "로그인한 공간 제공자가 등록한 공간만.")
+    @GetMapping("/mine")
+    public ApiResponse<List<SpaceResponse>> mine(@GuestId String ownerId) {
+        return ApiResponse.ok(spaceService.findMySpaces(ownerId));
+    }
+
+    @Operation(summary = "B-04 공간 상세", description = "공간 단건 상세 조회. 비로그인 열람 가능.")
     @GetMapping("/{id}")
     public ApiResponse<SpaceResponse> detail(@PathVariable Long id) {
         return ApiResponse.ok(spaceService.findById(id));
     }
 
-    @Operation(summary = "B-05 공간 수정", description = "공간 정보를 수정한다.")
+    @Operation(summary = "B-05 공간 수정", description = "공간 정보를 수정한다. 소유자 본인만 가능.")
     @PutMapping("/{id}")
-    public ApiResponse<SpaceResponse> update(@PathVariable Long id, @RequestBody @Valid SpaceRequest request) {
-        return ApiResponse.ok(spaceService.update(id, request));
+    public ApiResponse<SpaceResponse> update(@GuestId String ownerId,
+                                             @PathVariable Long id,
+                                             @RequestBody @Valid SpaceRequest request) {
+        return ApiResponse.ok(spaceService.update(ownerId, id, request));
     }
 
-    @Operation(summary = "B-06 공간 삭제", description = "공간을 삭제한다.")
+    @Operation(summary = "B-06 공간 삭제", description = "공간을 삭제한다. 소유자 본인만 가능.")
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
-        spaceService.delete(id);
+    public ApiResponse<Void> delete(@GuestId String ownerId, @PathVariable Long id) {
+        spaceService.delete(ownerId, id);
         return ApiResponse.ok();
     }
 }

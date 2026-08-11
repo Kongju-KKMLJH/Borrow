@@ -2,6 +2,7 @@ package kkmljh.borrow.space.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import kkmljh.borrow.common.guest.GuestId;
 import kkmljh.borrow.common.response.ApiResponse;
 import kkmljh.borrow.space.dto.HostHomeResponse;
 import kkmljh.borrow.space.dto.ScheduleResponse;
@@ -22,15 +23,15 @@ public class HostController {
 
     private final HostService hostService;
 
-    @Operation(summary = "B-01 운영 현황 조회", description = "사업자 홈 대시보드 요약.")
+    @Operation(summary = "B-01 운영 현황 조회", description = "사업자 홈 대시보드 요약. 내 공간 기준으로 집계된다.")
     @GetMapping("/home")
-    public ApiResponse<HostHomeResponse> home() {
-        return ApiResponse.ok(hostService.getHome());
+    public ApiResponse<HostHomeResponse> home(@GuestId String ownerId) {
+        return ApiResponse.ok(hostService.getHome(ownerId));
     }
 
-    @Operation(summary = "B-11 확정 일정 조회", description = "승인되어 확정된 개최 일정 목록.")
+    @Operation(summary = "B-11 확정 일정 조회", description = "내 공간에서 승인되어 확정된 개최 일정 목록.")
     @GetMapping("/schedules")
-    public ApiResponse<List<ScheduleResponse>> schedules() {
-        return ApiResponse.ok(hostService.getConfirmedSchedules());
+    public ApiResponse<List<ScheduleResponse>> schedules(@GuestId String ownerId) {
+        return ApiResponse.ok(hostService.getConfirmedSchedules(ownerId));
     }
 }
