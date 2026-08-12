@@ -35,8 +35,8 @@ class ActivityDtoTest {
             assertThat(entity.getHeadcount()).isEqualTo(6);
             assertThat(entity.getRequiredFacilities())
                     .containsExactlyInAnyOrder(FacilityType.WATER, FacilityType.TABLE);
-            assertThat(entity.isNoisy()).isTrue();
-            assertThat(entity.isMessy()).isFalse();
+            assertThat(entity.getNoisy()).isTrue();
+            assertThat(entity.getMessy()).isFalse();
         }
 
         @Test
@@ -63,6 +63,18 @@ class ActivityDtoTest {
         @DisplayName("요구조건이 없으면 null 을 그대로 돌려준다")
         void fromNull() {
             assertThat(SpaceRequirementDto.from(null)).isNull();
+        }
+
+        /**
+         * 요구조건 없이 개설한 활동은 Hibernate 가 값이 전부 null 인 인스턴스로 되살린다
+         * (@ElementCollection 을 품은 임베더블이라 "전부 NULL 이면 null" 최적화가 적용되지 않는다).
+         * 이때 필드만 null 인 객체를 그대로 내려보내면 프론트의 {@code if (requirement)} 가
+         * truthy 로 뒤집혀 조용히 깨지므로, 응답에서는 null 로 정규화한다.
+         */
+        @Test
+        @DisplayName("값이 전부 비어 있는 요구조건도 null 로 정규화한다")
+        void fromEmptyRequirement() {
+            assertThat(SpaceRequirementDto.from(SpaceRequirement.builder().build())).isNull();
         }
 
         @Test
