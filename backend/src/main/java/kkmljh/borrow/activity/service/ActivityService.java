@@ -5,10 +5,12 @@ import kkmljh.borrow.activity.dto.ActivityDetailResponse;
 import kkmljh.borrow.activity.dto.ActivitySummaryResponse;
 import kkmljh.borrow.activity.dto.RequirementUpdateRequest;
 import kkmljh.borrow.activity.repository.ActivityRepository;
+import kkmljh.borrow.activity.repository.ActivityUserRepository;
 import kkmljh.borrow.activity.repository.ParticipationRepository;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
 import kkmljh.borrow.domain.Activity;
+import kkmljh.borrow.domain.AppUser;
 import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.ActivityStatus;
 import kkmljh.borrow.domain.ActivityType;
@@ -19,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Set;
 
-/** 취미 모임 개설/목록/검색/상세, 내 활동 (U-01~U-03, U-06~U-08, U-13, S-01 노출) */
+/** 활동 개설/목록/검색/상세, 내 활동 (U-01~U-03, U-06~U-08, U-13, S-01 노출) */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -27,17 +29,26 @@ public class ActivityService {
 
     private final ActivityRepository activityRepository;
     private final ParticipationRepository participationRepository;
+    private final ActivityUserRepository userRepository;
 
-    /** U-06~U-08 취미 모임 개설 → DRAFT. 일반 사용자 개설은 항상 HOBBY. */
+    /**
+     * U-06~U-08 활동 개설 → DRAFT.
+     * 유형·인증 배지·표시 이름은 <b>서버가 로그인 역할에서 정한다</b> (요청 DTO로 받으면 위조 가능):
+     * MEMBER → HOBBY / hostCertified=false, ARTIST → CLASS / hostCertified=true (F-01).
+     */
     @Transactional
     public ActivityDetailResponse create(String guestId, ActivityCreateRequest req) {
         validateTimeRange(req);
 
+        AppUser host = userRepository.findByLoginId(guestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        boolean artist = host.isArtist();
+
         Activity activity = Activity.builder()
                 .guestId(guestId)
-                .hostNickname(req.hostNickname())
-                .hostCertified(false) // F-01 인증은 Mock — 시드 데이터로만 true
-                .type(ActivityType.HOBBY)
+                .hostNickname(host.getNickname())
+                .hostCertified(artist)
+                .type(artist ? ActivityType.CLASS : ActivityType.HOBBY)
                 .field(req.field())
                 .title(req.title())
                 .description(req.description())

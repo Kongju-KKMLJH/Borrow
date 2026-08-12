@@ -35,14 +35,14 @@ public class Activity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 개설자 게스트 ID (X-Guest-Id) */
+    /** 개설자 로그인 아이디 */
     @Column(nullable = false)
     private String guestId;
 
     /** 개설자 표시 이름 */
     private String hostNickname;
 
-    /** 인증 예술가 여부 — Mock (F-01). U-03 상세에서 배지 표시용, 시드 데이터로만 true 설정 */
+    /** 인증 예술가 여부 (F-01) — 개설자 역할이 ARTIST일 때 true. U-03 상세의 배지 표시용 */
     @Column(nullable = false)
     private boolean hostCertified;
 

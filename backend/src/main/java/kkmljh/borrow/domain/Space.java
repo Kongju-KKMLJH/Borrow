@@ -32,6 +32,10 @@ public class Space {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** 소유자(공간 제공자)의 로그인 아이디 — 수정·삭제·요청 처리 권한 판정 기준 */
+    @Column(nullable = false)
+    private String ownerId;
+
     @Column(nullable = false)
     private String name;
 
@@ -79,10 +83,11 @@ public class Space {
     private boolean messAllowed;
 
     @Builder
-    private Space(String name, String region, String address, List<String> imageUrls,
+    private Space(String ownerId, String name, String region, String address, List<String> imageUrls,
                   int capacity, int hourlyFee, String conditions,
                   Set<FacilityType> facilities, Set<ActivityField> allowedFields,
                   boolean noiseAllowed, boolean messAllowed) {
+        this.ownerId = ownerId;
         this.name = name;
         this.region = region;
         this.address = address;
@@ -94,6 +99,11 @@ public class Space {
         if (allowedFields != null) this.allowedFields = allowedFields;
         this.noiseAllowed = noiseAllowed;
         this.messAllowed = messAllowed;
+    }
+
+    /** 이 공간의 소유자(공간 제공자)인지 */
+    public boolean isOwnedBy(String loginId) {
+        return this.ownerId.equals(loginId);
     }
 
     public void updateBasicInfo(String name, String region, String address, List<String> imageUrls, int capacity) {

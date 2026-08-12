@@ -15,7 +15,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** 게스트 참여 신청 (U-04 신청, U-05 취소) */
+/** 활동 참여 신청 (U-04 신청, U-05 취소) */
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -30,7 +30,7 @@ public class Participation {
     @JoinColumn(name = "activity_id", nullable = false)
     private Activity activity;
 
-    /** 참여자 게스트 ID (X-Guest-Id) — 취소/내 활동 조회에 사용 */
+    /** 참여자 로그인 아이디 — 취소/내 활동 조회에 사용 */
     @Column(nullable = false)
     private String guestId;
 
