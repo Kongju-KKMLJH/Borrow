@@ -31,6 +31,10 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	// 인가 규칙 테스트용 (@WithMockUser, SecurityMockMvcRequestPostProcessors)
+	testImplementation 'org.springframework.security:spring-security-test'
+	// 리포지토리·컨텍스트 테스트를 MySQL 없이 돌리기 위한 인메모리 DB
+	testRuntimeOnly 'com.h2database:h2'
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
