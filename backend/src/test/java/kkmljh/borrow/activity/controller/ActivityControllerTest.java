@@ -2,6 +2,7 @@ package kkmljh.borrow.activity.controller;
 
 import kkmljh.borrow.activity.dto.ActivityDetailResponse;
 import kkmljh.borrow.activity.dto.ActivitySummaryResponse;
+import kkmljh.borrow.activity.dto.RequirementUpdateRequest;
 import kkmljh.borrow.activity.dto.SpaceRequirementDto;
 import kkmljh.borrow.activity.service.ActivityService;
 import kkmljh.borrow.common.config.SecurityConfig;
@@ -14,6 +15,7 @@ import kkmljh.borrow.domain.FacilityType;
 import kkmljh.borrow.support.TestUsers;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -26,6 +28,7 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -288,12 +291,46 @@ class ActivityControllerTest {
                 .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
     }
 
+    /**
+     * 이 테스트는 원래 "요구조건 필드를 빼면 400"(#31)을 고정하고 있었다. #27 수정으로
+     * headcount·noisy·messy 가 래퍼 타입이 되면서 해당 결함이 이 하위 DTO 에 한해 해소됐다.
+     * 이제 생략은 400 이 아니라 null 로 전달된다 — 요구조건은 원래 선택 항목이므로 이쪽이 맞다.
+     */
     @Test
-    @DisplayName("⚠️ 프론트 주의: 원시 타입 필드(headcount·noisy·messy)를 빼면 400 — 항상 전부 담아 보내야 한다")
-    void primitiveFieldsMustBePresent() throws Exception {
+    @DisplayName("요구조건의 인원·소음·오염은 생략할 수 있다 — 생략분은 null 로 전달")
+    void requirementFieldsAreOptional() throws Exception {
+        given(activityService.updateRequirement(eq(TestUsers.MEMBER), eq(1L), any()))
+                .willReturn(detail(ActivityType.HOBBY, false));
+
         mockMvc.perform(patch("/api/activities/1/requirement").with(TestUsers.member())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"requirement\":{\"region\":\"천안시 서북구\",\"headcount\":6}}"))
+                        .content("{\"requirement\":{\"region\":\"천안시 서북구\"}}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<RequirementUpdateRequest> captor =
+                ArgumentCaptor.forClass(RequirementUpdateRequest.class);
+        verify(activityService).updateRequirement(eq(TestUsers.MEMBER), eq(1L), captor.capture());
+
+        SpaceRequirementDto sent = captor.getValue().requirement();
+        assertThat(sent.region()).isEqualTo("천안시 서북구");
+        assertThat(sent.headcount()).isNull();
+        assertThat(sent.noisy()).isNull();
+        assertThat(sent.messy()).isNull();
+    }
+
+    /**
+     * #31 은 개설 요청 쪽에는 그대로 남아 있다. capacity·entryFee 는 여전히 원시 타입이라
+     * 생략하면 본문 해석 단계에서 실패한다. 프론트는 이 둘을 항상 담아 보내야 한다.
+     */
+    @Test
+    @DisplayName("⚠️ 프론트 주의: 개설 요청의 원시 타입 필드(capacity·entryFee)를 빼면 400")
+    void primitiveFieldsMustBePresent() throws Exception {
+        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"field":"ART","title":"수채화 모임","date":"2026-09-12",
+                                 "startTime":"14:00:00","endTime":"16:00:00"}
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
     }
