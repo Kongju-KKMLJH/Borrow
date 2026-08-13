@@ -6,6 +6,7 @@ import kkmljh.borrow.domain.FacilityType;
 import kkmljh.borrow.domain.HostingRequest;
 import kkmljh.borrow.domain.RequestStatus;
 import kkmljh.borrow.domain.Space;
+import kkmljh.borrow.domain.SpaceRequirement;
 import kkmljh.borrow.domain.SpaceSlot;
 import kkmljh.borrow.support.TestFixtures;
 import org.junit.jupiter.api.DisplayName;
@@ -126,6 +127,28 @@ class SpaceDtoTest {
                     .title("제목").date(LocalDate.of(2026, 9, 12))
                     .startTime(LocalTime.of(14, 0)).endTime(LocalTime.of(16, 0))
                     .capacity(8).entryFee(0)
+                    .build();
+            HostingRequest request = TestFixtures.hostingRequest(
+                    7L, TestFixtures.withId(activity, 1L), TestFixtures.space(5L, "host1"));
+
+            assertThat(HostingRequestResponse.from(request).activity().requirement()).isNull();
+        }
+
+        /**
+         * 위 케이스는 {@code getRequirement()} 자체가 null 이지만, DB 에서 되살린 활동은
+         * 값만 전부 null 인 인스턴스로 온다. 정규화는 두 응답 DTO 에서 각각 처리하므로
+         * {@code SpaceRequirementDto} 쪽만 고치고 여기를 빠뜨리기 쉽다 — B-08 도 함께 고정한다.
+         */
+        @Test
+        @DisplayName("값만 전부 비어 있는 요구조건도 null 로 정규화한다")
+        void emptyRequirementIsNormalizedToNull() {
+            Activity activity = Activity.builder()
+                    .guestId("member1").hostNickname("일반회원").hostCertified(false)
+                    .type(kkmljh.borrow.domain.ActivityType.HOBBY).field(ActivityField.ART)
+                    .title("제목").date(LocalDate.of(2026, 9, 12))
+                    .startTime(LocalTime.of(14, 0)).endTime(LocalTime.of(16, 0))
+                    .capacity(8).entryFee(0)
+                    .requirement(SpaceRequirement.builder().build())
                     .build();
             HostingRequest request = TestFixtures.hostingRequest(
                     7L, TestFixtures.withId(activity, 1L), TestFixtures.space(5L, "host1"));
