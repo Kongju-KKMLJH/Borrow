@@ -24,8 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** 취미 모임 개설/목록/검색/상세 (U-01~U-03, U-06~U-08) */
-@Tag(name = "활동 (C)", description = "취미 모임 개설·목록·검색·상세·요구조건 수정 (U-01~U-03, U-06~U-08)")
+/** 활동 개설/목록/검색/상세 (U-01~U-03, U-06~U-08) */
+@Tag(name = "활동 (C)", description = "활동 개설·목록·검색·상세·요구조건 수정 (U-01~U-03, U-06~U-08)")
 @RestController
 @RequestMapping("/api/activities")
 @RequiredArgsConstructor
@@ -34,7 +34,7 @@ public class ActivityController {
     private final ActivityService activityService;
 
     @Operation(summary = "U-06~U-08 취미 모임 개설",
-            description = "취미 모임(HOBBY)을 개설한다. 개설자는 X-Guest-Id로 식별.")
+            description = "활동을 개설한다. MEMBER는 HOBBY, ARTIST는 CLASS(인증 배지 포함)로 서버가 분기한다.")
     @PostMapping
     public ApiResponse<ActivityDetailResponse> create(@GuestId String guestId,
                                                       @Valid @RequestBody ActivityCreateRequest request) {
@@ -42,7 +42,7 @@ public class ActivityController {
     }
 
     @Operation(summary = "U-01/U-02 활동 목록·검색",
-            description = "type/field 필터 + keyword 검색. X-Guest-Id가 있으면 참여 여부(alreadyJoined) 표시.")
+            description = "type/field 필터 + keyword 검색. 비로그인 열람 가능하며, 로그인 상태면 참여 여부(alreadyJoined) 표시.")
     @GetMapping
     public ApiResponse<List<ActivitySummaryResponse>> list(
             @GuestId(required = false) String guestId,
@@ -53,7 +53,7 @@ public class ActivityController {
     }
 
     @Operation(summary = "U-03 활동 상세",
-            description = "활동 단건 상세. X-Guest-Id가 있으면 참여 여부(alreadyJoined) 표시.")
+            description = "활동 단건 상세. 비로그인 열람 가능하며, 로그인 상태면 참여 여부(alreadyJoined) 표시.")
     @GetMapping("/{activityId}")
     public ApiResponse<ActivityDetailResponse> detail(@GuestId(required = false) String guestId,
                                                       @PathVariable Long activityId) {

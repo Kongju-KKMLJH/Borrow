@@ -3,6 +3,7 @@ package kkmljh.borrow.space.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import kkmljh.borrow.common.guest.GuestId;
 import kkmljh.borrow.common.response.ApiResponse;
 import kkmljh.borrow.space.dto.SpaceSlotRequest;
 import kkmljh.borrow.space.dto.SpaceSlotResponse;
@@ -33,17 +34,20 @@ public class SpaceSlotController {
         return ApiResponse.ok(spaceSlotService.findBySpace(spaceId));
     }
 
-    @Operation(summary = "유휴시간 추가", description = "공간에 대여 가능한 유휴시간 슬롯을 추가한다.")
+    @Operation(summary = "유휴시간 추가", description = "공간에 대여 가능한 유휴시간 슬롯을 추가한다. 소유자 본인만 가능.")
     @PostMapping
-    public ApiResponse<SpaceSlotResponse> add(@PathVariable Long spaceId,
+    public ApiResponse<SpaceSlotResponse> add(@GuestId String ownerId,
+                                              @PathVariable Long spaceId,
                                               @RequestBody @Valid SpaceSlotRequest request) {
-        return ApiResponse.ok(spaceSlotService.add(spaceId, request));
+        return ApiResponse.ok(spaceSlotService.add(ownerId, spaceId, request));
     }
 
-    @Operation(summary = "유휴시간 삭제", description = "공간의 유휴시간 슬롯을 삭제한다.")
+    @Operation(summary = "유휴시간 삭제", description = "공간의 유휴시간 슬롯을 삭제한다. 소유자 본인만 가능.")
     @DeleteMapping("/{slotId}")
-    public ApiResponse<Void> delete(@PathVariable Long spaceId, @PathVariable Long slotId) {
-        spaceSlotService.delete(spaceId, slotId);
+    public ApiResponse<Void> delete(@GuestId String ownerId,
+                                    @PathVariable Long spaceId,
+                                    @PathVariable Long slotId) {
+        spaceSlotService.delete(ownerId, spaceId, slotId);
         return ApiResponse.ok();
     }
 }

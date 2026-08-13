@@ -12,10 +12,10 @@ import java.util.Set;
  */
 public record SpaceRequirementDto(
         String region,
-        int headcount,
+        Integer headcount,
         Set<FacilityType> requiredFacilities,
-        boolean noisy,
-        boolean messy
+        Boolean noisy,
+        Boolean messy
 ) {
     public SpaceRequirement toEntity() {
         return SpaceRequirement.builder()
@@ -28,15 +28,16 @@ public record SpaceRequirementDto(
     }
 
     public static SpaceRequirementDto from(SpaceRequirement r) {
-        if (r == null) {
+        // 요구조건 없이 개설한 활동은 값이 전부 null인 인스턴스로 되살아난다 → null로 정규화
+        if (r == null || r.isEmpty()) {
             return null;
         }
         return new SpaceRequirementDto(
                 r.getRegion(),
                 r.getHeadcount(),
                 new HashSet<>(r.getRequiredFacilities()),
-                r.isNoisy(),
-                r.isMessy()
+                r.getNoisy(),
+                r.getMessy()
         );
     }
 }
