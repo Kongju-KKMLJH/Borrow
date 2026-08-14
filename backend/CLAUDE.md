@@ -2,6 +2,8 @@
 
 유휴공간 대여 및 서비스의 Spring Boot 백엔드. 해커톤 MVP이므로 **빠르고 단순하게**, 과한 추상화 금지.
 
+> 이 문서가 다루는 범위는 **로그인·인증·인가 도입까지**다. 배포 전환(호스팅 형태, 전송 구간, 배포 DB, 운영 설정 주입)은 이 문서에서 다루지 않는다. 별도 문서·별도 이슈로 진행한다.
+
 ## 서비스 핵심 플로우
 
 취미 모임 개설(일반 회원) → AI 공간 매칭 → 개최 요청 전송 → 공간 제공자 승인 → 활동 자동 공개(S-01) → 다른 회원 참여 신청
@@ -69,6 +71,10 @@ return auth.getName();           // 로그인 아이디가 guestId 자리에 들
 
 **CORS는 `CorsConfigurationSource` 빈으로 옮긴다.** 기존 `WebConfig.addCorsMappings` 설정은 Security 필터체인에 적용되지 않아, 필터체인에 `.cors(Customizer.withDefaults())`만 켜두면 프리플라이트(`OPTIONS`)가 401로 막힌다. 설정을 빈으로 등록해야 필터가 그 값을 읽는다.
 
+현재 값은 해커톤용 전체 허용(`setAllowedOriginPatterns(List.of("*"))`)이며, 이번 작업에서는 **값을 그대로 유지**한다. 옮기는 것은 설정의 위치이지 허용 범위가 아니다. 허용 Origin을 좁히는 판단은 이 문서 범위 밖.
+
+> ⚠️ `allowCredentials(true)`와 와일드카드 Origin은 **함께 쓸 수 없다.** Basic 인증은 `Authorization` 헤더로 자격증명을 보내므로 `allowCredentials`를 켤 필요가 없다. 습관적으로 켜지 마라 — 켜는 순간 위 와일드카드 설정이 깨진다.
+
 ### 회원가입 / 로그인
 
 - `POST /api/auth/signup` — 로그인아이디·비밀번호·닉네임·역할. 아이디 중복이면 `DUPLICATE_LOGIN_ID`.
@@ -126,7 +132,7 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 - 이미 커밋된 파일은 `.gitignore` 추가만으로 빠지지 않는다. `git rm --cached <파일>`로 추적을 끊고, 노출된 자격 증명은 **로테이션**한다.
 - **비밀번호는 BCrypt 해시로만 저장**하고, 응답 DTO에 절대 담지 않는다(`AppUser` 엔티티 노출 금지).
 - 데모 계정의 아이디/비번을 소스에 하드코딩하지 않는다. 로그에 `Authorization` 헤더나 비밀번호를 찍지 마라.
-- LAN 평문 HTTP 전제이므로 **실제 개인정보를 넣고 시연하지 않는다.**
+- **데모 수준 운영이므로 실제 개인정보를 넣고 시연하지 않는다.** 계정·닉네임 모두 테스트용 값을 쓴다.
 
 ## 컨벤션
 
@@ -225,7 +231,7 @@ yonggyu/feat/*  →  yonggyu/backend  →  backend
 1. `spring-boot-starter-security` 의존성 추가
 2. `domain/AppUser` + `domain/Role`, `Space.ownerId` 추가
 3. `AppUserRepository`(`findByLoginId`, `existsByLoginId`) + `AppUserDetailsService`
-4. `SecurityConfig` — `PasswordEncoder`, 필터체인, 경로별 권한(순서 주의), Basic, entryPoint/deniedHandler
+4. `SecurityConfig` — `PasswordEncoder`, 필터체인, 경로별 권한(순서 주의), Basic, entryPoint/deniedHandler, CORS 빈
 5. `GuestIdArgumentResolver` 내부를 SecurityContext 기반으로 교체
 6. `/api/auth/signup`, `/api/auth/me`
 7. `OpenApiConfig` — `X-Guest-Id` 헤더 노출 제거, Basic SecurityScheme 추가
@@ -239,6 +245,19 @@ yonggyu/feat/*  →  yonggyu/backend  →  backend
   - 개최요청: `/api/host/requests` 목록·상세·승인·거절 — **내 공간에 온 요청만**
   - 사업자 홈: `/api/host/home`, `/api/host/schedules`의 집계 범위를 내 공간으로 한정
   - `GET /api/spaces` 목록·상세는 비로그인 열람이므로 그대로 둔다.
+  - **역할 검사만으로는 막히지 않는다.** `hasRole("HOST")`는 "사업자인가"만 보고 "내 공간인가"는 보지 않는다. 두 검사는 반드시 함께 간다.
 - **ARTIST 역할이 의미를 가지려면 활동 개설 로직 분기가 필요하다.** 현재 `ActivityService`는 `type=HOBBY`, `hostCertified=false` 하드코딩이다. 역할 분기를 넣으면 "CLASS 개설 API 없음"·"hostCertified Mock" 두 TODO가 함께 해소된다.
 - **기존 게스트 데이터는 호환되지 않는다.** `Activity.guestId`의 UUID와 새 로그인 아이디는 다른 값이라 소유권 판정이 깨진다. **DB를 비우고 시작하는 게 빠르다.**
 - **`AppUser` 테이블 생성 방식은 로컬 `application.yml`의 `ddl-auto`에 달렸다.** 이 파일은 저장소에 없으므로(gitignore) 자동 생성 여부는 직접 확인해야 한다.
+
+### 후속 작업 (이번 문서 갱신 범위 밖 — 건드리지 말 것)
+
+아래는 인증 도입 범위 밖이다. 나중에 **별도 이슈에서** 처리한다.
+내가 명령하지 않는 한 건들지 말 것.
+
+| 대상 | 왜 |
+|---|---|
+| `README.md`의 "LAN 실행 전략" 절 | 같은 Wi-Fi, PC LAN IP, 방화벽 8080, 에뮬레이터 `10.0.2.2` 안내. 서버를 어디에 두느냐가 정해지면 통째로 다시 쓴다 |
+| 프론트 `api.ts`의 `BASE_URL` | 서버 주소가 바뀌면 교체 대상. 단 `imageUrls`가 상대 경로라 **base URL만 갈아끼우면 되는 설계는 그대로 유효하다** |
+| `FileStorageService`의 S3 등 교체 | 서버 운영 형태가 정해진 뒤 판단한다 |
+| `PROJECT_CONTEXT.md` | 인증 도입 후 1·5·6·9절이 전부 갱신 대상이다 |
