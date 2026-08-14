@@ -63,11 +63,26 @@ return auth.getName();           // 로그인 아이디가 guestId 자리에 들
 
 > ⚠️ **규칙은 위에서부터 먼저 매칭되는 것이 이긴다.** 비로그인 `GET` 줄을 `/api/spaces/** hasRole("HOST")` 줄보다 **위에** 둬야 목록 조회가 안 막힌다. 이 설정에서 제일 흔한 버그가 순서 실수다.
 
+> ⚠️ **공개 노출 시 아래 permitAll 항목은 재검토가 필요하다.** LAN에서는 팀원만 접근했으므로 문제가 안 됐다. **표의 권한 값을 임의로 바꾸지 마라 — 결정된 뒤에 반영한다.**
+>
+> | 대상 | 공개 노출 시 문제 |
+> |---|---|
+> | `POST /api/auth/signup` (permitAll) | 무제한 가입이 가능해진다. 초대 코드·가입 제한 여부를 결정해야 한다 `(미확정 — 결정 필요)` |
+> | Swagger (permitAll) | 전체 API 구조가 외부에 공개된다. 접근 제한 여부를 결정해야 한다 `(미확정 — 결정 필요)` |
+> | `/files/**` (permitAll) | UUID 파일명이라 추측은 어렵지만, **URL을 아는 사람은 누구나 접근**한다. 접근 제어는 없다 |
+
 > ⚠️ **ARTIST는 별도 엔드포인트가 없다.** 활동 개설은 MEMBER와 같은 API를 쓰고 서버가 역할을 보고 CLASS로 분기할 뿐이다. 따라서 활동 관련 규칙은 반드시 **`hasAnyRole("MEMBER", "ARTIST")`** 로 쓴다 — `hasRole("MEMBER")`로 쓰면 예술가가 활동을 못 만든다.
 
 권한 규칙은 `SecurityConfig` **한 곳에** 모은다. `@PreAuthorize`를 서비스마다 흩뿌리지 마라.
 
 **CORS는 `CorsConfigurationSource` 빈으로 옮긴다.** 기존 `WebConfig.addCorsMappings` 설정은 Security 필터체인에 적용되지 않아, 필터체인에 `.cors(Customizer.withDefaults())`만 켜두면 프리플라이트(`OPTIONS`)가 401로 막힌다. 설정을 빈으로 등록해야 필터가 그 값을 읽는다.
+
+**전체 허용은 외부 노출 전에 해제한다.** 현재 설정은 해커톤용 전체 허용(`setAllowedOriginPatterns(List.of("*"))`)이다. 외부 노출 상태에서 그대로 두지 마라.
+
+- 허용 Origin을 앱/프론트 주소로 좁힌다. 구체적인 Origin 값은 배포 주소가 정해진 뒤 채운다 → 지금은 `(미확정)`.
+- Origin 비교는 **스킴까지 포함**한다. `http://…` → `https://…`로 바뀌면 허용 목록 값도 함께 바꿔야 한다.
+
+> ⚠️ `allowCredentials(true)`와 와일드카드 Origin은 **함께 쓸 수 없다.** 둘 다 필요하면 Origin을 명시해야 한다.
 
 ### 회원가입 / 로그인
 
@@ -126,7 +141,21 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 - 이미 커밋된 파일은 `.gitignore` 추가만으로 빠지지 않는다. `git rm --cached <파일>`로 추적을 끊고, 노출된 자격 증명은 **로테이션**한다.
 - **비밀번호는 BCrypt 해시로만 저장**하고, 응답 DTO에 절대 담지 않는다(`AppUser` 엔티티 노출 금지).
 - 데모 계정의 아이디/비번을 소스에 하드코딩하지 않는다. 로그에 `Authorization` 헤더나 비밀번호를 찍지 마라.
-- LAN 평문 HTTP 전제이므로 **실제 개인정보를 넣고 시연하지 않는다.**
+
+### 전송 구간 — 외부 배포 전제
+
+**배포 대상은 가비아 서버다. 같은 Wi-Fi 전제는 사라졌고, 서버는 인터넷에 노출된다.**
+
+- **HTTP Basic은 매 요청마다 `base64(로그인아이디:비밀번호)`를 보낸다.** base64는 암호화가 아니라 되돌릴 수 있는 인코딩이다. LAN 안에서는 감수할 만했지만, 외부 노출 구간에서는 **비밀번호가 요청마다 평문으로 흐르는 것과 같다.**
+
+> ⚠️ **TLS(HTTPS)는 선택이 아니라 전제 조건이다. HTTPS 없이 외부에 열지 마라.**
+
+> ⚠️ **JWT나 세션으로 바꿔도 이 문제는 해결되지 않는다.** 평문 구간이면 토큰도 똑같이 탈취된다. Basic → JWT 전환을 이 문제의 해법으로 삼지 마라. **해법은 TLS다.** 인증 *방식*은 그대로 둔다 — 바뀌는 것은 전송 구간의 안전 전제뿐이다.
+
+- **TLS 종단 위치는 `(미확정 — 결정 필요)`.** 앞단(리버스 프록시)에서 종단하면 **서버 인증 코드도 앱 인증 코드도 바뀌지 않는다.** 프록시가 HTTPS를 받아 백엔드에 평문 HTTP로 넘기므로 톰캣이 받는 요청은 지금과 동일하다. 프론트의 cleartext 예외 설정(`usesCleartextTraffic`, `NSAllowsArbitraryLoads`)만 제거하면 된다.
+- **공개 노출 + 데모 수준 운영이므로 실제 개인정보를 넣고 시연하지 않는다.** (LAN이라서가 아니다. LAN 전제가 사라져도 이 규칙은 유지된다.)
+- **배포 설정은 환경변수 / `.env`로 주입한다 (결정됨).** `application.yml`은 gitignore라 저장소에 없으므로, 배포 서버에서 `DB_URL`·`DB_PASSWORD`·`ANTHROPIC_API_KEY`를 환경변수로 넣고 `application.yml`에는 플레이스홀더만 둔다. 설정 파일을 저장소에 커밋해 배포하지 마라.
+- **배포 환경 DB 위치는 `(미확정 — 결정 필요)`.** 현재 문서는 로컬 `docker compose`의 MySQL만 전제한다. 같은 서버에서 docker로 띄우기로 하면 **3306을 외부에 열지 않는다.**
 
 ## 컨벤션
 
@@ -158,8 +187,13 @@ docker compose up -d          # MySQL 기동 (최초 1회)
 ./gradlew compileJava         # 커밋 전 필수 빌드 확인
 ./gradlew test                # PR 전 필수 테스트 (compileJava와 함께 품질 게이트)
 
-curl -u myid:mypw http://localhost:8080/api/auth/me   # 인증 확인
+curl -u myid:mypw http://localhost:8080/api/auth/me   # 인증 확인 (로컬 전용)
+
+# 배포 환경 확인용 — 주소가 정해진 뒤 채운다
+# curl -u myid:mypw https://(미확정)/api/auth/me
 ```
+
+위 `docker compose`·`bootRun`·`localhost` 명령은 **전부 로컬 개발용**이다. 배포 환경 기동·확인 명령은 배포 형태와 주소가 정해진 뒤 추가한다 `(미확정 — 결정 필요)`.
 
 테스트는 **DB·도커 없이** 돌아간다. 컨텍스트가 필요한 테스트(`@IntegrationTest`, `@RepositoryTest`, `BorrowApplicationTests`)는
 인메모리 H2를 애노테이션 안에서 직접 지정한다 — `application.yml`은 커밋되지 않으므로 여기에 의존하면 안 된다.
@@ -232,6 +266,18 @@ yonggyu/feat/*  →  yonggyu/backend  →  backend
 8. 공간·개최요청·사업자 홈에 `ownerId` 소유자 검증 반영, 활동·참여 DTO에서 닉네임 필드 제거
 9. 프론트에 헤더 교체(`X-Guest-Id` → `Authorization`) 및 요청 DTO 변경 사항 전달
 
+## 배포 전환 작업 순서 (별도 이슈 — 위 인증 도입과 분리)
+
+> ⚠️ **인증 도입과 배포 전환을 한 브랜치에 섞지 마라.** 섞으면 장애가 났을 때 인증 문제인지 배포 문제인지 분리가 안 된다. 위 1~9가 끝난 뒤 별도 이슈·별도 브랜치로 진행한다.
+
+1. 배포 형태 결정 (가비아 상품군) `(미확정 — 결정 필요)` — 이에 따라 `FileStorageService`의 로컬 디스크 저장이 재시작 시 유실되는지가 갈린다
+2. 배포 환경 DB 위치 결정 `(미확정 — 결정 필요)`
+3. TLS 종단 구성 `(미확정 — 결정 필요)` — 앞단 종단이면 백엔드 코드 변경 없음
+4. 환경변수/`.env`로 설정 주입 (결정됨) + 배포 스크립트
+5. CORS 허용 Origin을 배포 주소로 좁히기
+6. permitAll 재검토 결과 반영 (signup 가입 제한, Swagger 접근 제한)
+7. 프론트 cleartext 예외 설정 제거, `BASE_URL` 교체
+
 ## 알려진 제약 / 같이 처리할 것
 
 - **`Space.ownerId`를 추가한다 (도입 확정).** 현재 `Space`에는 소유자 필드가 없어, `hasRole("HOST")`만 걸면 로그인한 아무 사업자나 **남의 공간을 수정하고 남의 요청을 승인할 수 있다.** 등록(`POST /api/spaces`) 시 `@GuestId` 값으로 `ownerId`를 채우고, 아래 지점에 소유자 비교를 넣는다 — 활동 쪽이 이미 쓰는 패턴과 동일하다.
@@ -239,6 +285,18 @@ yonggyu/feat/*  →  yonggyu/backend  →  backend
   - 개최요청: `/api/host/requests` 목록·상세·승인·거절 — **내 공간에 온 요청만**
   - 사업자 홈: `/api/host/home`, `/api/host/schedules`의 집계 범위를 내 공간으로 한정
   - `GET /api/spaces` 목록·상세는 비로그인 열람이므로 그대로 둔다.
+  - **외부 노출 환경에서는 이 검증이 선택이 아니라 필수다.** LAN에서는 팀원만 접근했지만, 공개 상태에서는 가입한 아무 HOST 계정이나 남의 공간을 수정하고 남의 요청을 승인할 수 있다.
 - **ARTIST 역할이 의미를 가지려면 활동 개설 로직 분기가 필요하다.** 현재 `ActivityService`는 `type=HOBBY`, `hostCertified=false` 하드코딩이다. 역할 분기를 넣으면 "CLASS 개설 API 없음"·"hostCertified Mock" 두 TODO가 함께 해소된다.
 - **기존 게스트 데이터는 호환되지 않는다.** `Activity.guestId`의 UUID와 새 로그인 아이디는 다른 값이라 소유권 판정이 깨진다. **DB를 비우고 시작하는 게 빠르다.**
 - **`AppUser` 테이블 생성 방식은 로컬 `application.yml`의 `ddl-auto`에 달렸다.** 이 파일은 저장소에 없으므로(gitignore) 자동 생성 여부는 직접 확인해야 한다.
+
+### 후속 작업 (이번 문서 갱신 범위 밖 — 건드리지 말 것)
+
+배포 전환으로 무효가 되지만 **별도 이슈에서** 처리한다.
+
+| 대상 | 왜 |
+|---|---|
+| `README.md`의 "LAN 실행 전략" 절 | 같은 Wi-Fi, PC LAN IP, 방화벽 8080, 에뮬레이터 `10.0.2.2` 안내가 전부 무효가 된다. 통째로 다시 쓴다 |
+| 프론트 `api.ts`의 `BASE_URL` | LAN IP → 배포 주소. 단 `imageUrls`가 상대 경로라 **base URL만 갈아끼우면 되는 설계는 그대로 유효하다** |
+| `FileStorageService`의 S3 등 교체 | 배포 형태가 정해진 뒤 판단한다 |
+| `PROJECT_CONTEXT.md` | 인증 도입 후 1·5·6·9절이 전부 갱신 대상이다 |
