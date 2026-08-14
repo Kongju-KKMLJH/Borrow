@@ -97,7 +97,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** 해커톤용 전체 허용 (Expo 앱/웹/LAN). WebConfig가 아니라 여기 빈으로 둬야 필터가 읽는다. */
+    /** 해커톤용 전체 허용 (Expo 앱/웹). WebConfig가 아니라 여기 빈으로 둬야 필터가 읽는다. */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

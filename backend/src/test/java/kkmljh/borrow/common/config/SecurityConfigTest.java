@@ -375,10 +375,10 @@ class SecurityConfigTest {
     @DisplayName("CORS 설정이 프리플라이트 응답에 반영된다")
     void corsHeaders() throws Exception {
         mockMvc.perform(options("/api/spaces")
-                        .header("Origin", "http://192.168.0.10:8081")
+                        .header("Origin", "http://borrow-server.example:8081")
                         .header("Access-Control-Request-Method", HttpMethod.POST.name()))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .header().string("Access-Control-Allow-Origin", "http://192.168.0.10:8081"));
+                        .header().string("Access-Control-Allow-Origin", "http://borrow-server.example:8081"));
     }
 }

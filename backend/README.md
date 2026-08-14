@@ -51,6 +51,24 @@ Swagger UI 우측 상단 **Authorize** 버튼에 아이디/비밀번호를 넣�
 ARTIST 개설 → `type=CLASS`·`hostCertified=true`. 개설자/참여자 닉네임도 계정 값으로 서버가 채우므로
 요청 본문에 `type`·`hostCertified`·`hostNickname`·`nickname`을 보내지 않는다.
 
+### 회원 정보는 DB에 적재된다
+
+가입한 계정은 **`app_user` 테이블에 저장**된다. 요청 헤더에만 존재하다 사라지던
+기존 게스트(UUID) 방식과 달리, 서버를 재시작해도 계정은 남는다.
+
+| 컬럼 | 내용 |
+|---|---|
+| `login_id` | 로그인 아이디. **유니크** — 중복 가입은 409 `DUPLICATE_LOGIN_ID` |
+| `password` | **BCrypt 해시**. 평문으로 저장하지 않고 응답 DTO에도 담지 않는다 |
+| `nickname` | 활동 개설자·참여자 표시 이름의 원본 |
+| `role` | `MEMBER` / `HOST` / `ARTIST` — 문자열로 저장 |
+
+- **매 요청마다 DB를 조회해 자격증명을 검증한다**(`AppUserDetailsService`). 따라서 **DB가 떠 있지 않으면
+  로그인 자체가 되지 않는다** — 비로그인 공개 조회만 응답한다.
+- `loginId` 값이 **소유권 판정의 기준값**이다. `Activity.guestId`, `Participation.guestId`,
+  `Space.ownerId`에 이 값이 그대로 들어가므로, 가입 후 아이디는 바꾸지 않는다.
+- 테이블은 JPA `ddl-auto` 설정으로 생성된다.
+
 > 기존 게스트(UUID) 데이터는 로그인 아이디와 값이 달라 소유권 판정이 깨진다. **DB를 비우고 시작할 것.**
 
 ---
@@ -58,7 +76,7 @@ ARTIST 개설 → `type=CLASS`·`hostCertified=true`. 개설자/참여자 닉네
 ## 이미지 업로드 (모바일 앱 MVP)
 
 앱(Expo)에서 카메라 촬영·갤러리 선택 이미지를 **여러 장** 올리고 URL로 조회하는 구조.
-현재는 **배포 없이 LAN의 PC 한 대를 서버로** 쓰는 것을 전제로, 파일을 서버 로컬 디스크에 저장한다.
+파일은 서버 로컬 디스크에 저장하고, 앱은 HTTP로 그 URL을 받아 조회한다.
 
 - 저장 위치: 서버 로컬 `uploads/` (환경변수 `UPLOAD_DIR`로 변경 가능)
 - 조회 경로: `/files/**` 정적 서빙
@@ -85,33 +103,36 @@ POST /api/spaces      또는   POST /api/activities        Content-Type: applica
 
 **3) 조회**
 - 공간/활동 응답의 `imageUrls`는 **상대 경로**다.
-- 앱은 앞에 서버 base URL(LAN IP)을 붙여 표시한다: `http://<PC-IP>:8080/files/a.jpg`
+- 앱은 앞에 서버 base URL을 붙여 표시한다: `http://<서버-주소>:8080/files/a.jpg`
 
 ---
 
-## LAN 실행 전략 (같은 Wi-Fi의 PC = 서버)
+## 서버 주소 / HTTP 통신
 
-폰과 서버 PC를 같은 Wi-Fi에 두고, 앱이 PC의 LAN IP로 접속한다.
+앱과 서버는 **HTTP로 통신**한다. 앱이 아는 것은 **서버 base URL 한 값**뿐이다 —
+폰과 PC가 같은 Wi-Fi에 있어야 한다거나, PC의 LAN IP를 찾아 넣어야 하는 전제는 없다.
 
-### 서버 PC 준비
+| 상황 | base URL |
+|---|---|
+| 로컬 개발 (같은 PC에서) | `http://localhost:8080` |
+| 서버에 올린 뒤 (VPS 예정) | `http://<서버-주소>:8080` — 주소는 `(미정)` |
 
-1. 서버 실행: `docker compose up -d && ./gradlew bootRun`
-   - Spring Boot는 기본으로 `0.0.0.0:8080`에 바인딩되어 LAN에 노출된다 (별도 설정 불필요).
-2. PC의 LAN IP 확인:
-   - macOS: `ipconfig getifaddr en0` (유선은 `en1` 등)
-   - Windows: `ipconfig` → IPv4 주소
-3. **방화벽**에서 8080 인바운드 허용 (막혀 있으면 폰에서 연결 실패).
-4. 확인: 폰 브라우저에서 `http://<PC-IP>:8080/swagger-ui.html` 가 열리면 성공.
+- Spring Boot는 기본으로 `0.0.0.0:8080`에 바인딩된다 (별도 설정 불필요).
+- 응답의 `imageUrls`는 **상대 경로**이므로, 서버가 어디로 가든 **앱은 base URL 한 값만 바꾸면 된다.**
+- 연결 확인: 브라우저에서 `<base URL>/swagger-ui.html`이 열리면 통신 OK.
 
-### 폰(앱) 준비
+### 평문 HTTP다 (HTTPS 아님)
 
-- **같은 Wi-Fi**에 접속 (게스트/AP 격리 네트워크는 기기 간 통신이 막힐 수 있음 — 주의).
-- Android 에뮬레이터는 호스트 PC를 `10.0.2.2`로 접근 (`localhost` 아님).
-- iOS 시뮬레이터는 `localhost`로 접근 가능.
+지금 통신 구간은 `http://`다. Basic 인증은 매 요청에 `base64(아이디:비밀번호)`를 실어 보내고,
+base64는 암호화가 아니라 되돌릴 수 있는 인코딩이다. 즉 **평문 구간에서는 비밀번호가 요청마다
+노출되는 것과 같다.** 실제 개인정보를 넣지 말고 데모용 계정만 쓴다.
 
-### HTTP(비-HTTPS) 허용
+> 인증 *방식*을 JWT·세션으로 바꿔도 이 성질은 그대로다 — 평문이면 토큰도 같이 새어 나간다.
+> 해결은 전송 구간을 HTTPS로 덮는 것이고, 그건 이 문서가 다루는 범위 밖이다.
 
-로컬 서버는 `http://`이므로 실기기 standalone 빌드에서 cleartext가 차단될 수 있다.
+### cleartext(HTTP) 허용
+
+통신이 `http://`이므로 Expo 실기기 standalone 빌드에서 cleartext가 차단될 수 있다.
 `app.json`에 `expo-build-properties`로 예외를 준다 (Expo Go 개발 중엔 대체로 통과).
 
 ```json
@@ -138,8 +159,8 @@ npx expo install expo-image-picker expo-image-manipulator
 
 ### 서버 주소 설정
 ```ts
-// api.ts — LAN의 PC 서버 주소
-export const BASE_URL = "http://192.168.0.10:8080";        // ← PC의 LAN IP로 교체
+// api.ts — 서버 주소는 여기 한 곳에서만 관리한다
+export const BASE_URL = "http://localhost:8080";           // ← 서버에 올린 뒤엔 그 주소로 교체
 export const imageUri = (path: string) => `${BASE_URL}${path}`; // "/files/a.jpg" → 전체 URL
 ```
 
@@ -225,24 +246,24 @@ curl -X POST http://localhost:8080/api/activities -u hong:pw1234 \
 ```
 Swagger UI(`/swagger-ui.html`)의 **Upload** 태그에서 파일 선택 업로드도 가능.
 
-### 2) LAN 연결 확인 (폰 브라우저)
-앱 빌드 전에, 폰 브라우저에서 아래가 열리는지로 네트워크/방화벽부터 확인한다.
-- `http://<PC-IP>:8080/swagger-ui.html`
-- 업로드된 파일 URL `http://<PC-IP>:8080/files/xxxx.jpg`
+### 2) 서버 연결 확인 (폰 브라우저)
+앱 빌드 전에, 폰 브라우저에서 아래가 열리는지로 서버 통신부터 확인한다 (앱 문제와 통신 문제 분리).
+- `<base URL>/swagger-ui.html`
+- 업로드된 파일 URL `<base URL>/files/xxxx.jpg`
 
 ### 3) 앱 통합 (실기기/에뮬레이터)
 - 촬영 1장 → 업로드 → 등록 → 목록/상세에서 이미지 표시 확인
 - 갤러리 여러 장 → 순서대로 업로드/표시되는지 (`@OrderColumn` 순서 보존)
 - 대용량 원본 그대로 올려 413(요청 초과) 발생 시: 앱 압축 적용 또는 `max-request-size` 조정
-- 이미지가 안 뜨면 체크: base URL 오타 / 같은 Wi-Fi 여부 / 방화벽 / cleartext(HTTP) 허용
+- 이미지가 안 뜨면 체크: base URL 오타 / 상대경로에 base URL 미부착 / cleartext(HTTP) 허용
 
 ### 흔한 실패와 원인
 | 증상 | 원인 |
 |---|---|
-| 폰에서 서버 접속 안 됨 | 다른 Wi-Fi, AP 격리, PC 방화벽 8080 차단 |
+| 서버 접속 안 됨 | base URL 오타·포트 누락, 서버가 안 떠 있음 |
 | 업로드는 되는데 이미지 안 보임 | 상대경로에 base URL 미부착 / cleartext HTTP 차단 |
 | 413 Payload Too Large | 원본 대용량 — 앱에서 리사이즈, 한도 상향 |
-| `localhost`로 안 됨 | 에뮬레이터는 `10.0.2.2`, 실기기는 PC LAN IP 사용 |
+| 401 `UNAUTHORIZED` | `Authorization` 헤더 누락, 또는 DB에 없는 계정 |
 
 ---
 
