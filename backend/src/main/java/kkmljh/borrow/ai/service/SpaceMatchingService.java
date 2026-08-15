@@ -50,8 +50,13 @@ public class SpaceMatchingService {
 
     @Transactional(readOnly = true)
     public List<SpaceMatchResponse> match(MatchRequest request) {
+        log.info("[A-02] 하드 필터 시작 — region={} headcount={} field={} 제외={}개",
+                request.regionOrEmpty(), request.headcount(), request.field(),
+                request.excludeSpaceIdsOrEmpty().size());
         List<Space> candidates = hardFilter(request);          // A-02 (+ A-04 제외 반영)
+        log.info("[A-02] 하드 필터 완료 — 후보 {}개", candidates.size());
         if (candidates.isEmpty()) {
+            log.info("[A-03] 후보 없음 — LLM 호출 생략, 빈 목록 반환");
             return SpaceMatchResponse.emptyList();
         }
         return score(candidates, request);                     // A-03
@@ -91,7 +96,7 @@ public class SpaceMatchingService {
     private List<SpaceMatchResponse> score(List<Space> candidates, MatchRequest req) {
         Map<Long, SpaceScores.SpaceScore> aiScores = tryAiScores(candidates, req);
 
-        return candidates.stream()
+        List<SpaceMatchResponse> scored = candidates.stream()
                 .map(s -> {
                     SpaceScores.SpaceScore ai = aiScores.get(s.getId());
                     if (ai != null) {
@@ -102,10 +107,16 @@ public class SpaceMatchingService {
                 })
                 .sorted(Comparator.comparingInt(SpaceMatchResponse::score).reversed())
                 .toList();
+
+        long aiCount = scored.stream().filter(SpaceMatchResponse::aiScored).count();
+        log.info("[A-03] 점수 산출 완료 — 총 {}개 (AI 점수 {}개 / 규칙 폴백 {}개)",
+                scored.size(), aiCount, scored.size() - aiCount);
+        return scored;
     }
 
     /** LLM 호출로 spaceId→점수 맵을 얻는다. 실패하면 빈 맵(→ 규칙 기반 폴백). */
     private Map<Long, SpaceScores.SpaceScore> tryAiScores(List<Space> candidates, MatchRequest req) {
+        log.info("[A-03] LLM 점수 산출 시작 — 후보 {}개", candidates.size());
         try {
             String prompt = buildScoringPrompt(candidates, req);
             // 4096: 후보 다수 점수 출력 + thinking 모델(Gemini)의 추론 토큰까지 감안한 여유 상한.
@@ -113,13 +124,17 @@ public class SpaceMatchingService {
             SpaceScores result = llm.complete(prompt, SpaceScores.class, 4096L);
 
             if (result == null || result.scores() == null) {
+                log.warn("[A-03] LLM 응답 비어 있음 — 규칙 기반 폴백 사용");
                 return Map.of();
             }
-            return result.scores().stream()
+            Map<Long, SpaceScores.SpaceScore> scores = result.scores().stream()
                     .collect(Collectors.toMap(SpaceScores.SpaceScore::spaceId, Function.identity(),
                             (a, b) -> a));
+            log.info("[A-03] LLM 점수 산출 성공 — {}개 공간 점수 수신", scores.size());
+            return scores;
         } catch (Exception e) {
-            log.warn("A-03 LLM 점수 산출 실패 — 규칙 기반 폴백 사용", e);
+            log.warn("[A-03] LLM 점수 산출 실패 — 규칙 기반 폴백 사용 (cause={}: {})",
+                    e.getClass().getSimpleName(), e.getMessage(), e);
             return Map.of();
         }
     }

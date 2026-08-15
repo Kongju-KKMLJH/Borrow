@@ -3,7 +3,7 @@ services:
     image: mysql:8.4
     container_name: borrow-mysql
     ports:
-      - "3306:3306"
+      - "3304:3306"
     environment:
       MYSQL_DATABASE: borrow
       MYSQL_USER: borrow

@@ -38,14 +38,20 @@ public class ActivityAnalysisService {
                 %s
                 """.formatted(request.description());
 
+        log.info("[A-01] 활동 분석 시작 — region={} descLen={}",
+                request.region(), request.description() == null ? 0 : request.description().length());
         try {
             // 2048: Gemini 등 thinking 모델이 추론 토큰을 소비해도 JSON이 잘리지 않도록 여유를 둔다
             // (Anthropic/OpenAI엔 단순 상한이라 무해). 512로는 Gemini에서 출력 전 잘림.
             AnalyzedRequirement analyzed = llm.complete(prompt, AnalyzedRequirement.class, 2048L);
             if (analyzed == null) {
+                log.warn("[A-01] 활동 분석 실패 — LLM 응답이 비어 있음(null)");
                 throw new BusinessException(ErrorCode.AI_ANALYSIS_FAILED);
             }
 
+            log.info("[A-01] 활동 분석 성공 — field={} headcount={} facilities={} noisy={} messy={}",
+                    analyzed.field(), analyzed.headcount(), analyzed.requiredFacilities(),
+                    analyzed.noisy(), analyzed.messy());
             return new RequirementResponse(
                     request.region() == null ? "" : request.region().trim(),
                     Math.max(analyzed.headcount(), 1),

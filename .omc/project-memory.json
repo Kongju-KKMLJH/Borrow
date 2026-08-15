@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1784615814762,
-  "projectRoot": "/Users/taehyunjeon/taehyun/dev/project/Borrow",
+  "lastScanned": 1786692921739,
+  "projectRoot": "/Users/machanyoung/borrow",
   "techStack": {
     "languages": [],
     "frameworks": [],
@@ -25,17 +25,46 @@
     "isMonorepo": false,
     "workspaces": [],
     "mainDirectories": [],
-    "gitBranches": null
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
   },
   "customNotes": [],
   "directoryMap": {
+    "backend": {
+      "path": "backend",
+      "purpose": null,
+      "fileCount": 13,
+      "lastAccessed": 1786692921729,
+      "keyFiles": [
+        "AI기능.md",
+        "CLAUDE.md",
+        "HELP.md",
+        "README.md",
+        "build.gradle"
+      ]
+    },
     "frontend": {
       "path": "frontend",
       "purpose": null,
-      "fileCount": 1,
-      "lastAccessed": 1784615814757,
+      "fileCount": 12,
+      "lastAccessed": 1786692921729,
       "keyFiles": [
+        "AGENTS.md",
+        "LICENSE",
+        "README.md",
+        "app.json",
         "claude.md"
+      ]
+    },
+    "backend/build": {
+      "path": "backend/build",
+      "purpose": "Build output",
+      "fileCount": 1,
+      "lastAccessed": 1786692921729,
+      "keyFiles": [
+        "resolvedMainClassName"
       ]
     }
   },
