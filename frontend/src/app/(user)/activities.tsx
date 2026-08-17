@@ -3,12 +3,12 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 
-import { activitiesApi } from '@/api';
+import { activityApi } from '@/lib/api';
 import { ActivityCard } from '@/components/activity-card';
 import { SelectChip } from '@/components/form';
 import { AppText, Card, Screen } from '@/components/ui';
 import { FontFamily, Radius, Spacing } from '@/constants/theme';
-import type { ActivityField, ActivitySummary, ActivityType } from '@/data/types';
+import type { ActivityField, ActivitySummaryResponse, ActivityType } from '@/lib/api/types';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -19,7 +19,7 @@ const FIELD: Partial<Record<Filter, ActivityField>> = { 그림: 'ART', 촬영: '
 
 type Sort = '추천순' | '임박순' | '남은자리순';
 const SORTS: Sort[] = ['추천순', '임박순', '남은자리순'];
-const sortComparators: Record<Sort, ((a: ActivitySummary, b: ActivitySummary) => number) | null> = {
+const sortComparators: Record<Sort, ((a: ActivitySummaryResponse, b: ActivitySummaryResponse) => number) | null> = {
   추천순: null, // 서버 응답 순서 유지
   임박순: (a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime), // 활동일이 가까운 순
   남은자리순: (a, b) => b.capacity - b.currentHeadcount - (a.capacity - a.currentHeadcount),
@@ -33,7 +33,7 @@ export default function Activities() {
   const [sortOpen, setSortOpen] = useState(false);
 
   const { data: activities, loading } = useAsync(
-    () => activitiesApi.listActivities({ type: TYPE[filter], field: FIELD[filter], keyword: query || undefined }),
+    () => activityApi.list({ type: TYPE[filter], field: FIELD[filter], keyword: query || undefined }),
     [filter, query],
   );
   const list = useMemo(() => {

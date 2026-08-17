@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 
-import { activitiesApi } from '@/api';
+import { activityApi } from '@/lib/api';
 import { ActivityCard } from '@/components/activity-card';
 import { SelectChip } from '@/components/form';
 import { BrandHeader, ModeSwitch } from '@/components/nav';
@@ -12,7 +12,7 @@ import { useAsync } from '@/hooks/use-async';
 const CATEGORIES = ['취미 모임', '전문 클래스', '그림', '촬영'];
 
 export default function UserHome() {
-  const { data: activities } = useAsync(() => activitiesApi.listActivities(), [], { refetchOnFocus: true });
+  const { data: activities } = useAsync(() => activityApi.list(), [], { refetchOnFocus: true });
   const list = activities ?? [];
 
   return (
