@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { View } from 'react-native';
 
-import { imageUri } from '@/api';
+import { imageUri } from '@/lib/api';
 import { AppText, Badge, Button, Card } from '@/components/ui';
 import { ImagePlaceholder } from '@/components/placeholder';
 import { Radius, Spacing } from '@/constants/theme';
-import type { SpaceMatch } from '@/data/types';
+import type { SpaceMatchResponse } from '@/lib/api/types';
 import { useTheme } from '@/hooks/use-theme';
 
-export function SpaceMatchCard({ match, onSelect }: { match: SpaceMatch; onSelect?: () => void }) {
+export function SpaceMatchCard({ match, onSelect }: { match: SpaceMatchResponse; onSelect?: () => void }) {
   const theme = useTheme();
   const { name, region, capacity, score, reason, aiScored, imageUrls } = match;
   const cover = imageUrls?.[0];

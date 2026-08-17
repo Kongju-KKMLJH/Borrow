@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, type ViewStyle } from 'react-native';
 
 import { Radius } from '@/constants/theme';
-import type { ActivityField } from '@/data/types';
+import type { ActivityField } from '@/lib/api/types';
 import { useTheme } from '@/hooks/use-theme';
 
 const FIELD_ICON: Record<ActivityField, keyof typeof Ionicons.glyphMap> = {

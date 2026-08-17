@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, View } from 'react-native';
 
-import { imageUri } from '@/api';
+import { imageUri } from '@/lib/api';
 import { AppText, Avatar, Badge } from '@/components/ui';
 import { ImagePlaceholder } from '@/components/placeholder';
 import { ActivityStatusBadge } from '@/components/status-badge';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { Radius, Spacing } from '@/constants/theme';
-import type { ActivitySummary } from '@/data/types';
+import type { ActivitySummaryResponse } from '@/lib/api/types';
 import { ActivityFieldLabel, ActivityTypeLabel, formatCurrency, formatDate, formatTime } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -17,7 +17,7 @@ export function ActivityCard({
   onPress,
   variant = 'list',
 }: {
-  activity: ActivitySummary;
+  activity: ActivitySummaryResponse;
   onPress?: () => void;
   variant?: 'list' | 'rail';
 }) {
@@ -57,7 +57,7 @@ export function ActivityCard({
         <AppText variant="h3" numberOfLines={2}>{activity.title}</AppText>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Avatar name={activity.hostNickname} size={20} />
+          <Avatar name={activity.hostNickname ?? undefined} size={20} />
           <AppText variant="small" color="textSecondary">{activity.hostNickname}</AppText>
           {activity.hostCertified && <VerifiedBadge size={14} />}
         </View>
