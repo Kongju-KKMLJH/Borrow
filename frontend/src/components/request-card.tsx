@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { AppText, Badge, Button, Card } from '@/components/ui';
 import { RequestStatusBadge } from '@/components/status-badge';
 import { Spacing } from '@/constants/theme';
-import type { HostingRequestDetail } from '@/data/types';
+import type { HostingRequestResponse } from '@/lib/api/types';
 import { ActivityFieldLabel, formatDateTime } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -14,7 +14,7 @@ export function RequestCard({
   onApprove,
   onReject,
 }: {
-  request: HostingRequestDetail;
+  request: HostingRequestResponse;
   onPress?: () => void;
   onApprove?: () => void;
   onReject?: () => void;

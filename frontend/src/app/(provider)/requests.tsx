@@ -2,12 +2,12 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
-import { hostApi } from '@/api';
+import { hostApi } from '@/lib/api';
 import { SelectChip } from '@/components/form';
 import { RequestCard } from '@/components/request-card';
 import { AppText, Screen } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
-import type { RequestStatus } from '@/data/types';
+import type { RequestStatus } from '@/lib/api/types';
 import { useAsync } from '@/hooks/use-async';
 
 const FILTERS: { label: string; value?: RequestStatus }[] = [
@@ -17,7 +17,7 @@ const FILTERS: { label: string; value?: RequestStatus }[] = [
 export default function Requests() {
   const [idx, setIdx] = useState(0);
   const status = FILTERS[idx].value;
-  const { data: list } = useAsync(() => hostApi.listRequests({ status }), [status], { refetchOnFocus: true });
+  const { data: list } = useAsync(() => hostApi.requests({ status }), [status], { refetchOnFocus: true });
 
   return (
     <Screen

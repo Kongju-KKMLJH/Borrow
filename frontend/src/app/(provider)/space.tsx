@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { spacesApi } from '@/api';
+import { spaceApi } from '@/lib/api';
 import { ChipGroup, Field, TextField, ToggleRow } from '@/components/form';
 import { DialField } from '@/components/date-time-field';
 import { ImageUploadField } from '@/components/image-upload-field';
 import { ScreenHeader } from '@/components/nav';
 import { AppText, Button, Card } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
-import type { ActivityField, DayOfWeek, FacilityType, SpaceSlot } from '@/data/types';
+import type { ActivityField, DayOfWeek, FacilityType, SpaceSlotResponse } from '@/lib/api/types';
 import { DayOfWeekLabel, FacilityTypeLabel } from '@/lib/format';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
@@ -21,7 +21,7 @@ const DAYS = (Object.keys(DayOfWeekLabel) as DayOfWeek[]);
 
 export default function ProviderSpace() {
   const theme = useTheme();
-  const { data: spaces } = useAsync(() => spacesApi.listSpaces(), []);
+  const { data: spaces } = useAsync(() => spaceApi.list(), []);
   const existing = spaces?.[0];
 
   const [spaceId, setSpaceId] = useState<number | null>(null);
@@ -61,12 +61,12 @@ export default function ProviderSpace() {
     setSaving(true);
     try {
       const payload = {
-        name, region, address: address || undefined, imageUrls,
+        name, region, address: address || null, imageUrls,
         capacity: Number(capacity) || 0,
-        hourlyFee: Number(hourlyFee) || 0, conditions: conditions || undefined,
+        hourlyFee: Number(hourlyFee) || 0, conditions: conditions || null,
         facilities, allowedFields, noiseAllowed, messAllowed,
       };
-      const saved = spaceId ? await spacesApi.updateSpace(spaceId, payload) : await spacesApi.createSpace(payload);
+      const saved = spaceId ? await spaceApi.update(spaceId, payload) : await spaceApi.create(payload);
       setSpaceId(saved.id);
       router.back();
     } finally {
@@ -125,8 +125,8 @@ export default function ProviderSpace() {
 
 function SlotManager({ spaceId }: { spaceId: number }) {
   const theme = useTheme();
-  const { data } = useAsync(() => spacesApi.listSlots(spaceId), [spaceId]);
-  const [slots, setSlots] = useState<SpaceSlot[]>([]);
+  const { data } = useAsync(() => spaceApi.slots(spaceId), [spaceId]);
+  const [slots, setSlots] = useState<SpaceSlotResponse[]>([]);
   const [days, setDays] = useState<DayOfWeek[]>(['MONDAY']);
   const [start, setStart] = useState('14:00');
   const [end, setEnd] = useState('17:00');
@@ -145,7 +145,7 @@ function SlotManager({ spaceId }: { spaceId: number }) {
     setAdding(true);
     try {
       const created = await Promise.all(
-        targets.map((d) => spacesApi.addSlot(spaceId, { dayOfWeek: d, startTime: start, endTime: end })),
+        targets.map((d) => spaceApi.addSlot(spaceId, { dayOfWeek: d, startTime: start, endTime: end })),
       );
       setSlots((s) => sortSlots([...s, ...created]));
     } finally {
@@ -155,7 +155,7 @@ function SlotManager({ spaceId }: { spaceId: number }) {
 
   const remove = async (slotId: number) => {
     setSlots((s) => s.filter((x) => x.id !== slotId));
-    await spacesApi.deleteSlot(spaceId, slotId);
+    await spaceApi.deleteSlot(spaceId, slotId);
   };
 
   return (
@@ -200,7 +200,7 @@ function SlotManager({ spaceId }: { spaceId: number }) {
 }
 
 const DAY_ORDER: Record<DayOfWeek, number> = { MONDAY: 0, TUESDAY: 1, WEDNESDAY: 2, THURSDAY: 3, FRIDAY: 4, SATURDAY: 5, SUNDAY: 6 };
-function sortSlots(list: SpaceSlot[]): SpaceSlot[] {
+function sortSlots(list: SpaceSlotResponse[]): SpaceSlotResponse[] {
   return [...list].sort((a, b) => DAY_ORDER[a.dayOfWeek] - DAY_ORDER[b.dayOfWeek] || a.startTime.localeCompare(b.startTime));
 }
 

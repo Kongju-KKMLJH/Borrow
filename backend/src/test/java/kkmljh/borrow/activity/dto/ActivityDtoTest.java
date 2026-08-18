@@ -1,6 +1,11 @@
 package kkmljh.borrow.activity.dto;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
 import kkmljh.borrow.domain.Activity;
+import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.FacilityType;
 import kkmljh.borrow.domain.HostingRequest;
 import kkmljh.borrow.domain.Participation;
@@ -11,7 +16,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -171,6 +179,82 @@ class ActivityDtoTest {
 
             assertThat(response.alreadyJoined()).isFalse();
             assertThat(response.mine()).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("ActivityUpdateRequest — 활동 수정 요청 (기능명세 2.1)")
+    class UpdateRequest {
+
+        private static final ValidatorFactory FACTORY = Validation.buildDefaultValidatorFactory();
+        private static final Validator VALIDATOR = FACTORY.getValidator();
+
+        private ActivityUpdateRequest valid() {
+            return new ActivityUpdateRequest(ActivityField.ART, "수채화 모임", "설명",
+                    List.of("/files/a.jpg"),
+                    LocalDate.of(2026, 12, 1), LocalTime.of(14, 0), LocalTime.of(16, 0),
+                    8, 10_000);
+        }
+
+        private Set<String> violatedFields(ActivityUpdateRequest request) {
+            return VALIDATOR.validate(request).stream()
+                    .map(ConstraintViolation::getPropertyPath)
+                    .map(Object::toString)
+                    .collect(java.util.stream.Collectors.toSet());
+        }
+
+        @Test
+        @DisplayName("정상 요청은 위반이 없다")
+        void validRequest() {
+            assertThat(violatedFields(valid())).isEmpty();
+        }
+
+        @Test
+        @DisplayName("분야·제목·일정은 필수다")
+        void requiredFields() {
+            ActivityUpdateRequest request = new ActivityUpdateRequest(
+                    null, "  ", null, null, null, null, null, 8, 0);
+
+            assertThat(violatedFields(request))
+                    .contains("field", "title", "date", "startTime", "endTime");
+        }
+
+        @Test
+        @DisplayName("지난 날짜로는 수정할 수 없다 (@FutureOrPresent)")
+        void pastDateIsRejected() {
+            ActivityUpdateRequest request = new ActivityUpdateRequest(ActivityField.ART, "제목", null, null,
+                    LocalDate.of(2020, 1, 1), LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0);
+
+            assertThat(violatedFields(request)).contains("date");
+        }
+
+        @Test
+        @DisplayName("정원은 1 이상, 참가비는 0 이상이어야 한다")
+        void capacityAndFeeBounds() {
+            ActivityUpdateRequest request = new ActivityUpdateRequest(ActivityField.ART, "제목", null, null,
+                    LocalDate.of(2026, 12, 1), LocalTime.of(14, 0), LocalTime.of(16, 0), 0, -1);
+
+            assertThat(violatedFields(request)).contains("capacity", "entryFee");
+        }
+
+        @Test
+        @DisplayName("참가비 0(무료)은 허용된다")
+        void freeIsAllowed() {
+            ActivityUpdateRequest request = new ActivityUpdateRequest(ActivityField.PHOTO, "무료 출사", null, null,
+                    LocalDate.of(2026, 12, 1), LocalTime.of(9, 0), LocalTime.of(11, 0), 4, 0);
+
+            assertThat(violatedFields(request)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("설명·이미지는 선택 항목이다")
+        void optionalFields() {
+            ActivityUpdateRequest request = new ActivityUpdateRequest(ActivityField.ART, "제목", null, null,
+                    LocalDate.of(2026, 12, 1), LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0);
+
+            assertThat(violatedFields(request)).isEmpty();
+            assertThat(request.description()).isNull();
+            assertThat(request.imageUrls()).isNull();
         }
     }
 

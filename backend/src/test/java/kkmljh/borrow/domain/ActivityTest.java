@@ -181,6 +181,152 @@ class ActivityTest {
     }
 
     @Nested
+    @DisplayName("기본 정보 수정 (기능명세 2.1)")
+    class DetailsUpdate {
+
+        private void update(Activity activity) {
+            activity.updateDetails(ActivityField.PHOTO, "출사 모임", "바뀐 설명",
+                    List.of("/files/new1.jpg", "/files/new2.jpg"),
+                    LocalDate.of(2026, 10, 3), LocalTime.of(9, 0), LocalTime.of(11, 30),
+                    12, 25_000);
+        }
+
+        @Test
+        @DisplayName("분야·제목·설명·일정·정원·참가비가 바뀐다")
+        void updatesTargetFields() {
+            Activity activity = base().build();
+
+            update(activity);
+
+            assertThat(activity.getField()).isEqualTo(ActivityField.PHOTO);
+            assertThat(activity.getTitle()).isEqualTo("출사 모임");
+            assertThat(activity.getDescription()).isEqualTo("바뀐 설명");
+            assertThat(activity.getDate()).isEqualTo(LocalDate.of(2026, 10, 3));
+            assertThat(activity.getStartTime()).isEqualTo(LocalTime.of(9, 0));
+            assertThat(activity.getEndTime()).isEqualTo(LocalTime.of(11, 30));
+            assertThat(activity.getCapacity()).isEqualTo(12);
+            assertThat(activity.getEntryFee()).isEqualTo(25_000);
+        }
+
+        @Test
+        @DisplayName("이미지 목록은 순서를 지켜 통째로 교체된다")
+        void replacesImageUrls() {
+            Activity activity = base()
+                    .imageUrls(new ArrayList<>(List.of("/files/old1.jpg", "/files/old2.jpg", "/files/old3.jpg")))
+                    .build();
+
+            update(activity);
+
+            assertThat(activity.getImageUrls()).containsExactly("/files/new1.jpg", "/files/new2.jpg");
+        }
+
+        @Test
+        @DisplayName("이미지를 null 로 주면 빈 목록이 된다 (null 아님)")
+        void nullImageUrlsClearsList() {
+            Activity activity = base()
+                    .imageUrls(new ArrayList<>(List.of("/files/old.jpg")))
+                    .build();
+
+            activity.updateDetails(ActivityField.ART, "제목", null, null,
+                    LocalDate.of(2026, 10, 3), LocalTime.of(9, 0), LocalTime.of(11, 0), 4, 0);
+
+            assertThat(activity.getImageUrls()).isNotNull().isEmpty();
+        }
+
+        @Test
+        @DisplayName("전달한 이미지 리스트를 나중에 고쳐도 엔티티는 따라 바뀌지 않는다 (복사해 담는다)")
+        void copiesImageUrls() {
+            Activity activity = base().build();
+            List<String> urls = new ArrayList<>(List.of("/files/new.jpg"));
+
+            activity.updateDetails(ActivityField.ART, "제목", "설명", urls,
+                    LocalDate.of(2026, 10, 3), LocalTime.of(9, 0), LocalTime.of(11, 0), 4, 0);
+            urls.add("/files/sneaked.jpg");
+
+            assertThat(activity.getImageUrls()).containsExactly("/files/new.jpg");
+        }
+
+        @Test
+        @DisplayName("개설자·표시 이름·유형·인증 배지·상태는 그대로다 (서버가 정하는 값)")
+        void keepsServerOwnedFields() {
+            Activity activity = base()
+                    .guestId("member1")
+                    .hostNickname("일반회원")
+                    .type(ActivityType.HOBBY)
+                    .hostCertified(false)
+                    .build();
+
+            update(activity);
+
+            assertThat(activity.getGuestId()).isEqualTo("member1");
+            assertThat(activity.getHostNickname()).isEqualTo("일반회원");
+            assertThat(activity.getType()).isEqualTo(ActivityType.HOBBY);
+            assertThat(activity.isHostCertified()).isFalse();
+            assertThat(activity.getStatus()).isEqualTo(ActivityStatus.DRAFT);
+        }
+
+        @Test
+        @DisplayName("요구조건은 건드리지 않는다 (U-08 전용 경로)")
+        void keepsRequirement() {
+            SpaceRequirement requirement = TestFixtures.requirement();
+            Activity activity = base().requirement(requirement).build();
+
+            update(activity);
+
+            assertThat(activity.getRequirement()).isSameAs(requirement);
+        }
+
+        @Test
+        @DisplayName("REJECTED 활동을 수정해도 상태는 REJECTED 로 유지된다")
+        void keepsRejectedStatus() {
+            Activity activity = base().build();
+            activity.reject();
+
+            update(activity);
+
+            assertThat(activity.getStatus()).isEqualTo(ActivityStatus.REJECTED);
+        }
+    }
+
+    @Nested
+    @DisplayName("수정·삭제 가능 단계 (기능명세 2.1)")
+    class Editable {
+
+        @Test
+        @DisplayName("DRAFT 는 수정·삭제할 수 있다")
+        void draftIsEditable() {
+            assertThat(base().build().isEditable()).isTrue();
+        }
+
+        @Test
+        @DisplayName("REJECTED 는 수정·삭제할 수 있다 (재요청 전 손보는 단계)")
+        void rejectedIsEditable() {
+            Activity activity = base().build();
+            activity.reject();
+
+            assertThat(activity.isEditable()).isTrue();
+        }
+
+        @Test
+        @DisplayName("PENDING 은 심사 중이므로 잠긴다")
+        void pendingIsNotEditable() {
+            Activity activity = base().build();
+            activity.markPending();
+
+            assertThat(activity.isEditable()).isFalse();
+        }
+
+        @Test
+        @DisplayName("PUBLISHED 는 참여자가 있으므로 잠긴다")
+        void publishedIsNotEditable() {
+            Activity activity = base().build();
+            activity.publish();
+
+            assertThat(activity.isEditable()).isFalse();
+        }
+    }
+
+    @Nested
     @DisplayName("요구조건 수정")
     class RequirementUpdate {
 

@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { AppText } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
 import { ActivityStatusLabel, RequestStatusLabel } from '@/lib/format';
-import type { ActivityStatus, RequestStatus } from '@/data/types';
+import type { ActivityStatus, RequestStatus } from '@/lib/api/types';
 import { useTheme } from '@/hooks/use-theme';
 
 type Tone = 'primary' | 'secondary' | 'accent' | 'neutral' | 'danger';

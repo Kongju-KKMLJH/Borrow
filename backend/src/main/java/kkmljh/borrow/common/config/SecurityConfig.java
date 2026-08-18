@@ -81,6 +81,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/activities").hasAnyRole("MEMBER", "ARTIST")
                         .requestMatchers(HttpMethod.PATCH, "/api/activities/{activityId}/requirement")
                         .hasAnyRole("MEMBER", "ARTIST")
+                        // 기능명세 2.1 수정·삭제. HttpMethod 를 반드시 명시한다 —
+                        // 경로만 쓰면 위의 비로그인 GET(U-03 상세)까지 함께 잡혀 목록에서 상세로 못 들어간다.
+                        .requestMatchers(HttpMethod.PUT, "/api/activities/{activityId}")
+                        .hasAnyRole("MEMBER", "ARTIST")
+                        .requestMatchers(HttpMethod.DELETE, "/api/activities/{activityId}")
+                        .hasAnyRole("MEMBER", "ARTIST")
                         .requestMatchers("/api/activities/{activityId}/hosting-request")
                         .hasAnyRole("MEMBER", "ARTIST")
 
