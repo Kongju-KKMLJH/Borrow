@@ -141,118 +141,6 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 
 > 공개 응답에서 `address`가 빠진 것은 **API 계약 변경**이다. 프론트가 공간 목록·상세에서 `address`를 쓰지 않는 것은 확인했다(2026-08-18, PR #55 승격 시점). 앞으로 프론트에 주소 표시가 필요해지면 필드를 되살리지 말고 **소유자 전용 경로를 쓰는지부터** 확인하라.
 
-## P1 구현 계획 (기능명세 4.1 · 3.1 · 2.2)
-
-우선순위의 **근거**는 `docs/IMPLEMENTATION_PRIORITY.md`에 있다. 여기에는 **구현할 때 지킬 결정**만 적는다.
-착수 순서는 **P1-1 → P1-2 → P1-3**이고, P1-2·P1-3은 `ai/**` 안에서 끝나므로 한 브랜치로 묶어도 된다.
-
-> ⚠️ **선행 확인 (2026-08-18, `origin/dev` 병합 시점).** kang의 PR #46과 `backend → dev` 승격(PR #55)이 모두 들어왔다.
-> ⑴ "미머지 브랜치의 파일을 건드리지 마라" 제약은 **해제됐다** — `PlatformFeeProperties`·`PriceBreakdown`을 그대로 재사용한다.
-> ⑵ `docs/IMPLEMENTATION_PRIORITY.md` 4절이 정한 **3.3 매칭 이용료 결제·공개 + #9 정원 검증의 복귀 조건이 충족**됐다 —
-> **P1보다 먼저 할지는 팀 결정 사항이다** `(미확정 — 결정 필요)`.
-> ⑶ `ActivityDtoTest`의 줄 위치 회피(213~257줄 hunk)는 **더 이상 필요 없다.**
-
-### P1-1. 시민 탐색 완성 — 지역·일정 필터 · 확정 공간 · 잔여 인원 (기능명세 4.1)
-
-근거는 인수조건 두 줄이다. ① "시민은 **지역·일정·분야**로 공개 프로그램을 탐색할 수 있다" ② "상세에는 인증 예술가, **공간**, 일정, 참가비, **잔여 인원**이 표시된다." 분야·배지·일정·참가비는 이미 있고 **지역·일정 필터, 확정 공간, 잔여 인원 셋이 없다.**
-
-**API 계약 — 추가만 한다.**
-
-| 대상 | 추가 | 비고 |
-|---|---|---|
-| `GET /api/activities` | 쿼리 `region`, `dateFrom`, `dateTo` | 기존 `type`·`field`·`keyword`와 같은 규약 — **null이면 그 조건 무시** |
-| 목록·상세 응답 | `remainingCapacity` | `capacity`·`currentHeadcount`는 **그대로 둔다** (필드 제거는 계약 파괴) |
-| 목록·상세 응답 | `space` — 확정 공간 요약 | 확정 전이면 `null` |
-
-**규칙 — 되돌리지 마라.**
-
-1. **지역 기준은 `Activity.requirement.region`(희망 지역)이 아니라 승인된 `Space.region`(실제 개최지)이다.** 시민이 고르는 건 "어디서 열리는가"다. 희망 지역으로 거르면 승인 결과와 다른 동네가 걸린다.
-2. **확정 공간 요약은 `id`·`name`·`region`뿐. `address`를 넣지 마라.** 공개 응답의 주소는 동 단위까지라는 기능명세 6.1 `rules` 정책이 여기서 뚫린다. 주소 전문은 소유 HOST 본인에게만 준다(`SpaceResponse.forOwner`).
-3. `space`는 **개최 요청이 `APPROVED`일 때만** 채운다. `PENDING`·`REJECTED`는 확정이 아니므로 `null`.
-4. `remainingCapacity = max(0, capacity - currentHeadcount)`. 음수를 그대로 내려보내지 않는다.
-5. 목록은 지금처럼 **`PUBLISHED`만** 반환한다. 필터를 붙이면서 이 조건을 흔들지 마라.
-6. `dateFrom > dateTo`는 `INVALID_REQUEST`. **새 에러코드를 만들지 마라.**
-7. `region`은 부분일치(`LIKE '%:region%'`). `Space.region`이 `"천안시 서북구 불당동"` 한 문자열이라 시·구·동 어느 단위로 검색해도 걸린다.
-
-**구현 지점**
-
-| 파일 | 할 일 |
-|---|---|
-| `activity/repository/ActivityRepository` | `search`에 `region`·`dateFrom`·`dateTo` 추가. 공간 조건은 **`EXISTS` 서브쿼리**로 — join으로 붙이면 요청이 여러 건인 활동이 중복 행으로 나온다 |
-| `activity/repository/ActivityHostingRequestRepository` | 확정 공간 단건 조회 + **목록용 배치 조회**(`activityId IN (...)` AND `status = APPROVED`) |
-| `activity/service/ActivityService` | 배치 결과를 `Map<activityId, …>`로 만들어 DTO에 넘긴다 |
-| `activity/dto/ActivityDetailResponse`·`ActivitySummaryResponse` | `remainingCapacity`, 중첩 record `SpaceInfo(id, name, region)` |
-| `activity/controller/ActivityController` | 쿼리 파라미터 3개. 날짜는 `@DateTimeFormat(iso = DATE)`를 **명시**한다 |
-
-**하지 말 것**
-
-- **`Activity`에 `Space` FK를 추가하지 마라.** 관계는 `HostingRequest`가 이미 안다. 엔티티 소유는 공간 도메인이고, 필드를 늘리면 승인·공개(S-01) 시점에 진실이 두 곳으로 갈린다.
-- **`space/dto/HostingRequestResponse.SpaceInfo`를 import 하지 마라.** 응답 DTO는 도메인마다 자기 것을 갖는다 — 우리 쪽은 `ActivityDetailResponse` 안의 중첩 record로 만든다.
-- **목록에서 활동마다 공간을 개별 조회하지 마라**(N+1). 참여 인원(`currentHeadcount`)의 기존 N+1은 **이번 범위가 아니다** — 같이 고치지 말고 남겨 둔다.
-
-**테스트** (5층 전부, PR 전 `compileJava && test`)
-
-- `@RepositoryTest` — region 부분일치/불일치, 날짜 경계(`dateFrom`·`dateTo` 당일 포함), `APPROVED`가 아닌 요청은 안 걸림, `PUBLISHED`만.
-- 서비스 — 미확정이면 `space=null`, `remainingCapacity` 0 하한, 배치 매핑 결과.
-- DTO — `SpaceInfo`에 주소 필드가 **없음**(회귀), 잔여 인원 계산.
-- 컨트롤러 — 파라미터 바인딩, `dateFrom > dateTo` 400.
-
-### P1-2. 추천 주의사항 + 추천 불가 안내 (기능명세 3.1 `display` · 3.1.1 `exceptions`)
-
-PRD 차별점 문장에 직접 적힌 기능이다 — "AI는 …을 근거로 **추천과 주의사항**을 제공하며, 최종 승인 권한은 공간 파트너에게 남긴다." 지금은 `reason`만 있다.
-
-- `SpaceScores.SpaceScore`와 `SpaceMatchResponse`에 `cautions`(문자열 목록)를 추가한다. 구조화 출력 스키마에는 `@JsonPropertyDescription`으로 "근거 있는 주의사항만"을 못 박는다.
-- **규칙 기반 폴백 경로(`ruleReason`)도 반드시 채운다.** LLM 실패 시 주의사항이 통째로 사라지면 "AI가 판정한 게 아니다"라는 장치가 없어진다.
-- 주의사항의 재료는 이미 엔티티에 있다 — 수용 인원 여유, `conditions`(이용 조건), `noiseAllowed`·`messAllowed`, `hourlyFee`. **새 필드를 만들지 마라.**
-- **후보 0건**: 명세 권장안은 "조건 수정 안내"다. 지금은 `SpaceMatchResponse.emptyList()`라 안내를 실을 자리가 없다. 권장 = 응답을 `matched`·`suggestions`를 가진 결과 객체로 감싼다. **`NO_MATCHING_SPACE`(404)는 쓰지 않기를 권한다** — 후보 0건은 오류가 아니라 정상 결과이고, 404로 만들면 프론트가 에러 분기를 따로 짠다. `(미확정 — 결정 필요)` · **결정 시 `POST /api/ai/match`는 계약 변경이므로 front 담당에게 알린다.**
-- 파일은 `ai/**`뿐이다.
-
-### P1-3. AI 기획 가이드 보완 질문 (기능명세 2.2 · 2.2.1)
-
-"운영 조건이 부족하면 정확한 추천이 어렵다"가 이 기능의 존재 이유인데, A-01은 **무엇이 비었는지 알려주지 않는다.**
-
-- `RequirementResponse`에 `missingFields`와 질문 목록을 추가한다. **추가만 하므로 기존 화면은 그대로 동작한다.**
-- **LLM을 다시 부르지 않는다.** 추출 결과의 빈 값 판정으로 1차 충족한다 — `region`이 공백, `headcount <= 0`, `requiredFacilities`가 빈 목록.
-- **`AnalyzedRequirement`(LLM 구조화 출력 스키마)에 질문 필드를 넣지 마라.** 추출과 진단을 한 호출에 섞으면 추출 품질이 흔들리고, 빈 값 판정은 서버가 확정적으로 할 수 있다.
-- 질문 문구는 **서버 상수 한 곳**에 둔다. 판정 근거가 없는 항목(예: 소요시간 — 추출 스키마에 없다)은 질문 목록에 넣지 않는다. 없는 필드를 물으면 답을 받아도 채울 자리가 없다.
-
-### P1 공통
-
-- **응답은 추가만 한다.** 기존 필드를 지우거나 의미를 바꾸지 않는다 — 계약을 깨는 변경은 이슈 #53(주소 마스킹)으로 이미 한 번 냈고, 그때마다 front 공지가 필요하다.
-- 이슈 먼저 발급 → `yonggyu/backend`에서 분기. 브랜치는 P1-1이 `yonggyu/feat/citizen-discovery`, P1-2+P1-3이 `yonggyu/feat/ai-guide-quality`.
-- 기능명세를 인용할 때는 **목차 번호만** 쓴다(위 참조 규칙).
-
-## 📣 프론트 영향 공지 (필수)
-
-**백엔드 계약이 바뀌면 프론트가 깨진다. 그래서 계약 변경은 작업 전과 작업 후 두 번, 사용자에게 먼저 알린다.**
-에이전트는 사용자에게 보고까지만 한다 — **프론트 담당에게 직접 연락하거나 외부 채널에 공지하지 않는다.** 전달은 사용자가 한다.
-
-### 언제 알리나 (아래 중 하나라도 해당하면 "공지 필요")
-
-| 구분 | 예 |
-|---|---|
-| 새 엔드포인트 | `POST /api/ai/match` 신설 |
-| 경로·메서드 변경 | `/api/activities/{id}/join` → `/api/participations` |
-| 요청 계약 변경 | 필드 추가·삭제·이름 변경·**필수화**·타입 변경, 쿼리 파라미터 추가 |
-| 응답 계약 변경 | 필드 **삭제**·이름 변경·타입 변경·**의미 변경**(예: 주소 마스킹), 새 필드 추가 |
-| 에러 계약 변경 | 새 `ErrorCode`, HTTP 상태 코드 변경, 정상 응답 → 에러로 전환 |
-| 인증·인가 변경 | 열람 범위, 역할 제한, 비로그인 허용 여부 |
-| 구조적 변경 | 상태 전이 규칙, 자동 공개(S-01) 같은 플로우 변경, 목록 필터·정렬 규약 |
-
-값만 바뀌는 내부 리팩터링·성능 개선·테스트 추가는 공지 대상이 아니다.
-
-### 어떻게 알리나
-
-- **작업 전 (착수 보고).** 코드를 건드리기 전에 한 줄 판정 — `프론트 공지 필요 / 불필요` — 과 **바뀔 계약의 요약**을 사용자에게 말한다.
-  깨는 변경(필드 삭제·의미 변경·필수화)이 포함되면 **사용자 확인을 받고 착수한다.** 추가만 하는 변경은 알리고 그대로 진행한다.
-- **작업 후 (완료 보고).** 실제로 나간 계약을 **프론트에 그대로 전달할 수 있는 형태**로 정리한다.
-  - 메서드 + 경로, 요청·응답 **예시 JSON**(`ApiResponse` 래핑 포함), 추가/변경/삭제 표시
-  - 새 에러코드와 HTTP 상태
-  - **언제부터 유효한지** — 지금은 CD 파이프라인 배포이므로 "머지 시점"이 아니라 **"배포 완료 시점"** 기준으로 적는다
-- PR 본문에도 같은 요약을 남긴다. PR만 보고도 프론트가 대응할 수 있어야 한다.
-
-> **원칙은 변하지 않는다 — 응답은 추가만 한다.** 필드를 지우거나 의미를 바꾸는 변경은 이슈 #53(주소 마스킹)처럼 별도 이슈로 내고 공지한다.
-
 ## 🔐 보안 규칙 (필수)
 
 **민감 정보는 절대 소스에 커밋하지 않는다.**
@@ -276,7 +164,10 @@ PRD 차별점 문장에 직접 적힌 기능이다 — "AI는 …을 근거로 *
 - **엔티티**: setter 금지, 의미 있는 도메인 메서드로 상태 변경 (예: `request.approve()`). 검증 로직은 복사하지 말고 한 곳으로 뽑아 공유한다 (예: 시간 순서 검증은 개설·수정이 함께 쓴다).
 - **Swagger**: `@SecurityScheme(type = HTTP, scheme = "basic")`으로 Authorize 버튼 사용.
 - 기술 스택 주의: Spring Boot 4.1 / Spring Security 7(람다 DSL만, `.and()` 체이닝 불가) / Jackson 3(`tools.jackson` 패키지).
-- **테스트 작성 필수.** 대상은 `domain`/`common`/`auth`/`activity`/`space`/`ai` 전 레이어, **현재 존재하는 모든 엔드포인트**(신규만이 아니라 기존 것도 소급 적용)와 **객체가 생성되는 모든 지점**(엔티티 생성, 상태 변경 도메인 메서드, DTO 변환). 강제 규약과 금지 사항은 **[🧪 테스트 강제 규약](#-테스트-강제-규약-cd-파이프라인-게이트)** 을 따른다. Swagger 수동 확인은 보조 수단일 뿐 테스트를 대체하지 않는다.
+- **테스트 작성 필수.** 로그인·인증인가 도입을 계기로 '선택'에서 '필수'로 전환. 대상은 인증인가에 한정하지 않고 `domain`/`common`/`auth`/`activity`/`space`/`ai` 전 레이어.
+  - **현재 존재하는 모든 엔드포인트**가 대상이다 (새로 추가하는 것만이 아니라 기존 것도 소급 적용). CRUD·조회성 API도 예외 없음.
+  - **객체가 생성되는 모든 지점**도 대상이다 — 엔티티 생성(생성자/정적 팩토리), 상태 변경 도메인 메서드, DTO 변환 등.
+  - PR 전 `./gradlew compileJava && ./gradlew test` 통과가 품질 게이트. Swagger 수동 확인은 보조 수단일 뿐 테스트를 대체하지 않는다.
 
 ## API 경로 규약
 
@@ -320,7 +211,7 @@ PRD 차별점 문장에 직접 적힌 기능이다 — "AI는 …을 근거로 *
 docker compose up -d          # MySQL 기동 (최초 1회)
 ./gradlew bootRun             # 서버 실행 → http://localhost:8080/swagger-ui.html
 ./gradlew compileJava         # 커밋 전 필수 빌드 확인
-./gradlew test                # push 전 필수 테스트 (CI가 같은 명령을 돌린다 — 여기서 실패하면 배포도 못 나간다, DB 불필요)
+./gradlew test                # PR 전 필수 테스트 (compileJava와 함께 품질 게이트, DB 불필요)
 
 curl -u myid:mypw http://localhost:8080/api/auth/me   # 인증 확인
 ```
@@ -328,47 +219,6 @@ curl -u myid:mypw http://localhost:8080/api/auth/me   # 인증 확인
 ## CI (GitHub Actions)
 
 `.github/workflows/ci.yml` (이슈 #36, PR #37) — `main`/`dev`/`backend`/`yonggyu/backend` 대상 PR과 push마다 `compileJava` + `test`를 자동 실행하고 테스트 리포트를 아티팩트로 올린다. **CI가 빨간 PR은 머지하지 않는다.** 프론트엔드 job과 배포(CD) 워크플로는 `DEPLOYMENT.md` Part 1에 계획만 있고 아직 없다.
-
-## 🧪 테스트 강제 규약 (CD 파이프라인 게이트)
-
-**이제 배포는 CD 파이프라인이 한다. 테스트가 빨간 순간 배포가 막히거나, 더 나쁘게는 검증 안 된 코드가 나간다.**
-`.github/workflows/ci.yml`이 PR·푸시마다 `compileJava` → `test`를 돌린다. **로컬에서 초록을 확인하지 않은 코드는 push하지 않는다.**
-
-> ⚠️ 저장소의 워크플로는 지금 `ci.yml`(compile + test) 하나뿐이고, **CD 워크플로는 `DEPLOYMENT.md` Part 1에 계획만 있다.**
-> 실제 배포 잡이 생기면 트리거 브랜치를 여기에 적는다. 어느 쪽이든 **테스트 통과가 배포의 선행 조건**이라는 규약은 그대로다.
-
-### 커밋 단위 강제 규약
-
-**프로덕션 코드가 바뀐 커밋은 테스트 코드를 동반한다.** 테스트 없는 프로덕션 커밋은 만들지 마라
-(예외: 문서·주석·빌드 설정만 바뀐 커밋).
-
-| 무엇을 바꿨나 | 반드시 있어야 하는 테스트 | 최소 케이스 |
-|---|---|---|
-| 새 엔드포인트 / 시그니처 변경 | `@WebMvcTest` 컨트롤러 테스트 | 성공 1 + 검증 실패(400) 1 + 권한 거부(401/403) 1 |
-| 새 서비스 메서드 / 분기 추가 | Mockito 서비스 테스트 | 정상 경로 1 + `BusinessException` 경로 1(**`ErrorCode`까지 단언**) |
-| 새 쿼리 / `search` 조건 추가 | `@RepositoryTest` | 걸리는 케이스 + **안 걸리는 케이스** + 경계값(날짜 당일 포함 등) |
-| 엔티티 상태 변경 메서드 | 순수 JUnit | 전이 성공 + 허용되지 않는 상태에서 거부 |
-| DTO 변환·계산 로직 | DTO 테스트 | 계산 결과 + 하한/상한 같은 경계(예: `remainingCapacity` 0 하한) |
-| 인가 범위 변경 | `@IntegrationTest` 인가 매트릭스(`SecurityConfigTest`) | 역할별 허용/거부 전부 |
-| 버그 수정 | **재현 테스트를 먼저 추가해 빨간 것을 확인한 뒤** 고친다 | 재현 1 + 회귀 방지 단언 |
-| 계약 회귀(공지한 정책) | 정책이 깨지면 실패하는 테스트 | 예: `SpaceInfo`에 주소 필드가 **없음** |
-
-### 금지 (하나라도 하면 그 작업은 실패다)
-
-- **`@Disabled`/주석 처리로 테스트를 끄고 넘어가지 마라.** 못 고치면 끄지 말고 **멈춰서 사용자에게 보고**한다.
-- **실패하는 테스트를 삭제하거나 단언을 약화시켜 초록을 만들지 마라.** 테스트가 맞고 코드가 틀린 경우가 대부분이다.
-- **테스트를 통과시키려고 프로덕션 검증을 지우거나 예외를 삼키지 마라.**
-- **단언 없는 테스트 금지.** "예외 없이 실행됨"만 확인하는 테스트는 통과로 치지 않는다.
-- **DB·도커가 필요한 테스트 금지.** 컨텍스트가 필요하면 `@RepositoryTest`·`@IntegrationTest`의 인메모리 H2를 쓴다.
-- **현재 시각·랜덤에 의존하는 단언 금지.** 날짜는 테스트 안에서 고정값으로 만든다.
-- **`ANTHROPIC_API_KEY` 같은 외부 자격 증명이 있어야 도는 테스트 금지.** AI 경로는 SDK 클라이언트를 목으로 대체한다 (CI에는 키가 없다).
-
-### 실행과 보고
-
-- 커밋 전 `./gradlew compileJava`, **push 전 `./gradlew test`**. 둘 다 초록이어야 push한다.
-- 결과는 **실제 Gradle 출력을 근거로** 보고한다. 실패했으면 실패했다고 출력과 함께 말하고, 안 돌렸으면 **안 돌렸다고 말한다.** 추측으로 "통과했습니다"라고 쓰지 마라.
-- CI가 빨간 채로 PR을 두지 않는다. CI 실패는 **다음 작업보다 먼저** 고친다.
-- 테스트 리포트는 CI 아티팩트 `backend-test-report`(`build/reports/tests/test`)에서 받는다.
 
 ## Git 규칙 (이슈 기반 워크플로우)
 
@@ -402,9 +252,7 @@ curl -u myid:mypw http://localhost:8080/api/auth/me   # 인증 확인
    - 제목 `[#이슈번호] 작업내용`, base 브랜치 **`<이름>/backend`**.
    - 본문의 `Closes #<이슈번호>`를 채워 머지 시 이슈가 자동으로 닫히게 한다.
 
-5. **품질 게이트.** PR 올리기 전 `./gradlew compileJava && ./gradlew test` 통과 필수. CI가 같은 것을 다시 검증한다. **CD 파이프라인 배포이므로 빨간 브랜치는 곧 막힌 배포다** — 상세는 [🧪 테스트 강제 규약](#-테스트-강제-규약-cd-파이프라인-게이트).
-
-   **PR 본문에는 프론트 영향 요약을 반드시 넣는다** — 계약 변경이 없으면 "프론트 영향 없음" 한 줄이라도 적는다([📣 프론트 영향 공지](#-프론트-영향-공지-필수)).
+5. **품질 게이트.** PR 올리기 전 `./gradlew compileJava && ./gradlew test` 통과 필수. CI가 같은 것을 다시 검증한다.
 
 6. **통합·승격 PR.** 에이전트가 임의로 `backend`·`dev`·`main`에 머지·푸시하지 않는다.
 
