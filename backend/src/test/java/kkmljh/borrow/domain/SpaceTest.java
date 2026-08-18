@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -207,6 +208,56 @@ class SpaceTest {
 
             assertThatThrownBy(() -> space.updateFacilities(Set.of(FacilityType.WIFI)))
                     .isInstanceOf(UnsupportedOperationException.class);
+        }
+    }
+
+    /**
+     * 기능명세 3.2 display — 파트너용 개최 요청 상세와 예술가용 매칭 확정 화면이 <b>같은 금액</b>을
+     * 보여야 해서 계산을 도메인 한 곳으로 모았다. 응답 DTO 에 계산식을 복사하면 이 테스트가
+     * 지키는 "한 곳" 규칙이 깨진다.
+     */
+    @Nested
+    @DisplayName("공간 이용료 계산 (기능명세 3.2 display · 5.1)")
+    class RentalFee {
+
+        private Space space(int hourlyFee) {
+            return base().hourlyFee(hourlyFee).build();
+        }
+
+        @Test
+        @DisplayName("시간당 단가 × 이용 시간")
+        void wholeHours() {
+            assertThat(space(10_000).rentalFeeFor(LocalTime.of(14, 0), LocalTime.of(16, 0)))
+                    .isEqualTo(20_000);
+        }
+
+        @Test
+        @DisplayName("한 시간이 안 되는 자투리도 분 단위로 계산한다")
+        void partialHour() {
+            assertThat(space(10_000).rentalFeeFor(LocalTime.of(14, 0), LocalTime.of(15, 30)))
+                    .isEqualTo(15_000);
+            assertThat(space(10_000).rentalFeeFor(LocalTime.of(14, 0), LocalTime.of(14, 30)))
+                    .isEqualTo(5_000);
+        }
+
+        @Test
+        @DisplayName("원 단위로 반올림한다 — 시간당 10,000원 × 20분 = 3,333원")
+        void roundsToWon() {
+            assertThat(space(10_000).rentalFeeFor(LocalTime.of(14, 0), LocalTime.of(14, 20)))
+                    .isEqualTo(3_333);
+        }
+
+        @Test
+        @DisplayName("경계 — 시작과 종료가 같으면 0원")
+        void zeroLength() {
+            assertThat(space(10_000).rentalFeeFor(LocalTime.of(14, 0), LocalTime.of(14, 0)))
+                    .isZero();
+        }
+
+        @Test
+        @DisplayName("무료 공간은 시간이 얼마든 0원")
+        void freeSpace() {
+            assertThat(space(0).rentalFeeFor(LocalTime.of(9, 0), LocalTime.of(18, 0))).isZero();
         }
     }
 }
