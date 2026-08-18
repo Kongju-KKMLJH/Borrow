@@ -35,6 +35,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -94,22 +95,18 @@ class ActivityControllerTest {
     }
 
     @Test
-    @DisplayName("U-06 MEMBER 가 활동을 개설하면 HOBBY 로 만들어진다")
-    void createByMember() throws Exception {
-        given(activityService.create(eq(TestUsers.MEMBER), any()))
-                .willReturn(detail(ActivityType.HOBBY, false));
-
+    @DisplayName("MEMBER 는 활동을 개설할 수 없다 — 403 (개설은 예술가로 한정, 기능명세 1.2)")
+    void memberCannotCreate() throws Exception {
         mockMvc.perform(post("/api/activities").with(TestUsers.member())
                         .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.type").value("HOBBY"))
-                .andExpect(jsonPath("$.data.hostCertified").value(false))
-                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+
+        verify(activityService, never()).create(any(), any());
     }
 
     @Test
-    @DisplayName("ARTIST 가 개설하면 CLASS · 인증 배지로 만들어진다 (F-01)")
+    @DisplayName("U-06 ARTIST 가 개설하면 CLASS · 인증 배지로 만들어진다 (F-01)")
     void createByArtist() throws Exception {
         given(activityService.create(eq(TestUsers.ARTIST), any()))
                 .willReturn(detail(ActivityType.CLASS, true));
@@ -124,10 +121,11 @@ class ActivityControllerTest {
     @Test
     @DisplayName("요청 본문의 type·hostCertified·hostNickname 은 무시된다 (배지·이름 위조 차단)")
     void ignoresForgedFields() throws Exception {
-        given(activityService.create(eq(TestUsers.MEMBER), any()))
+        // 서버가 정하는 값만 응답에 실린다 — 요청이 CLASS·배지·닉네임을 보내도 반영되지 않는다.
+        given(activityService.create(eq(TestUsers.ARTIST), any()))
                 .willReturn(detail(ActivityType.HOBBY, false));
 
-        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+        mockMvc.perform(post("/api/activities").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"field":"ART","title":"수채화","date":"2026-09-12",
@@ -161,7 +159,7 @@ class ActivityControllerTest {
     @Test
     @DisplayName("제목이 비면 400 INVALID_REQUEST")
     void titleRequired() throws Exception {
-        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+        mockMvc.perform(post("/api/activities").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"field":"ART","title":"","date":"2026-09-12",
@@ -174,7 +172,7 @@ class ActivityControllerTest {
     @Test
     @DisplayName("정원이 0 이하면 400 INVALID_REQUEST")
     void capacityMustBePositive() throws Exception {
-        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+        mockMvc.perform(post("/api/activities").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"field":"ART","title":"수채화","date":"2026-09-12",
@@ -190,7 +188,7 @@ class ActivityControllerTest {
         given(activityService.create(any(), any())).willThrow(
                 new BusinessException(ErrorCode.INVALID_REQUEST, "종료 시각은 시작 시각보다 늦어야 합니다."));
 
-        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+        mockMvc.perform(post("/api/activities").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.message").value("종료 시각은 시작 시각보다 늦어야 합니다."));
@@ -435,7 +433,7 @@ class ActivityControllerTest {
     @Test
     @DisplayName("⚠️ 프론트 주의: 개설 요청의 원시 타입 필드(capacity·entryFee)를 빼면 400")
     void primitiveFieldsMustBePresent() throws Exception {
-        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+        mockMvc.perform(post("/api/activities").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"field":"ART","title":"수채화 모임","date":"2026-09-12",

@@ -6,17 +6,20 @@ import kkmljh.borrow.activity.dto.ActivitySummaryResponse;
 import kkmljh.borrow.activity.dto.ActivityUpdateRequest;
 import kkmljh.borrow.activity.dto.RequirementUpdateRequest;
 import kkmljh.borrow.activity.dto.SpaceRequirementDto;
+import kkmljh.borrow.activity.repository.ActivityArtistVerificationRepository;
 import kkmljh.borrow.activity.repository.ActivityHostingRequestRepository;
 import kkmljh.borrow.activity.repository.ActivityRepository;
 import kkmljh.borrow.activity.repository.ActivityUserRepository;
 import kkmljh.borrow.activity.repository.ConfirmedSpace;
 import kkmljh.borrow.activity.repository.ParticipationRepository;
+import kkmljh.borrow.common.config.ArtistVerificationProperties;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
 import kkmljh.borrow.domain.Activity;
 import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.ActivityStatus;
 import kkmljh.borrow.domain.ActivityType;
+import kkmljh.borrow.domain.ArtistVerificationStatus;
 import kkmljh.borrow.domain.FacilityType;
 import kkmljh.borrow.domain.SpaceRequirement;
 import kkmljh.borrow.support.TestFixtures;
@@ -30,6 +33,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
@@ -66,6 +70,13 @@ class ActivityServiceTest {
 
     @Mock
     private ActivityHostingRequestRepository hostingRequestRepository;
+
+    @Mock
+    private ActivityArtistVerificationRepository artistVerificationRepository;
+
+    /** 설정 기본값(required=false)을 그대로 쓰는 실제 인스턴스 — 기본 동작 회귀를 이 값으로 지킨다. */
+    @Spy
+    private ArtistVerificationProperties artistVerificationProperties = new ArtistVerificationProperties();
 
     @InjectMocks
     private ActivityService activityService;
@@ -877,6 +888,69 @@ class ActivityServiceTest {
             given(participationRepository.findActivityIdsByGuestId(MEMBER)).willReturn(Set.of());
 
             assertThat(activityService.myActivities(MEMBER)).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("인증 게이트 (기능명세 1.2)")
+    class VerificationGate {
+
+        @Test
+        @DisplayName("설정이 없으면(기본 false) 역할만으로 배지를 준다 — 인증 신청을 조회하지도 않는다")
+        void defaultKeepsLegacyBadge() {
+            given(userRepository.findByLoginId("artist1")).willReturn(Optional.of(TestFixtures.artist()));
+            given(activityRepository.save(any(Activity.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ActivityDetailResponse response = activityService.create("artist1", createRequest());
+
+            assertThat(artistVerificationProperties.isRequired()).isFalse();
+            assertThat(response.hostCertified()).isTrue();
+            verify(artistVerificationRepository, never()).existsByLoginIdAndStatus(any(), any());
+        }
+
+        @Test
+        @DisplayName("게이트를 켜면 인증이 승인된 예술가만 배지를 받는다")
+        void approvedArtistKeepsBadge() {
+            artistVerificationProperties.setRequired(true);
+            given(userRepository.findByLoginId("artist1")).willReturn(Optional.of(TestFixtures.artist()));
+            given(artistVerificationRepository.existsByLoginIdAndStatus(
+                    "artist1", ArtistVerificationStatus.APPROVED)).willReturn(true);
+            given(activityRepository.save(any(Activity.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ActivityDetailResponse response = activityService.create("artist1", createRequest());
+
+            assertThat(response.hostCertified()).isTrue();
+            assertThat(response.type()).isEqualTo(ActivityType.CLASS);
+        }
+
+        @Test
+        @DisplayName("게이트를 켜도 미인증 예술가의 개설은 막지 않는다 — 배지만 빠지고 유형은 CLASS 그대로")
+        void unverifiedArtistStillCreates() {
+            artistVerificationProperties.setRequired(true);
+            given(userRepository.findByLoginId("artist1")).willReturn(Optional.of(TestFixtures.artist()));
+            given(artistVerificationRepository.existsByLoginIdAndStatus(
+                    "artist1", ArtistVerificationStatus.APPROVED)).willReturn(false);
+            given(activityRepository.save(any(Activity.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ActivityDetailResponse response = activityService.create("artist1", createRequest());
+
+            assertThat(response.hostCertified()).isFalse();
+            assertThat(response.type()).isEqualTo(ActivityType.CLASS);
+            verify(activityRepository).save(any(Activity.class));
+        }
+
+        @Test
+        @DisplayName("게이트를 켜도 MEMBER 는 인증 조회 없이 배지가 없다 (역할이 먼저 갈린다)")
+        void memberNeverQueriesVerification() {
+            artistVerificationProperties.setRequired(true);
+            given(userRepository.findByLoginId(MEMBER)).willReturn(Optional.of(TestFixtures.member()));
+            given(activityRepository.save(any(Activity.class))).willAnswer(inv -> inv.getArgument(0));
+
+            ActivityDetailResponse response = activityService.create(MEMBER, createRequest());
+
+            assertThat(response.hostCertified()).isFalse();
+            assertThat(response.type()).isEqualTo(ActivityType.HOBBY);
+            verify(artistVerificationRepository, never()).existsByLoginIdAndStatus(any(), any());
         }
     }
 }

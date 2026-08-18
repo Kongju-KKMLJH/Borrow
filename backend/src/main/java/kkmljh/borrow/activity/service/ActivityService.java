@@ -5,17 +5,20 @@ import kkmljh.borrow.activity.dto.ActivityDetailResponse;
 import kkmljh.borrow.activity.dto.ActivitySummaryResponse;
 import kkmljh.borrow.activity.dto.ActivityUpdateRequest;
 import kkmljh.borrow.activity.dto.RequirementUpdateRequest;
+import kkmljh.borrow.activity.repository.ActivityArtistVerificationRepository;
 import kkmljh.borrow.activity.repository.ActivityHostingRequestRepository;
 import kkmljh.borrow.activity.repository.ConfirmedSpace;
 import kkmljh.borrow.activity.repository.ActivityRepository;
 import kkmljh.borrow.activity.repository.ActivityUserRepository;
 import kkmljh.borrow.activity.repository.ParticipationRepository;
+import kkmljh.borrow.common.config.ArtistVerificationProperties;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
 import kkmljh.borrow.domain.Activity;
 import kkmljh.borrow.domain.AppUser;
 import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.ActivityType;
+import kkmljh.borrow.domain.ArtistVerificationStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,11 +40,17 @@ public class ActivityService {
     private final ParticipationRepository participationRepository;
     private final ActivityUserRepository userRepository;
     private final ActivityHostingRequestRepository hostingRequestRepository;
+    private final ActivityArtistVerificationRepository artistVerificationRepository;
+    private final ArtistVerificationProperties artistVerificationProperties;
 
     /**
      * U-06~U-08 활동 개설 → DRAFT.
      * 유형·인증 배지·표시 이름은 <b>서버가 로그인 역할에서 정한다</b> (요청 DTO로 받으면 위조 가능):
      * MEMBER → HOBBY / hostCertified=false, ARTIST → CLASS / hostCertified=true (F-01).
+     *
+     * <p>인증 게이트({@code artist.verification.required})를 켜면 배지에 "인증 승인됨"을 곱한다
+     * (기능명세 1.2). 게이트를 켜도 <b>개설 자체는 막지 않는다</b> — 미인증 예술가도 개설할 수 있고
+     * 배지만 붙지 않는다. 유형(CLASS/HOBBY)은 역할만으로 정하므로 게이트의 영향을 받지 않는다.
      */
     @Transactional
     public ActivityDetailResponse create(String guestId, ActivityCreateRequest req) {
@@ -54,7 +63,7 @@ public class ActivityService {
         Activity activity = Activity.builder()
                 .guestId(guestId)
                 .hostNickname(host.getNickname())
-                .hostCertified(artist)
+                .hostCertified(artist && verifiedArtist(guestId))
                 .type(artist ? ActivityType.CLASS : ActivityType.HOBBY)
                 .field(req.field())
                 .title(req.title())
@@ -70,6 +79,19 @@ public class ActivityService {
 
         Activity saved = activityRepository.save(activity);
         return ActivityDetailResponse.of(saved, 0);
+    }
+
+    /**
+     * 인증 배지 판정 (기능명세 1.2). 게이트가 꺼져 있으면 조회조차 하지 않는다 —
+     * 기본값이 false 이므로 설정이 없는 로컬·기존 데모 계정의 배지 동작은 그대로다.
+     * 판정은 개설 시점 1회뿐이고, hostCertified 는 그 시점의 스냅샷으로 남는다.
+     */
+    private boolean verifiedArtist(String loginId) {
+        if (!artistVerificationProperties.isRequired()) {
+            return true;
+        }
+        return artistVerificationRepository
+                .existsByLoginIdAndStatus(loginId, ArtistVerificationStatus.APPROVED);
     }
 
     /** U-08 공간 요구조건 수정 (개설자 본인만). DRAFT/REJECTED 단계에서만 의미가 있다. */
