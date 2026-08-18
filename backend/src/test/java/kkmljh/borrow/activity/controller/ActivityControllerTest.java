@@ -294,13 +294,21 @@ class ActivityControllerTest {
     }
 
     @Test
-    @DisplayName("⚠️ 알려진 제약: 알 수 없는 필터 값은 400이 아니라 500 INTERNAL_ERROR 로 나간다")
+    @DisplayName("알 수 없는 필터 값은 400 INVALID_REQUEST 로 나간다 (#8·#30 회귀)")
     void invalidFilterValue() throws Exception {
-        // MethodArgumentTypeMismatchException 은 스프링이 400으로 처리하는 예외지만,
-        // GlobalExceptionHandler 의 @ExceptionHandler(Exception.class) 가 먼저 잡아 500으로 바꾼다.
+        // MethodArgumentTypeMismatchException 전용 핸들러가 없던 시절에는
+        // @ExceptionHandler(Exception.class) 가 먼저 잡아 500이 나갔다.
         mockMvc.perform(get("/api/activities").param("type", "UNKNOWN"))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error.code").value("INTERNAL_ERROR"));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("경로 변수 타입이 맞지 않아도 400 INVALID_REQUEST 다 (#8·#30 회귀)")
+    void invalidPathVariableType() throws Exception {
+        mockMvc.perform(get("/api/activities/not-a-number"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
     }
 
     @Test
