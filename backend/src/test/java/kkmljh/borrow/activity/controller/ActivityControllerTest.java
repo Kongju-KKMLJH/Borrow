@@ -75,11 +75,15 @@ class ActivityControllerTest {
     private ActivityService activityService;
 
     private ActivityDetailResponse detail(ActivityType type, boolean certified) {
+        return detail(type, certified, ActivityStatus.DRAFT);
+    }
+
+    private ActivityDetailResponse detail(ActivityType type, boolean certified, ActivityStatus status) {
         return new ActivityDetailResponse(
                 1L, type, ActivityField.ART, "수채화 모임", "설명", List.of("/files/a.jpg"),
                 "일반회원", certified, LocalDate.of(2026, 9, 12),
                 LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 8, 10_000,
-                ActivityStatus.DRAFT, null,
+                status, null,
                 new SpaceRequirementDto("천안시 서북구", 6, Set.of(FacilityType.WATER), false, true),
                 false, false);
     }
@@ -648,6 +652,61 @@ class ActivityControllerTest {
                 .given(activityService).delete(TestUsers.MEMBER, 99L);
 
         mockMvc.perform(delete("/api/activities/99").with(TestUsers.member()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ACTIVITY_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("기능명세 3.3 개설자 본인은 MATCHED 활동을 결제해 공개할 수 있다")
+    void payByOwner() throws Exception {
+        given(activityService.pay(TestUsers.MEMBER, 1L))
+                .willReturn(detail(ActivityType.HOBBY, false, ActivityStatus.PUBLISHED));
+
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.member()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PUBLISHED"));
+
+        verify(activityService).pay(TestUsers.MEMBER, 1L);
+    }
+
+    @Test
+    @DisplayName("승인 전(MATCHED 아님) 활동 결제는 400 INVALID_REQUEST")
+    void payBeforeApproval() throws Exception {
+        willThrow(new BusinessException(ErrorCode.INVALID_REQUEST, "공간 승인 후 매칭이 확정된 활동만 결제할 수 있습니다."))
+                .given(activityService).pay(TestUsers.MEMBER, 1L);
+
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.member()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("남의 활동 결제는 403 FORBIDDEN")
+    void payOthersActivity() throws Exception {
+        willThrow(new BusinessException(ErrorCode.FORBIDDEN))
+                .given(activityService).pay("other-member", 1L);
+
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.as("other-member")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("HOST 는 결제할 수 없다 — 403, 비로그인은 401")
+    void payRequiresMemberOrArtist() throws Exception {
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.host()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/activities/1/payment"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("없는 활동 결제는 404 ACTIVITY_NOT_FOUND")
+    void payNotFound() throws Exception {
+        willThrow(new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND))
+                .given(activityService).pay(TestUsers.MEMBER, 99L);
+
+        mockMvc.perform(post("/api/activities/99/payment").with(TestUsers.member()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("ACTIVITY_NOT_FOUND"));
     }

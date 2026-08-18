@@ -165,15 +165,33 @@ class HostingRequestServiceTest {
     class ApproveReject {
 
         @Test
-        @DisplayName("승인하면 요청은 APPROVED, 활동은 자동 공개된다 (S-01)")
-        void approvePublishesActivity() {
+        @DisplayName("승인하면 요청은 APPROVED, 활동은 매칭 확정(MATCHED) 상태가 된다 (시민 공개는 결제 후)")
+        void approveConfirmsMatch() {
             HostingRequest request = request(1L, OWNER);
             given(hostingRequestRepository.findById(1L)).willReturn(Optional.of(request));
 
             HostingRequestResponse response = hostingRequestService.approve(OWNER, 1L);
 
             assertThat(response.status()).isEqualTo(RequestStatus.APPROVED);
-            assertThat(request.getActivity().getStatus()).isEqualTo(ActivityStatus.PUBLISHED);
+            assertThat(request.getActivity().getStatus()).isEqualTo(ActivityStatus.MATCHED);
+        }
+
+        @Test
+        @DisplayName("모집 정원이 공간 수용 인원을 넘으면 승인할 수 없다 — 400 CAPACITY_EXCEEDS_SPACE (이슈 #9)")
+        void cannotApproveWhenCapacityExceedsSpace() {
+            // TestFixtures.space() 는 capacity=10 — 그보다 큰 정원(20명)의 활동으로 요청을 만든다.
+            Activity oversized = TestFixtures.activity(1L, "member1");
+            oversized.markPending();
+            org.springframework.test.util.ReflectionTestUtils.setField(oversized, "capacity", 20);
+            HostingRequest request = TestFixtures.hostingRequest(1L, oversized, TestFixtures.space(5L, OWNER));
+            given(hostingRequestRepository.findById(1L)).willReturn(Optional.of(request));
+
+            assertThatThrownBy(() -> hostingRequestService.approve(OWNER, 1L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.CAPACITY_EXCEEDS_SPACE);
+
+            assertThat(request.getStatus()).isEqualTo(RequestStatus.PENDING);
         }
 
         @Test

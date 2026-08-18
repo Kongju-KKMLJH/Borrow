@@ -27,10 +27,10 @@ class DomainEnumsTest {
     }
 
     @Test
-    @DisplayName("활동 상태: DRAFT → PENDING → PUBLISHED / REJECTED")
+    @DisplayName("활동 상태: DRAFT → PENDING → MATCHED → PUBLISHED / REJECTED")
     void activityStatus() {
         assertThat(ActivityStatus.values()).containsExactlyInAnyOrder(
-                ActivityStatus.DRAFT, ActivityStatus.PENDING,
+                ActivityStatus.DRAFT, ActivityStatus.PENDING, ActivityStatus.MATCHED,
                 ActivityStatus.PUBLISHED, ActivityStatus.REJECTED);
     }
 
