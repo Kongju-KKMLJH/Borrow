@@ -57,9 +57,12 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
+          # ⚠️ 블록 스칼라(|) 안에는 주석을 쓸 수 없다 — 주석 문자열이 태그에 그대로 붙어
+          #    "invalid reference format" 으로 실패한다. 설명은 반드시 블록 밖에 둔다.
+          #    두 번째 태그는 커밋 SHA — 롤백용 불변 태그다.
           tags: |
             ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:${{ github.sha }}   # 롤백용 불변 태그
+            ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -155,6 +158,10 @@ jobs:
             # 4) 기동
             $COMPOSE pull
             $COMPOSE up -d --remove-orphans
+            # ⚠️ caddy 는 반드시 재생성한다. bind mount 는 경로가 아니라 디렉터리 inode 를
+            #    따라가므로, 위에서 web 디렉터리를 통째로 바꾸면 컨테이너는 옛 디렉터리를
+            #    계속 보고 있다(= 새 번들이 서빙되지 않는다).
+            $COMPOSE up -d --force-recreate caddy
 
             # 5) 헬스체크 (actuator 가 없으므로 공개 GET 사용)
             ok=0
