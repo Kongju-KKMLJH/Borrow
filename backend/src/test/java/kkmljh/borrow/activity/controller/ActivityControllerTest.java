@@ -294,6 +294,22 @@ class ActivityControllerTest {
     }
 
     @Test
+    @DisplayName("과거 날짜로는 개설할 수 없다 — 400 INVALID_REQUEST (#75)")
+    void createRejectsPastDate() throws Exception {
+        // 고정된 과거 날짜라 현재 시각과 무관하게 항상 과거다.
+        String pastDateBody = CREATE_BODY.replace("\"date\":\"2026-09-12\"", "\"date\":\"2020-01-01\"");
+
+        mockMvc.perform(post("/api/activities")
+                        .with(TestUsers.artist())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pastDateBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+
+        verify(activityService, never()).create(any(), any());
+    }
+
+    @Test
     @DisplayName("알 수 없는 필터 값은 400 INVALID_REQUEST 로 나간다 (#8·#30 회귀)")
     void invalidFilterValue() throws Exception {
         // MethodArgumentTypeMismatchException 전용 핸들러가 없던 시절에는
