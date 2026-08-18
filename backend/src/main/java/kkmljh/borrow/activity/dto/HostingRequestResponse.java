@@ -3,7 +3,6 @@ package kkmljh.borrow.activity.dto;
 import kkmljh.borrow.domain.HostingRequest;
 import kkmljh.borrow.domain.RequestStatus;
 
-import java.time.Duration;
 
 /** U-11 전송 결과 / U-12 상태 조회 — 매칭 확정 화면의 가격 구성·예상 운영 수익 포함 */
 public record HostingRequestResponse(
@@ -32,8 +31,9 @@ public record HostingRequestResponse(
             int participantPrice = r.getActivity().getEntryFee();
             int expectedParticipantRevenue = participantPrice * r.getActivity().getCapacity();
 
-            long minutes = Duration.between(r.getActivity().getStartTime(), r.getActivity().getEndTime()).toMinutes();
-            int spaceRentalFee = Math.round(r.getSpace().getHourlyFee() * (minutes / 60f));
+            // 계산은 도메인 한 곳(Space)에만 둔다 — 파트너용 개최 요청 상세와 같은 금액이어야 한다
+            int spaceRentalFee = r.getSpace()
+                    .rentalFeeFor(r.getActivity().getStartTime(), r.getActivity().getEndTime());
 
             int expectedOperatingProfit = expectedParticipantRevenue - spaceRentalFee - matchingFee;
 

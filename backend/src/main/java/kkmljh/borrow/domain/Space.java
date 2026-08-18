@@ -17,6 +17,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Duration;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -99,6 +101,20 @@ public class Space {
         if (allowedFields != null) this.allowedFields = allowedFields;
         this.noiseAllowed = noiseAllowed;
         this.messAllowed = messAllowed;
+    }
+
+    /**
+     * 활동 시간(시작~종료) 기준 공간 이용료 — <b>시간당 단가 × 이용 시간</b>.
+     *
+     * <p>예술가용 매칭 확정 화면(기능명세 5.1 · {@code PriceBreakdown.spaceRentalFee})과
+     * 파트너용 개최 요청 상세(기능명세 3.2 {@code display})가 <b>같은 금액</b>을 보여야 한다.
+     * 그래서 계산은 여기 한 곳에만 둔다 — <b>어느 응답 DTO 에도 계산식을 복사하지 마라.</b>
+     *
+     * <p>시간은 분 단위로 계산해 원 단위로 반올림한다(예: 시간당 10,000원 × 1시간 30분 = 15,000원).
+     */
+    public int rentalFeeFor(LocalTime startTime, LocalTime endTime) {
+        long minutes = Duration.between(startTime, endTime).toMinutes();
+        return Math.round(this.hourlyFee * (minutes / 60f));
     }
 
     /** 이 공간의 소유자(공간 제공자)인지 */
