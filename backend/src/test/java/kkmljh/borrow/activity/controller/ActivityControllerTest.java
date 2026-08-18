@@ -2,6 +2,7 @@ package kkmljh.borrow.activity.controller;
 
 import kkmljh.borrow.activity.dto.ActivityDetailResponse;
 import kkmljh.borrow.activity.dto.ActivitySummaryResponse;
+import kkmljh.borrow.activity.dto.ActivityUpdateRequest;
 import kkmljh.borrow.activity.dto.RequirementUpdateRequest;
 import kkmljh.borrow.activity.dto.SpaceRequirementDto;
 import kkmljh.borrow.activity.service.ActivityService;
@@ -33,16 +34,19 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ActivityController.class)
 @Import({SecurityConfig.class, TestUsers.class})
-@DisplayName("/api/activities — 개설 · 목록 · 상세 · 요구조건")
+@DisplayName("/api/activities — 개설 · 수정 · 삭제 · 목록 · 상세 · 요구조건")
 class ActivityControllerTest {
 
     private static final String CREATE_BODY = """
@@ -50,6 +54,12 @@ class ActivityControllerTest {
              "date":"2026-09-12","startTime":"14:00:00","endTime":"16:00:00","capacity":8,"entryFee":10000,
              "requirement":{"region":"천안시 서북구","headcount":6,"requiredFacilities":["WATER"],
                             "noisy":false,"messy":true}}
+            """;
+
+    /** 수정 요청에는 type·hostCertified·hostNickname·requirement 를 담지 않는다. */
+    private static final String UPDATE_BODY = """
+            {"field":"PHOTO","title":"출사 모임","description":"바뀐 설명","imageUrls":["/files/new.jpg"],
+             "date":"2026-12-01","startTime":"09:00:00","endTime":"11:30:00","capacity":12,"entryFee":25000}
             """;
 
     private static final String REQUIREMENT_BODY = """
@@ -333,5 +343,176 @@ class ActivityControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    // --- 기능명세 2.1 활동 수정·삭제 ---
+
+    @Test
+    @DisplayName("개설자 본인은 활동을 수정할 수 있다")
+    void updateByOwner() throws Exception {
+        given(activityService.update(eq(TestUsers.MEMBER), eq(1L), any()))
+                .willReturn(detail(ActivityType.HOBBY, false));
+
+        mockMvc.perform(put("/api/activities/1").with(TestUsers.member())
+                        .contentType(MediaType.APPLICATION_JSON).content(UPDATE_BODY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(1));
+    }
+
+    @Test
+    @DisplayName("ARTIST 도 자기 활동을 수정할 수 있다 (hasAnyRole 이어야 한다)")
+    void updateByArtist() throws Exception {
+        given(activityService.update(eq(TestUsers.ARTIST), eq(1L), any()))
+                .willReturn(detail(ActivityType.CLASS, true));
+
+        mockMvc.perform(put("/api/activities/1").with(TestUsers.artist())
+                        .contentType(MediaType.APPLICATION_JSON).content(UPDATE_BODY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.type").value("CLASS"));
+    }
+
+    @Test
+    @DisplayName("남의 활동 수정은 403 FORBIDDEN")
+    void updateOthersActivity() throws Exception {
+        given(activityService.update(eq("other-member"), eq(1L), any()))
+                .willThrow(new BusinessException(ErrorCode.FORBIDDEN));
+
+        mockMvc.perform(put("/api/activities/1").with(TestUsers.as("other-member"))
+                        .contentType(MediaType.APPLICATION_JSON).content(UPDATE_BODY))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("비로그인 수정은 401")
+    void anonymousCannotUpdate() throws Exception {
+        mockMvc.perform(put("/api/activities/1")
+                        .contentType(MediaType.APPLICATION_JSON).content(UPDATE_BODY))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("HOST 는 활동을 수정할 수 없다 — 403")
+    void hostCannotUpdate() throws Exception {
+        mockMvc.perform(put("/api/activities/1").with(TestUsers.host())
+                        .contentType(MediaType.APPLICATION_JSON).content(UPDATE_BODY))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("수정 요청의 type·hostCertified·hostNickname·requirement 는 서비스로 전달되지 않는다 (위조 차단)")
+    void updateIgnoresForgedFields() throws Exception {
+        given(activityService.update(eq(TestUsers.MEMBER), eq(1L), any()))
+                .willReturn(detail(ActivityType.HOBBY, false));
+
+        mockMvc.perform(put("/api/activities/1").with(TestUsers.member())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"field":"ART","title":"수채화","date":"2026-12-01",
+                                 "startTime":"14:00:00","endTime":"16:00:00","capacity":8,"entryFee":0,
+                                 "type":"CLASS","hostCertified":true,"hostNickname":"사칭",
+                                 "requirement":{"region":"위조"}}
+                                """))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<ActivityUpdateRequest> captor = ArgumentCaptor.forClass(ActivityUpdateRequest.class);
+        verify(activityService).update(eq(TestUsers.MEMBER), eq(1L), captor.capture());
+
+        // 레코드에 필드 자체가 없으므로 위조 값이 들어올 자리가 없다.
+        assertThat(captor.getValue().title()).isEqualTo("수채화");
+        assertThat(ActivityUpdateRequest.class.getRecordComponents())
+                .extracting(java.lang.reflect.RecordComponent::getName)
+                .doesNotContain("type", "hostCertified", "hostNickname", "guestId", "status", "requirement");
+    }
+
+    @Test
+    @DisplayName("제목이 비면 400 INVALID_REQUEST")
+    void updateTitleRequired() throws Exception {
+        mockMvc.perform(put("/api/activities/1").with(TestUsers.member())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"field":"ART","title":"","date":"2026-12-01",
+                                 "startTime":"14:00:00","endTime":"16:00:00","capacity":8,"entryFee":0}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("지난 날짜로 수정하면 400 (@FutureOrPresent)")
+    void updateRejectsPastDate() throws Exception {
+        mockMvc.perform(put("/api/activities/1").with(TestUsers.member())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"field":"ART","title":"수채화","date":"2020-01-01",
+                                 "startTime":"14:00:00","endTime":"16:00:00","capacity":8,"entryFee":0}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("PUBLISHED 활동 수정은 400 과 안내 메시지")
+    void updatePublishedIsRejected() throws Exception {
+        given(activityService.update(eq(TestUsers.MEMBER), eq(1L), any())).willThrow(
+                new BusinessException(ErrorCode.INVALID_REQUEST, "개최 요청 후에는 활동을 수정할 수 없습니다."));
+
+        mockMvc.perform(put("/api/activities/1").with(TestUsers.member())
+                        .contentType(MediaType.APPLICATION_JSON).content(UPDATE_BODY))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.message").value("개최 요청 후에는 활동을 수정할 수 없습니다."));
+    }
+
+    @Test
+    @DisplayName("개설자 본인은 활동을 삭제할 수 있다")
+    void deleteByOwner() throws Exception {
+        mockMvc.perform(delete("/api/activities/1").with(TestUsers.member()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(activityService).delete(TestUsers.MEMBER, 1L);
+    }
+
+    @Test
+    @DisplayName("남의 활동 삭제는 403 FORBIDDEN")
+    void deleteOthersActivity() throws Exception {
+        willThrow(new BusinessException(ErrorCode.FORBIDDEN))
+                .given(activityService).delete("other-member", 1L);
+
+        mockMvc.perform(delete("/api/activities/1").with(TestUsers.as("other-member")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("비로그인 삭제는 401")
+    void anonymousCannotDelete() throws Exception {
+        mockMvc.perform(delete("/api/activities/1"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("없는 활동 삭제는 404 ACTIVITY_NOT_FOUND")
+    void deleteNotFound() throws Exception {
+        willThrow(new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND))
+                .given(activityService).delete(TestUsers.MEMBER, 99L);
+
+        mockMvc.perform(delete("/api/activities/99").with(TestUsers.member()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ACTIVITY_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("회귀: PUT·DELETE 를 열어도 비로그인 상세 조회(U-03)는 여전히 200 이다")
+    void publicDetailStillOpenAfterAddingWriteRules() throws Exception {
+        given(activityService.detail(isNull(), eq(1L))).willReturn(detail(ActivityType.HOBBY, false));
+
+        mockMvc.perform(get("/api/activities/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(1));
     }
 }
