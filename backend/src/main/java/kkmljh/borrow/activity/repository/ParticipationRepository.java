@@ -24,6 +24,9 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
 
     boolean existsByActivityIdAndGuestId(Long activityId, String guestId);
 
+    /** 활동 삭제(기능명세 2.1) 전 확인용 — 참여자가 남아 있으면 지우지 않는다 */
+    boolean existsByActivityId(Long activityId);
+
     /** U-14 내가 참여한 활동 (최신순) */
     List<Participation> findByGuestIdOrderByIdDesc(String guestId);
 }
