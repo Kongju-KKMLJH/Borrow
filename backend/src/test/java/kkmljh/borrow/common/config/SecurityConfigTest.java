@@ -232,6 +232,44 @@ class SecurityConfigTest {
         }
 
         @Test
+        @DisplayName("활동 수정(PUT)은 MEMBER · ARTIST 만 (기능명세 2.1)")
+        void activityUpdate() throws Exception {
+            String body = """
+                    {"field":"ART","title":"수채화","date":"2026-12-01",
+                     "startTime":"14:00:00","endTime":"16:00:00","capacity":8,"entryFee":0}
+                    """;
+
+            assertUnauthorized(put("/api/activities/1")
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+            assertForbidden(put("/api/activities/1").with(httpBasic("host1", PW))
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+            assertAllowed(put("/api/activities/1").with(httpBasic("member1", PW))
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+            assertAllowed(put("/api/activities/1").with(httpBasic("artist1", PW))
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+        }
+
+        @Test
+        @DisplayName("활동 삭제(DELETE)는 MEMBER · ARTIST 만 (기능명세 2.1)")
+        void activityDelete() throws Exception {
+            assertUnauthorized(delete("/api/activities/1"));
+            assertForbidden(delete("/api/activities/1").with(httpBasic("host1", PW)));
+            assertAllowed(delete("/api/activities/1").with(httpBasic("member1", PW)));
+            assertAllowed(delete("/api/activities/1").with(httpBasic("artist1", PW)));
+        }
+
+        /**
+         * 이 절에서 제일 나기 쉬운 버그 — PUT/DELETE 규칙에 HttpMethod 를 빼고 경로만 쓰면
+         * 같은 URL 의 비로그인 GET(U-03 상세)까지 함께 잡혀 목록에서 상세로 못 들어간다.
+         */
+        @Test
+        @DisplayName("회귀: PUT·DELETE 를 막아도 GET /api/activities/{id} 는 비로그인으로 열려 있어야 한다")
+        void detailStaysPublicAfterWriteRules() throws Exception {
+            assertAllowed(get("/api/activities/1"));
+            assertThat(statusOf(get("/api/activities"))).isEqualTo(200);
+        }
+
+        @Test
         @DisplayName("개최 요청 전송·상태 조회는 MEMBER · ARTIST 만 (U-11, U-12)")
         void hostingRequest() throws Exception {
             assertForbidden(get("/api/activities/1/hosting-request").with(httpBasic("host1", PW)));
