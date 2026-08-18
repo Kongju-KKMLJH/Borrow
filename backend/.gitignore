@@ -6,9 +6,20 @@ build/
 out/
 bin/
 
+# 민감 정보 노출 방지: 환경변수 파일은 커밋 금지
+.env
+.env.*
+!.env.example
+
 # 민감 정보 노출 방지: yml 설정 파일은 커밋 금지 (DB 자격 증명 등)
 # 실제 값은 .env로 관리, application.yml은 ${플레이스홀더}만 사용
 # docker-compose.yml은 공유가 필요하므로 예외
 *.yml
 *.yaml
 !docker-compose.yml
+# 값 없는 플레이스홀더 전용 프로덕션 프로파일. 비밀값은 서버 .env에만 존재한다.
+# 이 파일이 이미지에 없으면 multipart가 Spring 기본값 1MB로 떨어져 사진 업로드가 전멸한다.
+!src/main/resources/application-prod.yml
+
+# 작업용 문서는 커밋하지 않는다
+docs/

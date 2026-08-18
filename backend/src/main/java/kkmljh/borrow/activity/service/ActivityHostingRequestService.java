@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import kkmljh.borrow.activity.dto.HostingRequestResponse;
 import kkmljh.borrow.activity.repository.ActivityRepository;
 import kkmljh.borrow.activity.repository.ActivityHostingRequestRepository;
+import kkmljh.borrow.common.config.PlatformFeeProperties;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
 import kkmljh.borrow.domain.Activity;
@@ -26,6 +27,7 @@ public class ActivityHostingRequestService {
     private final ActivityRepository activityRepository;
     private final ActivityHostingRequestRepository hostingRequestRepository;
     private final EntityManager entityManager;
+    private final PlatformFeeProperties feeProperties;
 
     /**
      * U-11 개최 요청 전송: 활동을 PENDING으로 전환하고 선택한 공간으로 요청 생성.
@@ -55,7 +57,7 @@ public class ActivityHostingRequestService {
                 .space(space)
                 .build();
 
-        return HostingRequestResponse.from(hostingRequestRepository.save(request));
+        return HostingRequestResponse.from(hostingRequestRepository.save(request), feeProperties.getMatching());
     }
 
     /** U-12 개최 요청 상태 조회 (개설자 본인만) */
@@ -69,6 +71,6 @@ public class ActivityHostingRequestService {
         HostingRequest request = hostingRequestRepository.findFirstByActivityIdOrderByIdDesc(activityId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_NOT_FOUND));
 
-        return HostingRequestResponse.from(request);
+        return HostingRequestResponse.from(request, feeProperties.getMatching());
     }
 }

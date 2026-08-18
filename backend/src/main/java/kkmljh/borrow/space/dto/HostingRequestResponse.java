@@ -18,7 +18,9 @@ public record HostingRequestResponse(
         RequestStatus status,
         String rejectReason,
         SpaceInfo space,
-        ActivityInfo activity
+        ActivityInfo activity,
+        /** 활동 일정이 공간에 등록된 유휴시간(슬롯) 어디에도 완전히 포함되지 않으면 true (F-XOKOSU) */
+        boolean scheduleMismatch
 ) {
     public record SpaceInfo(Long id, String name, String region) {
         static SpaceInfo from(Space space) {
@@ -58,31 +60,33 @@ public record HostingRequestResponse(
 
     /** 활동의 공간 요구조건 (B-08: 인원, 시설 사용 내용, 소음·오염 여부) */
     public record RequirementInfo(
-            int headcount,
+            Integer headcount,
             Set<FacilityType> requiredFacilities,
-            boolean noisy,
-            boolean messy
+            Boolean noisy,
+            Boolean messy
     ) {
         static RequirementInfo from(SpaceRequirement requirement) {
-            if (requirement == null) {
+            // 요구조건 없이 개설한 활동은 값이 전부 null인 인스턴스로 되살아난다 → null로 정규화
+            if (requirement == null || requirement.isEmpty()) {
                 return null;
             }
             return new RequirementInfo(
                     requirement.getHeadcount(),
                     requirement.getRequiredFacilities(),
-                    requirement.isNoisy(),
-                    requirement.isMessy()
+                    requirement.getNoisy(),
+                    requirement.getMessy()
             );
         }
     }
 
-    public static HostingRequestResponse from(HostingRequest request) {
+    public static HostingRequestResponse from(HostingRequest request, boolean scheduleMismatch) {
         return new HostingRequestResponse(
                 request.getId(),
                 request.getStatus(),
                 request.getRejectReason(),
                 SpaceInfo.from(request.getSpace()),
-                ActivityInfo.from(request.getActivity())
+                ActivityInfo.from(request.getActivity()),
+                scheduleMismatch
         );
     }
 }

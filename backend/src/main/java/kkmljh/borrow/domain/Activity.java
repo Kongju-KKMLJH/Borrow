@@ -35,14 +35,14 @@ public class Activity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 개설자 게스트 ID (X-Guest-Id) */
+    /** 개설자 로그인 아이디 */
     @Column(nullable = false)
     private String guestId;
 
     /** 개설자 표시 이름 */
     private String hostNickname;
 
-    /** 인증 예술가 여부 — Mock (F-01). U-03 상세에서 배지 표시용, 시드 데이터로만 true 설정 */
+    /** 인증 예술가 여부 (F-01) — 개설자 역할이 ARTIST일 때 true. U-03 상세의 배지 표시용 */
     @Column(nullable = false)
     private boolean hostCertified;
 
@@ -112,6 +112,37 @@ public class Activity {
         this.entryFee = entryFee;
         this.requirement = requirement;
         this.status = ActivityStatus.DRAFT;
+    }
+
+    /**
+     * 활동 기본 정보·일정·모집 조건 수정 (기능명세 2.1).
+     *
+     * <p>{@code guestId}·{@code hostNickname}·{@code type}·{@code hostCertified}·{@code status} 는
+     * <b>건드리지 않는다</b> — 개설자·표시 이름·유형·인증 배지는 서버가 로그인 역할·계정에서 정하고,
+     * 상태는 개최 요청/승인 경로로만 바뀐다. 요구조건은 {@link #updateRequirement} 가 담당한다.
+     *
+     * <p>이미지 목록은 받은 컬렉션을 그대로 들고 있지 않고 <b>기존 컬렉션에 복사해</b> 담는다.
+     * Hibernate 가 관리하는 컬렉션 인스턴스를 통째로 갈아끼우면 안 되고,
+     * 호출자가 나중에 원본 리스트를 고쳐도 엔티티가 따라 바뀌면 안 되기 때문이다.
+     */
+    public void updateDetails(ActivityField field, String title, String description, List<String> imageUrls,
+                              LocalDate date, LocalTime startTime, LocalTime endTime,
+                              int capacity, int entryFee) {
+        this.field = field;
+        this.title = title;
+        this.description = description;
+        this.imageUrls.clear();
+        if (imageUrls != null) this.imageUrls.addAll(imageUrls);
+        this.date = date;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.capacity = capacity;
+        this.entryFee = entryFee;
+    }
+
+    /** 수정·삭제가 허용되는 단계인지 (기능명세 2.1). 개최 요청 이후(PENDING/PUBLISHED)는 잠근다. */
+    public boolean isEditable() {
+        return this.status == ActivityStatus.DRAFT || this.status == ActivityStatus.REJECTED;
     }
 
     public void updateRequirement(SpaceRequirement requirement) {

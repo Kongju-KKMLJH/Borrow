@@ -8,11 +8,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AnimatedSplash } from '@/components/splash';
 import { Colors } from '@/constants/theme';
+import { AuthProvider } from '@/lib/auth';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const colors = Colors.light; // 디자인이 라이트 전용이라 라이트 고정
+  const colors = Colors.light;
   const [splashDone, setSplashDone] = useState(false);
 
   const [loaded] = useFonts({
@@ -31,15 +32,20 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(user)" />
-          <Stack.Screen name="(provider)" />
-          <Stack.Screen name="activity/[id]" options={{ presentation: 'card' }} />
-          <Stack.Screen name="request/[id]" options={{ presentation: 'card' }} />
-        </Stack>
-        {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(user)" />
+            <Stack.Screen name="(provider)" />
+            <Stack.Screen name="activity/[id]" options={{ presentation: 'card' }} />
+            <Stack.Screen name="request/[id]" options={{ presentation: 'card' }} />
+            <Stack.Screen name="payment/[id]" options={{ presentation: 'card' }} />
+            <Stack.Screen name="subscription" options={{ presentation: 'card' }} />
+          </Stack>
+          {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -1,0 +1,32 @@
+# 빌드 산출물·캐시 — 이미지 안에서 새로 만든다
+build/
+.gradle/
+out/
+bin/
+
+# 업로드된 이미지는 서버 볼륨에 있다. 이미지에 굽지 않는다.
+uploads/
+
+# 🔴 로컬 개발용 설정. 절대 이미지에 들어가면 안 된다.
+#   - ddl-auto: create 가 구워지면 재시작마다 DB 가 전멸한다
+#   - API 키가 기본값으로 박혀 있으면 이미지에 그대로 실린다
+# prod 설정은 application-prod.yml(플레이스홀더 전용) + 서버 .env 조합으로만 들어간다.
+src/main/resources/application.yml
+src/main/resources/application-local.yml
+
+# 시크릿
+.env
+.env.*
+!.env.example
+
+# 이미지 빌드에 불필요
+.git/
+.gitignore
+.idea/
+*.iml
+.DS_Store
+docs/
+CLAUDE.md
+README.md
+HELP.md
+docker-compose.yml

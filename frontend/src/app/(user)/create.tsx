@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { activitiesApi, aiApi } from '@/api';
+import { activityApi, aiApi } from '@/lib/api';
 import { ChipGroup, Field, TextField, ToggleRow } from '@/components/form';
 import { DialField } from '@/components/date-time-field';
 import { ImageUploadField } from '@/components/image-upload-field';
@@ -12,7 +12,7 @@ import { ScreenHeader } from '@/components/nav';
 import { SpaceMatchCard } from '@/components/space-match-card';
 import { AppText, Button, Card } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
-import type { ActivityField, FacilityType, SpaceMatch } from '@/data/types';
+import type { ActivityField, FacilityType, SpaceMatchResponse } from '@/lib/api/types';
 import { ActivityFieldLabel, FacilityTypeLabel, formatCurrency, formatDate, formatTimeRange } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -34,7 +34,6 @@ export default function Create() {
   const [step, setStep] = useState(1);
 
   // 활동 정보
-  const [hostNickname, setHostNickname] = useState('');
   const [field, setField] = useState<ActivityField>('ART');
   const [subCategory, setSubCategory] = useState<string>(SUBCATEGORIES.ART[0]);
   const [title, setTitle] = useState('');
@@ -61,8 +60,8 @@ export default function Create() {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [matchLoading, setMatchLoading] = useState(false);
-  const [matches, setMatches] = useState<SpaceMatch[]>([]);
-  const [selected, setSelected] = useState<SpaceMatch | null>(null);
+  const [matches, setMatches] = useState<SpaceMatchResponse[]>([]);
+  const [selected, setSelected] = useState<SpaceMatchResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,7 +70,7 @@ export default function Create() {
 
   const capacityNum = Number(capacity) || 0;
   const entryFeeNum = Number(entryFee) || 0;
-  const step2Valid = title.trim() && hostNickname.trim() && /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(startTime) && /^\d{2}:\d{2}$/.test(endTime) && capacityNum > 0;
+  const step2Valid = title.trim() && /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(startTime) && /^\d{2}:\d{2}$/.test(endTime) && capacityNum > 0;
 
   const runAnalyze = async () => {
     setError(null);
@@ -86,7 +85,7 @@ export default function Create() {
       ]
         .filter(Boolean)
         .join(' ');
-      const result = await aiApi.analyze({ description: context, region: region || undefined });
+      const result = await aiApi.analyze({ description: context, region: region || null });
       setField(result.field);
       setRegion(result.region || region);
       setFacilities(result.requiredFacilities);
@@ -105,7 +104,7 @@ export default function Create() {
     setMatchLoading(true);
     try {
       const res = await aiApi.match({
-        region, headcount: capacityNum, requiredFacilities: facilities, noisy, messy, field, date, startTime, endTime,
+        region, headcount: capacityNum, requiredFacilities: facilities, noisy, messy, field, date, startTime, endTime, excludeSpaceIds: null,
       });
       setMatches(res);
       setStep(5);
@@ -114,24 +113,23 @@ export default function Create() {
     }
   };
 
-  const selectSpace = (m: SpaceMatch) => { setSelected(m); setStep(6); };
+  const selectSpace = (m: SpaceMatchResponse) => { setSelected(m); setStep(6); };
 
   const submit = async () => {
     if (!selected) return;
     setSubmitting(true);
     try {
-      const activity = await activitiesApi.createActivity({
-        hostNickname: hostNickname.trim(),
+      const activity = await activityApi.create({
         field,
         title: title.trim(),
-        description: description.trim() || undefined,
-        imageUrls,
+        description: description.trim() || null,
+        imageUrls: imageUrls.length > 0 ? imageUrls : null,
         date, startTime, endTime,
         capacity: capacityNum,
         entryFee: entryFeeNum,
         requirement: { region, headcount: capacityNum, requiredFacilities: facilities, noisy, messy },
       });
-      await activitiesApi.sendHostingRequest(activity.id, selected.spaceId);
+      await activityApi.sendHostingRequest(activity.id, { spaceId: selected.spaceId });
       setStep(7);
     } catch {
       setError('개최 요청 전송에 실패했어요. 잠시 후 다시 시도해주세요.');
@@ -194,7 +192,6 @@ export default function Create() {
         {step === 2 && (
           <>
             <Title title="활동 정보를 입력해주세요" />
-            <TextField label="개설자 닉네임" value={hostNickname} onChangeText={setHostNickname} placeholder="예) 김서연" />
             <TextField label="활동 제목" value={title} onChangeText={setTitle} placeholder="예) 수채화로 그리는 주말 오후 드로잉" />
             <TextField label="활동 설명" value={description} onChangeText={setDescription} placeholder="어떤 활동인지 자유롭게 소개해주세요" multiline />
             <DialField label="활동 날짜" mode="date" value={date} onChange={setDate} />

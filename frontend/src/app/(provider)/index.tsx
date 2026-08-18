@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
-import { hostApi, imageUri, spacesApi } from '@/api';
+import { hostApi, imageUri, spaceApi } from '@/lib/api';
 import { ImagePlaceholder } from '@/components/placeholder';
 import { BrandHeader, ModeSwitch } from '@/components/nav';
 import { RequestCard } from '@/components/request-card';
@@ -14,8 +14,8 @@ import { useTheme } from '@/hooks/use-theme';
 
 export default function ProviderHome() {
   const theme = useTheme();
-  const { data: home } = useAsync(() => hostApi.getHome(), [], { refetchOnFocus: true });
-  const { data: spaces } = useAsync(() => spacesApi.listSpaces(), [], { refetchOnFocus: true });
+  const { data: home } = useAsync(() => hostApi.home(), [], { refetchOnFocus: true });
+  const { data: spaces } = useAsync(() => spaceApi.list(), [], { refetchOnFocus: true });
   const space = spaces?.[0];
 
   return (

@@ -5,13 +5,11 @@ import { useState } from 'react';
 import { Dimensions, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { activitiesApi, imageUri } from '@/api';
-import { ApiError } from '@/api/client';
+import { activityApi, imageUri, ApiException } from '@/lib/api';
 import { ImagePlaceholder } from '@/components/placeholder';
 import { ScreenHeader } from '@/components/nav';
 import { ActivityStatusBadge } from '@/components/status-badge';
 import { VerifiedBadge } from '@/components/verified-badge';
-import { TextField } from '@/components/form';
 import { AppText, Avatar, Badge, Button, Card } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { ActivityTypeLabel, ActivityFieldLabel, FacilityTypeLabel, formatCurrency, formatDate, formatTimeRange } from '@/lib/format';
@@ -22,19 +20,18 @@ export default function ActivityDetail() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const activityId = Number(id);
-  const { data: activity, loading } = useAsync(() => activitiesApi.getActivity(activityId), [activityId]);
+  const { data: activity, loading } = useAsync(() => activityApi.detail(activityId), [activityId]);
   const { data: hostingRequest } = useAsync(async () => {
     if (!activity?.mine) return null;
     try {
-      return await activitiesApi.getHostingRequestStatus(activityId);
+      return await activityApi.hostingRequestStatus(activityId);
     } catch (e) {
-      if (e instanceof ApiError) return null;
+      if (e instanceof ApiException) return null;
       throw e;
     }
   }, [activityId, activity?.mine]);
 
   const [joinOpen, setJoinOpen] = useState(false);
-  const [nickname, setNickname] = useState('');
   const [headcount, setHeadcount] = useState(1);
   const [justJoined, setJustJoined] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -51,10 +48,9 @@ export default function ActivityDetail() {
   const canJoin = activity.status === 'PUBLISHED' && !activity.mine && !alreadyJoined;
 
   const submitJoin = async () => {
-    if (!nickname.trim()) return;
     setJoining(true);
     try {
-      await activitiesApi.participate(activityId, { nickname: nickname.trim(), headcount });
+      await activityApi.participate(activityId, { headcount });
       setJustJoined(true);
       setJoinOpen(false);
     } finally {
@@ -91,7 +87,7 @@ export default function ActivityDetail() {
 
           {/* 진행자 */}
           <Card tone="muted" padding="lg" radius="lg" shadow="none" style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
-            <Avatar name={activity.hostNickname} size={44} />
+            <Avatar name={activity.hostNickname ?? undefined} size={44} />
             <View style={{ flex: 1, gap: 3 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <AppText variant="title">{activity.hostNickname}</AppText>
@@ -115,7 +111,7 @@ export default function ActivityDetail() {
               <Row label="필요 인원" value={`${activity.requirement.headcount}명`} />
               <Row
                 label="필요 시설"
-                value={activity.requirement.requiredFacilities.length ? activity.requirement.requiredFacilities.map((f) => FacilityTypeLabel[f]).join(', ') : '없음'}
+                value={activity.requirement.requiredFacilities?.length ? activity.requirement.requiredFacilities.map((f) => FacilityTypeLabel[f]).join(', ') : '없음'}
               />
               <Row
                 label="활동 특성"
@@ -142,7 +138,6 @@ export default function ActivityDetail() {
       {/* 참여 신청 폼 */}
       {joinOpen && (
         <View style={{ padding: Spacing.xl, paddingTop: Spacing.md, gap: Spacing.sm, borderTopWidth: 1, borderTopColor: theme.border }}>
-          <TextField label="닉네임" value={nickname} onChangeText={setNickname} placeholder="참여 시 표시될 닉네임" />
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <AppText variant="body" color="textMuted">참여 인원</AppText>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>

@@ -1,4 +1,4 @@
-import type { ActivityField, ActivityStatus, ActivityType, DayOfWeek, FacilityType, RequestStatus } from '@/data/types';
+import type { ActivityField, ActivityStatus, ActivityType, DayOfWeek, FacilityType, RequestStatus } from '@/lib/api/types';
 
 /** 백엔드가 내려주는 raw 값(LocalDate "2026-08-01", LocalTime "14:00" 또는 "14:00:00")을 한글 표시 문자열로 변환. */
 

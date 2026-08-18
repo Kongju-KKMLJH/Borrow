@@ -3,20 +3,20 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { activitiesApi } from '@/api';
+import { meApi } from '@/lib/api';
 import { ActivityCard } from '@/components/activity-card';
 import { ActivityStatusBadge } from '@/components/status-badge';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { ImagePlaceholder } from '@/components/placeholder';
 import { Spacing } from '@/constants/theme';
-import type { ActivitySummary } from '@/data/types';
+import type { ActivitySummaryResponse } from '@/lib/api/types';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function MyActivities() {
   const [tab, setTab] = useState<'joined' | 'created'>('created');
-  const { data: participations } = useAsync(() => activitiesApi.getMyParticipations(), [], { refetchOnFocus: true });
-  const { data: created } = useAsync(() => activitiesApi.getMyActivities(), [], { refetchOnFocus: true });
+  const { data: participations } = useAsync(() => meApi.myParticipations(), [], { refetchOnFocus: true });
+  const { data: created } = useAsync(() => meApi.myActivities(), [], { refetchOnFocus: true });
 
   return (
     <Screen
@@ -105,7 +105,7 @@ function Tab({ label, active, onPress }: { label: string; active: boolean; onPre
   );
 }
 
-function CreatedRow({ activity, onPress }: { activity: ActivitySummary; onPress?: () => void }) {
+function CreatedRow({ activity, onPress }: { activity: ActivitySummaryResponse; onPress?: () => void }) {
   const theme = useTheme();
   return (
     <Card onPress={onPress} tone="flat" padding="md" radius="lg" style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
@@ -120,7 +120,7 @@ function CreatedRow({ activity, onPress }: { activity: ActivitySummary; onPress?
   );
 }
 
-function RejectedCard({ activity }: { activity: ActivitySummary }) {
+function RejectedCard({ activity }: { activity: ActivitySummaryResponse }) {
   const theme = useTheme();
   return (
     <Card padding="lg" radius="lg" style={{ gap: Spacing.md, backgroundColor: theme.dangerSoft, borderWidth: 1, borderColor: theme.danger + '40' }} shadow="none">

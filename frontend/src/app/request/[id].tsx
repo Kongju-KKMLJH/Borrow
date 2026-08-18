@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { hostApi, spacesApi } from '@/api';
+import { hostApi, spaceApi } from '@/lib/api';
 import { ScreenHeader } from '@/components/nav';
 import { RequestStatusBadge } from '@/components/status-badge';
 import { AppText, Avatar, Badge, Button, Card } from '@/components/ui';
@@ -16,8 +16,8 @@ export default function RequestDetail() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const requestId = Number(id);
-  const { data: req, loading } = useAsync(() => hostApi.getRequest(requestId), [requestId]);
-  const { data: space } = useAsync(() => (req ? spacesApi.getSpace(req.space.id) : Promise.resolve(null)), [req?.space.id]);
+  const { data: req, loading } = useAsync(() => hostApi.requestDetail(requestId), [requestId]);
+  const { data: space } = useAsync(() => (req ? spaceApi.detail(req.space.id) : Promise.resolve(null)), [req?.space.id]);
 
   if (loading || !req) {
     return (
@@ -30,8 +30,8 @@ export default function RequestDetail() {
   const requiredFacilities = activity.requirement?.requiredFacilities ?? [];
   const spaceFacilities = new Set(space?.facilities ?? []);
 
-  const approve = async () => { await hostApi.approveRequest(req.id); router.back(); };
-  const reject = async () => { await hostApi.rejectRequest(req.id); router.back(); };
+  const approve = async () => { await hostApi.approve(req.id); router.back(); };
+  const reject = async () => { await hostApi.reject(req.id); router.back(); };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top']}>
@@ -47,7 +47,7 @@ export default function RequestDetail() {
           <AppText variant="h1">{activity.title}</AppText>
           {activity.description ? <AppText variant="body" color="textSecondary">{activity.description}</AppText> : null}
           <Card tone="muted" padding="lg" radius="lg" shadow="none" style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
-            <Avatar name={activity.hostNickname} size={40} />
+            <Avatar name={activity.hostNickname ?? undefined} size={40} />
             <View style={{ flex: 1, gap: 3 }}>
               <AppText variant="title">{activity.hostNickname}</AppText>
               <AppText variant="caption" color="textMuted">진행자</AppText>

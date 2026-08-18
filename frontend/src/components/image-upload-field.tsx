@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
 
-import { imageUri, uploadImages } from '@/api';
+import { imageUri, uploadApi } from '@/lib/api';
 import { Field } from '@/components/form';
 import { AppText } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
@@ -33,7 +33,7 @@ export function ImageUploadField({
     if (uris.length === 0) return;
     setBusy(true);
     try {
-      const urls = await uploadImages(uris.slice(0, remaining));
+      const { urls } = await uploadApi.upload(uris.slice(0, remaining));
       onChange([...value, ...urls]);
     } catch (e) {
       Alert.alert('업로드 실패', e instanceof Error ? e.message : '이미지 업로드에 실패했어요.');

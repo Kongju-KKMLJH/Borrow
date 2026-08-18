@@ -1,0 +1,95 @@
+# 프로덕션 스택 — caddy(공개) + app + mysql(둘 다 호스트 미노출)
+#
+# 사용:  docker compose --env-file .env --env-file .env.image -f docker-compose.prod.yml up -d
+# ⚠️ down 에 -v 를 절대 붙이지 마라 — 볼륨 삭제 = DB + 발급받은 인증서 전멸.
+#
+# 로컬 개발용 backend/docker-compose.yml(MySQL 3306 노출)과는 완전히 별개 파일이다.
+name: borrow
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: borrow-caddy
+    restart: unless-stopped
+    # 인터넷에 노출되는 유일한 서비스
+    ports: ["80:80", "443:443"]
+    environment:
+      # 도메인 확정 전에는 :80 — 도메인을 넣는 순간 Caddy 가 HTTPS 를 자동 발급한다.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${WEB_DIR:-/opt/borrow/web}:/srv/web:ro
+      # 인증서 영속 — 지우면 Let's Encrypt 발급 한도(도메인당 주 5회)에 걸릴 수 있다.
+      - caddy-data:/data
+      - caddy-config:/config
+      # 주최측 인증서를 받으면 주석 해제 (Caddyfile 의 tls 줄과 함께):
+      # - /opt/borrow/certs:/etc/caddy/certs:ro
+    depends_on: [app]
+    networks: [borrow-net]
+    logging: &jsonlog
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  app:
+    # GHCR 은 소문자만 허용한다 — 조직명이 Kongju-KKMLJH 라도 경로는 소문자.
+    image: ghcr.io/kongju-kkmljh/borrow-backend:${BACKEND_TAG:-latest}
+    container_name: borrow-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+    volumes:
+      # 업로드 이미지는 컨테이너 밖에 둔다 — 안 그러면 재배포마다 증발하고
+      # DB 에는 깨진 /files/x.jpg 경로만 남는다.
+      - ${UPLOAD_HOST_DIR:-/opt/borrow/uploads}:/app/uploads
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks: [borrow-net]
+    # 호스트에 노출하지 않는다. 외부 접근은 caddy 를 통해서만.
+    expose: ["8080"]
+    healthcheck:
+      # actuator 의존성이 없으므로 permitAll 인 공개 GET 으로 대체한다.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/activities >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    logging: *jsonlog
+
+  mysql:
+    image: mysql:8.4
+    container_name: borrow-mysql
+    restart: unless-stopped
+    # ports 없음 — 3306 을 호스트/인터넷에 절대 열지 않는다.
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+09:00
+      # 저사양 VM 대응 — 기본값(128M 이상)이 부담되는 환경을 가정한다.
+      - --innodb-buffer-pool-size=128M
+      - --performance-schema=OFF
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks: [borrow-net]
+    logging: *jsonlog
+
+volumes:
+  mysql-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  borrow-net:
