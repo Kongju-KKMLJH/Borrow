@@ -27,11 +27,14 @@ public class SpaceService {
     /** B-02 공간 등록 — 로그인한 공간 제공자가 소유자가 된다. */
     @Transactional
     public SpaceResponse create(String ownerId, SpaceRequest req) {
+        if (spaceRepository.existsByOwnerIdAndNameAndAddress(ownerId, req.trimmedName(), req.trimmedAddress())) {
+            throw new BusinessException(ErrorCode.DUPLICATE_SPACE);
+        }
         Space space = Space.builder()
                 .ownerId(ownerId)
-                .name(req.name())
+                .name(req.trimmedName())
                 .region(req.region())
-                .address(req.address())
+                .address(req.trimmedAddress())
                 .imageUrls(req.imageUrlsOrEmpty())
                 .capacity(req.capacity())
                 .hourlyFee(req.hourlyFee())
@@ -68,7 +71,12 @@ public class SpaceService {
     @Transactional
     public SpaceResponse update(String ownerId, Long id, SpaceRequest req) {
         Space space = getOwnedSpace(ownerId, id);
-        space.updateBasicInfo(req.name(), req.region(), req.address(), req.imageUrlsOrEmpty(), req.capacity());
+        // 자기 자신은 제외한다 — 아니면 이름을 그대로 두고 이용료만 고치는 정상 수정이 막힌다.
+        if (spaceRepository.existsByOwnerIdAndNameAndAddressAndIdNot(
+                ownerId, req.trimmedName(), req.trimmedAddress(), id)) {
+            throw new BusinessException(ErrorCode.DUPLICATE_SPACE);
+        }
+        space.updateBasicInfo(req.trimmedName(), req.region(), req.trimmedAddress(), req.imageUrlsOrEmpty(), req.capacity());
         space.updateFacilities(req.facilitiesOrEmpty());
         space.updateAllowedActivities(req.allowedFieldsOrEmpty(), req.noiseAllowed(), req.messAllowed());
         space.updateFeeAndConditions(req.hourlyFee(), req.conditions());

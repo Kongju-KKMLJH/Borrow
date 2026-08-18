@@ -76,9 +76,16 @@ public class SecurityConfig {
                         .requestMatchers("/api/me/**", "/api/ai/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/uploads").authenticated()
 
-                        // --- 활동 개설·관리: MEMBER, ARTIST ---
-                        // ARTIST 전용 엔드포인트는 없다. 같은 API를 쓰고 서버가 역할을 보고 CLASS로 분기한다.
-                        .requestMatchers(HttpMethod.POST, "/api/activities").hasAnyRole("MEMBER", "ARTIST")
+                        // --- 활동 개설: ARTIST 전용 (기능명세 1.2) ---
+                        // 프로그램 개설은 예술가로 한정한다 (팀 결정, 이슈 #69).
+                        // 인증 승인 여부는 개설 가부가 아니라 배지(hostCertified)만 좌우한다 —
+                        // 미인증 ARTIST도 개설할 수 있고 배지만 붙지 않는다.
+                        .requestMatchers(HttpMethod.POST, "/api/activities").hasRole("ARTIST")
+
+                        // --- 개설된 활동의 관리: MEMBER, ARTIST ---
+                        // 개설은 막았지만 관리까지 좁히지는 않는다 — 규칙 변경 이전에 MEMBER가 개설해 둔
+                        // 활동이 수정·삭제·개최요청조차 못 하는 상태로 남으면 안 된다.
+                        // "내 것인지"는 어차피 서비스가 소유자로 다시 판정한다.
                         .requestMatchers(HttpMethod.PATCH, "/api/activities/{activityId}/requirement")
                         .hasAnyRole("MEMBER", "ARTIST")
                         // 기능명세 2.1 수정·삭제. HttpMethod 를 반드시 명시한다 —

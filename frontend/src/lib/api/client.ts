@@ -7,12 +7,17 @@
  * - JSON 직렬화 시 Set → Array 변환 (Java record가 Set을 받지만 JSON은 배열)
  */
 
+import { Platform } from 'react-native';
+
 import type { ApiResponse, ApiError } from './types';
 
-// LAN PC 서버 주소. 실기기: PC LAN IP, 에뮬레이터: 10.0.2.2 (Android) / localhost (iOS 시뮬레이터)
+// 웹은 프론트와 API가 같은 오리진(리버스 프록시)이므로 빈 문자열을 써서 상대경로로 호출한다.
+// 이렇게 두면 배포 주소(IP·도메인)가 바뀌어도 번들을 다시 만들 필요가 없다.
+// 네이티브는 오리진 개념이 없어 절대 주소가 필요하다 —
+// 실기기: PC LAN IP, 에뮬레이터: 10.0.2.2(Android) / localhost(iOS 시뮬레이터).
 export const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ??
-  'http://localhost:8080';
+  (Platform.OS === 'web' ? '' : 'http://localhost:8080');
 
 /** 상대 경로(/files/xxx.jpg)를 전체 URL로 변환 */
 export function imageUri(path: string | null | undefined): string | undefined {

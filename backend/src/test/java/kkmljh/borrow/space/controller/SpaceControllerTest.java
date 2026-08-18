@@ -320,4 +320,28 @@ class SpaceControllerTest {
         mockMvc.perform(delete("/api/spaces/1").with(TestUsers.member()))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("이미 등록한 공간을 다시 등록하면 409 DUPLICATE_SPACE (기능명세 6.1 exceptions)")
+    void createDuplicate() throws Exception {
+        willThrow(new BusinessException(ErrorCode.DUPLICATE_SPACE))
+                .given(spaceService).create(eq(TestUsers.HOST), any());
+
+        mockMvc.perform(post("/api/spaces").with(TestUsers.host())
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("DUPLICATE_SPACE"));
+    }
+
+    @Test
+    @DisplayName("수정으로 내 다른 공간과 겹쳐도 409 DUPLICATE_SPACE")
+    void updateDuplicate() throws Exception {
+        willThrow(new BusinessException(ErrorCode.DUPLICATE_SPACE))
+                .given(spaceService).update(eq(TestUsers.HOST), eq(1L), any());
+
+        mockMvc.perform(put("/api/spaces/1").with(TestUsers.host())
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("DUPLICATE_SPACE"));
+    }
 }

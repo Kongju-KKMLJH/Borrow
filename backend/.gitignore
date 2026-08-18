@@ -17,6 +17,9 @@ bin/
 *.yml
 *.yaml
 !docker-compose.yml
+# 값 없는 플레이스홀더 전용 프로덕션 프로파일. 비밀값은 서버 .env에만 존재한다.
+# 이 파일이 이미지에 없으면 multipart가 Spring 기본값 1MB로 떨어져 사진 업로드가 전멸한다.
+!src/main/resources/application-prod.yml
 
 # 작업용 문서는 커밋하지 않는다
 docs/

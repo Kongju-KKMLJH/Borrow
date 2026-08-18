@@ -97,6 +97,8 @@ export interface ActivityDetailResponse {
   endTime: string;
   capacity: number;
   currentHeadcount: number;
+  remainingCapacity: number;
+  space: ActivitySpaceInfo | null;
   entryFee: number;
   status: ActivityStatus;
   requirement: SpaceRequirementDto | null;
@@ -117,10 +119,19 @@ export interface ActivitySummaryResponse {
   endTime: string;
   capacity: number;
   currentHeadcount: number;
+  remainingCapacity: number;
+  space: ActivitySpaceInfo | null;
   entryFee: number;
   status: ActivityStatus;
   alreadyJoined: boolean;
   mine: boolean;
+}
+
+/** 활동 응답에 실리는 확정 공간 요약 (개최 요청이 APPROVED일 때만, address 없음) */
+export interface ActivitySpaceInfo {
+  id: number;
+  name: string;
+  region: string;
 }
 
 export interface RequirementUpdateRequest {
@@ -274,6 +285,8 @@ export interface RequirementResponse {
   noisy: boolean;
   messy: boolean;
   field: ActivityField;
+  missingFields: string[];
+  followUpQuestions: string[];
 }
 
 export interface MatchRequest {
@@ -300,7 +313,13 @@ export interface SpaceMatchResponse {
   allowedFields: ActivityField[];
   score: number;
   reason: string;
+  cautions: string[];
   aiScored: boolean;
+}
+
+export interface SpaceMatchResult {
+  matched: SpaceMatchResponse[];
+  suggestions: string[];
 }
 
 // ── Upload ─────────────────────────────────────────────────────────────
