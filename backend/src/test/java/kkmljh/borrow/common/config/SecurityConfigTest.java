@@ -149,6 +149,37 @@ class SecurityConfigTest {
         }
 
         @Test
+        @DisplayName("예술가 인증은 /api/me/** 규칙을 그대로 탄다 — 비로그인 401, 조회는 역할 무관 (기능명세 1.2)")
+        void artistVerificationFollowsMeRule() throws Exception {
+            String body = """
+                    {"portfolioUrl":"https://portfolio.example/artist1","career":"수채화 3년"}
+                    """;
+
+            assertUnauthorized(get("/api/me/artist-verification"));
+            assertUnauthorized(post("/api/me/artist-verification")
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+
+            for (String user : new String[]{"member1", "host1", "artist1"}) {
+                assertAllowed(get("/api/me/artist-verification").with(httpBasic(user, PW)));
+            }
+        }
+
+        @Test
+        @DisplayName("인증 신청은 ARTIST 만 — 이 403은 SecurityConfig가 아니라 서비스 판정이다 (기능명세 1.2)")
+        void artistVerificationApplyIsArtistOnly() throws Exception {
+            String body = """
+                    {"portfolioUrl":"https://portfolio.example/artist1","career":"수채화 3년"}
+                    """;
+
+            assertAllowed(post("/api/me/artist-verification").with(httpBasic("artist1", PW))
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+            assertForbidden(post("/api/me/artist-verification").with(httpBasic("member1", PW))
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+            assertForbidden(post("/api/me/artist-verification").with(httpBasic("host1", PW))
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+        }
+
+        @Test
         @DisplayName("HOST 계정도 활동에 참여할 수 있다 (역할로 참여를 막지 않는다)")
         void participationIsRoleAgnostic() throws Exception {
             assertUnauthorized(post("/api/activities/1/participations")
