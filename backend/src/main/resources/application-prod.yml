@@ -1,0 +1,69 @@
+# 프로덕션 프로파일 — SPRING_PROFILES_ACTIVE=prod 로만 활성화된다.
+#
+# 🔐 이 파일에는 값이 없다. 전부 환경변수 플레이스홀더이며 실제 값은 서버의 /opt/borrow/.env 에만 존재한다.
+#    기본값 자리에 실제 비밀번호·API 키를 절대 적지 마라 (${VAR:실제값} 패턴 금지 — 팀 규칙).
+#
+# 이 파일이 이미지에 없으면 조용히 Spring 기본값으로 떨어지는 것들:
+#   multipart 1MB(사진 업로드 전멸) / open-in-view true(커넥션 점유) / swagger 경로 불일치
+spring:
+  application:
+    name: borrow
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+
+  jpa:
+    hibernate:
+      # 🔴 create 절대 금지 — 재시작마다 DB 가 전멸한다. 기본값도 update 로 못박아 사고를 막는다.
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    properties:
+      hibernate:
+        format_sql: false
+    open-in-view: false
+    show-sql: false
+
+  servlet:
+    multipart:
+      # 기기 카메라 사진 1장이 쉽게 1MB 를 넘는다. 다중 업로드까지 고려해 요청 한도를 넉넉히 잡는다.
+      max-file-size: 10MB
+      max-request-size: 60MB
+
+app:
+  upload:
+    # 컨테이너 내부 절대경로. 서버의 bind mount 와 짝을 이룬다(어긋나면 재배포마다 이미지가 증발한다).
+    dir: ${UPLOAD_DIR:/app/uploads}
+    url-prefix: /files
+
+platform:
+  fee:
+    # 매칭 1건당 이용료(원). 지정하지 않으면 0원으로 표시된다 — 반드시 값을 넣는다.
+    matching: ${PLATFORM_FEE_MATCHING:5000}
+    policy-editable: ${PLATFORM_FEE_POLICY_EDITABLE:true}
+
+springdoc:
+  swagger-ui:
+    # 심사위원에게 공유하는 링크. 기본값(/swagger-ui/index.html)과 다르므로 명시한다.
+    path: /swagger-ui.html
+
+ai:
+  provider: ${AI_PROVIDER:gemini}
+  # ★ 빈 값으로 둔다 — AiConfig 의 provider 별 기본 모델이 적용되게.
+  #   provider=gemini 인데 OpenAI 모델명이 들어가면 호출이 실패한다.
+  model: ${AI_MODEL:}
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:}
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    base-url: ${GEMINI_BASE_URL:}
+
+logging:
+  level:
+    root: INFO
+    kkmljh.borrow: INFO
+    org.hibernate.SQL: WARN

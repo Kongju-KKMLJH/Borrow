@@ -101,7 +101,10 @@ export default function ActivityDetail() {
           <Section title="활동 정보">
             <Row label="활동 날짜" value={formatDate(activity.date)} />
             <Row label="활동 시간" value={formatTimeRange(activity.startTime, activity.endTime)} />
-            <Row label="현재 인원" value={`${activity.currentHeadcount} / ${activity.capacity}명`} last />
+            <Row label="현재 인원" value={`${activity.currentHeadcount} / ${activity.capacity}명`} />
+            {activity.status === 'PUBLISHED' && (
+              <Row label="잔여 인원" value={`${activity.remainingCapacity}석`} last />
+            )}
           </Section>
 
           {/* 공간 조건 */}
@@ -121,10 +124,11 @@ export default function ActivityDetail() {
             </Section>
           )}
 
-          {/* 확정된 공간 (개설자 본인 + 승인된 경우만 조회 가능) */}
-          {activity.mine && hostingRequest?.status === 'APPROVED' && (
+          {/* 확정된 공간 (activity.space — 개최 요청이 APPROVED일 때만 내려옴) */}
+          {activity.space && (
             <Section title="확정된 공간">
-              <Row label="공간" value={hostingRequest.spaceName} last />
+              <Row label="공간명" value={activity.space.name} />
+              <Row label="지역" value={activity.space.region} last />
             </Section>
           )}
 

@@ -61,6 +61,7 @@ export default function Create() {
   const [analyzing, setAnalyzing] = useState(false);
   const [matchLoading, setMatchLoading] = useState(false);
   const [matches, setMatches] = useState<SpaceMatchResponse[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selected, setSelected] = useState<SpaceMatchResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +107,8 @@ export default function Create() {
       const res = await aiApi.match({
         region, headcount: capacityNum, requiredFacilities: facilities, noisy, messy, field, date, startTime, endTime, excludeSpaceIds: null,
       });
-      setMatches(res);
+      setMatches(res.matched);
+      setSuggestions(res.suggestions);
       setStep(5);
     } finally {
       setMatchLoading(false);
@@ -257,12 +259,19 @@ export default function Create() {
 
         {step === 5 && (
           <>
-            <Title title="이런 공간을 추천해요" sub={`조건에 맞는 유휴 공간 ${matches.length}곳을 찾았어요.`} />
+            <Title title="이런 공간을 추천해요" sub={matches.length > 0 ? `조건에 맞는 유휴 공간 ${matches.length}곳을 찾았어요.` : '조건에 맞는 공간을 찾지 못했어요.'} />
             {matches.map((m) => (
               <SpaceMatchCard key={m.spaceId} match={m} onSelect={() => selectSpace(m)} />
             ))}
-            {matches.length === 0 && !matchLoading && (
-              <AppText variant="body" color="textMuted">조건에 맞는 공간을 찾지 못했어요. 조건을 다시 설정해보세요.</AppText>
+            {matches.length === 0 && !matchLoading && suggestions.length > 0 && (
+              <View style={{ gap: Spacing.sm, paddingHorizontal: Spacing.md }}>
+                {suggestions.map((s, i) => (
+                  <View key={i} style={{ flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' }}>
+                    <AppText variant="body" tint={theme.primary}>•</AppText>
+                    <AppText variant="body" color="textSecondary" style={{ flex: 1 }}>{s}</AppText>
+                  </View>
+                ))}
+              </View>
             )}
           </>
         )}

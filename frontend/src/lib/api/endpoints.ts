@@ -31,6 +31,7 @@ import type {
   RequirementResponse,
   MatchRequest,
   SpaceMatchResponse,
+  SpaceMatchResult,
   UploadResponse,
 } from './types';
 
@@ -53,11 +54,17 @@ export const activityApi = {
     type?: ActivityType;
     field?: ActivityField;
     keyword?: string;
+    region?: string;
+    dateFrom?: string;
+    dateTo?: string;
   }) => {
     const query = new URLSearchParams();
     if (params?.type) query.set('type', params.type);
     if (params?.field) query.set('field', params.field);
     if (params?.keyword) query.set('keyword', params.keyword);
+    if (params?.region) query.set('region', params.region);
+    if (params?.dateFrom) query.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) query.set('dateTo', params.dateTo);
     const qs = query.toString();
     return apiClient.get<ActivitySummaryResponse[]>(
       `/api/activities${qs ? `?${qs}` : ''}`
@@ -199,7 +206,7 @@ export const aiApi = {
 
   /** 공간 매칭 (점수 순 추천, excludeSpaceIds로 A-04 대체 추천) */
   match: (body: MatchRequest) =>
-    apiClient.post<SpaceMatchResponse[]>('/api/ai/match', body),
+    apiClient.post<SpaceMatchResult>('/api/ai/match', body),
 };
 
 // ── Upload ─────────────────────────────────────────────────────────────
