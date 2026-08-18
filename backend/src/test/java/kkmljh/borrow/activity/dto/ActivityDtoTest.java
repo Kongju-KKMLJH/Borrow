@@ -297,7 +297,7 @@ class ActivityDtoTest {
             HostingRequest request = TestFixtures.hostingRequest(
                     7L, TestFixtures.activity(1L, "member1"), TestFixtures.space(5L, "host1"));
 
-            HostingRequestResponse response = HostingRequestResponse.from(request);
+            HostingRequestResponse response = HostingRequestResponse.from(request, 5_000);
 
             assertThat(response.id()).isEqualTo(7L);
             assertThat(response.activityId()).isEqualTo(1L);
@@ -314,10 +314,27 @@ class ActivityDtoTest {
                     7L, TestFixtures.activity(1L, "member1"), TestFixtures.space(5L, "host1"));
             request.reject("예약이 있습니다.");
 
-            HostingRequestResponse response = HostingRequestResponse.from(request);
+            HostingRequestResponse response = HostingRequestResponse.from(request, 5_000);
 
             assertThat(response.status()).isEqualTo(RequestStatus.REJECTED);
             assertThat(response.rejectReason()).isEqualTo("예약이 있습니다.");
+        }
+
+        @Test
+        @DisplayName("가격 구성: 참가비 수익에서 공간 이용료·매칭 이용료를 뺀 값이 예상 운영 수익이다")
+        void hostingRequestResponsePrice() {
+            // 활동: 참가비 10,000원 × 정원 8명, 14:00~16:00(2시간)
+            // 공간: 시간당 10,000원
+            HostingRequest request = TestFixtures.hostingRequest(
+                    7L, TestFixtures.activity(1L, "member1"), TestFixtures.space(5L, "host1"));
+
+            HostingRequestResponse response = HostingRequestResponse.from(request, 5_000);
+
+            assertThat(response.price().participantPrice()).isEqualTo(10_000);
+            assertThat(response.price().expectedParticipantRevenue()).isEqualTo(80_000);
+            assertThat(response.price().spaceRentalFee()).isEqualTo(20_000);
+            assertThat(response.price().platformMatchingFee()).isEqualTo(5_000);
+            assertThat(response.price().expectedOperatingProfit()).isEqualTo(55_000);
         }
     }
 }

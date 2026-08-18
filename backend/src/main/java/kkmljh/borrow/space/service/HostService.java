@@ -30,6 +30,7 @@ public class HostService {
 
     private final HostingRequestRepository hostingRequestRepository;
     private final SpaceRepository spaceRepository;
+    private final ScheduleMismatchChecker scheduleMismatchChecker;
 
     /** B-01: 운영 현황 요약 (요청 수, 일정 요약) — 집계 범위는 내 공간으로 한정 */
     public HostHomeResponse getHome(String ownerId) {
@@ -40,7 +41,7 @@ public class HostService {
         List<HostingRequestResponse> recentPending = hostingRequestRepository
                 .findByStatusAndSpaceOwnerIdOrderByIdDesc(RequestStatus.PENDING, ownerId).stream()
                 .limit(HOME_PREVIEW_SIZE)
-                .map(HostingRequestResponse::from)
+                .map(r -> HostingRequestResponse.from(r, scheduleMismatchChecker.isMismatch(r)))
                 .toList();
 
         List<ScheduleResponse> upcoming = confirmedSchedulesStream(ownerId)

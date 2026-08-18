@@ -27,6 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -127,6 +128,54 @@ class SpaceSlotControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.message").value("종료 시각은 시작 시각보다 늦어야 합니다."));
+    }
+
+    @Test
+    @DisplayName("HOST 가 내 공간의 슬롯을 수정한다")
+    void update() throws Exception {
+        given(spaceSlotService.update(eq(TestUsers.HOST), eq(1L), eq(10L), any())).willReturn(slot(10L));
+
+        mockMvc.perform(put("/api/spaces/1/slots/10").with(TestUsers.host())
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(10));
+
+        verify(spaceSlotService).update(eq(TestUsers.HOST), eq(1L), eq(10L), any());
+    }
+
+    @Test
+    @DisplayName("남의 공간 슬롯 수정은 403 FORBIDDEN")
+    void updateOthersSpace() throws Exception {
+        given(spaceSlotService.update(any(), any(), any(), any()))
+                .willThrow(new BusinessException(ErrorCode.FORBIDDEN));
+
+        mockMvc.perform(put("/api/spaces/1/slots/10").with(TestUsers.host())
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("MEMBER 는 슬롯을 수정할 수 없다 — 403, 비로그인은 401")
+    void updateRequiresHost() throws Exception {
+        mockMvc.perform(put("/api/spaces/1/slots/10").with(TestUsers.member())
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/api/spaces/1/slots/10")
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("없는 슬롯 수정은 404 SLOT_NOT_FOUND")
+    void updateNotFound() throws Exception {
+        given(spaceSlotService.update(any(), any(), any(), any()))
+                .willThrow(new BusinessException(ErrorCode.SLOT_NOT_FOUND));
+
+        mockMvc.perform(put("/api/spaces/1/slots/99").with(TestUsers.host())
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("SLOT_NOT_FOUND"));
     }
 
     @Test

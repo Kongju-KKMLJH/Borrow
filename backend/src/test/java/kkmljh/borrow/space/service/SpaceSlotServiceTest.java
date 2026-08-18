@@ -163,6 +163,90 @@ class SpaceSlotServiceTest {
     }
 
     @Nested
+    @DisplayName("수정")
+    class Update {
+
+        private final SpaceSlotRequest updated =
+                new SpaceSlotRequest(DayOfWeek.SUNDAY, LocalTime.of(10, 0), LocalTime.of(18, 0));
+
+        @Test
+        @DisplayName("내 공간의 슬롯을 요일·시각으로 수정한다")
+        void update() {
+            Space space = TestFixtures.space(1L, OWNER);
+            SpaceSlot slot = TestFixtures.slot(10L, space, DayOfWeek.SATURDAY, LocalTime.of(9, 0), LocalTime.of(12, 0));
+            given(spaceRepository.findById(1L)).willReturn(Optional.of(space));
+            given(spaceSlotRepository.findById(10L)).willReturn(Optional.of(slot));
+
+            SpaceSlotResponse response = spaceSlotService.update(OWNER, 1L, 10L, updated);
+
+            assertThat(response.dayOfWeek()).isEqualTo(DayOfWeek.SUNDAY);
+            assertThat(response.startTime()).isEqualTo(LocalTime.of(10, 0));
+            assertThat(response.endTime()).isEqualTo(LocalTime.of(18, 0));
+        }
+
+        @Test
+        @DisplayName("종료 시각이 시작보다 빠르거나 같으면 INVALID_REQUEST — 소유자 확인보다 먼저 걸러진다")
+        void invalidTimeRange() {
+            SpaceSlotRequest invalid =
+                    new SpaceSlotRequest(DayOfWeek.SATURDAY, LocalTime.of(22, 0), LocalTime.of(9, 0));
+
+            assertThatThrownBy(() -> spaceSlotService.update(OWNER, 1L, 10L, invalid))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_REQUEST);
+
+            verify(spaceSlotRepository, never()).findById(any());
+        }
+
+        @Test
+        @DisplayName("남의 공간 슬롯은 수정할 수 없다 — FORBIDDEN")
+        void cannotUpdateOthers() {
+            given(spaceRepository.findById(1L)).willReturn(Optional.of(TestFixtures.space(1L, OTHER)));
+
+            assertThatThrownBy(() -> spaceSlotService.update(OWNER, 1L, 10L, updated))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("다른 공간의 슬롯 id 를 주면 SLOT_NOT_FOUND")
+        void slotBelongsToAnotherSpace() {
+            given(spaceRepository.findById(1L)).willReturn(Optional.of(TestFixtures.space(1L, OWNER)));
+            given(spaceSlotRepository.findById(10L))
+                    .willReturn(Optional.of(TestFixtures.slot(10L, TestFixtures.space(2L, OWNER))));
+
+            assertThatThrownBy(() -> spaceSlotService.update(OWNER, 1L, 10L, updated))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.SLOT_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("없는 슬롯이면 SLOT_NOT_FOUND")
+        void slotNotFound() {
+            given(spaceRepository.findById(1L)).willReturn(Optional.of(TestFixtures.space(1L, OWNER)));
+            given(spaceSlotRepository.findById(99L)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> spaceSlotService.update(OWNER, 1L, 99L, updated))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.SLOT_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("없는 공간이면 SPACE_NOT_FOUND")
+        void spaceNotFound() {
+            given(spaceRepository.findById(99L)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> spaceSlotService.update(OWNER, 99L, 10L, updated))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.SPACE_NOT_FOUND);
+        }
+    }
+
+    @Nested
     @DisplayName("삭제")
     class Delete {
 

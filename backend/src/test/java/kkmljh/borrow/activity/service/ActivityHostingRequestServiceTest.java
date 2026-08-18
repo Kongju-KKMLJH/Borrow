@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import kkmljh.borrow.activity.dto.HostingRequestResponse;
 import kkmljh.borrow.activity.repository.ActivityHostingRequestRepository;
 import kkmljh.borrow.activity.repository.ActivityRepository;
+import kkmljh.borrow.common.config.PlatformFeeProperties;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
 import kkmljh.borrow.domain.Activity;
@@ -44,6 +45,9 @@ class ActivityHostingRequestServiceTest {
     @Mock
     private EntityManager entityManager;
 
+    @Mock
+    private PlatformFeeProperties feeProperties;
+
     @InjectMocks
     private ActivityHostingRequestService service;
 
@@ -52,14 +56,15 @@ class ActivityHostingRequestServiceTest {
     class Send {
 
         @Test
-        @DisplayName("활동을 PENDING 으로 바꾸고 선택한 공간으로 PENDING 요청을 만든다")
+        @DisplayName("활동을 PENDING 으로 바꾸고 선택한 공간으로 PENDING 요청을 만든다 — 가격 구성도 함께 담긴다")
         void send() {
-            Activity activity = TestFixtures.activity(1L, OWNER);
-            Space space = TestFixtures.space(5L, "host1");
+            Activity activity = TestFixtures.activity(1L, OWNER); // 참가비 10,000원 × 정원 8명, 14:00~16:00
+            Space space = TestFixtures.space(5L, "host1"); // 시간당 10,000원
             given(activityRepository.findById(1L)).willReturn(Optional.of(activity));
             given(entityManager.find(Space.class, 5L)).willReturn(space);
             given(hostingRequestRepository.save(any(HostingRequest.class)))
                     .willAnswer(inv -> TestFixtures.withId(inv.getArgument(0), 7L));
+            given(feeProperties.getMatching()).willReturn(5_000);
 
             HostingRequestResponse response = service.send(OWNER, 1L, 5L);
 
@@ -70,6 +75,11 @@ class ActivityHostingRequestServiceTest {
             assertThat(response.spaceName()).isEqualTo("불당동 스튜디오");
             assertThat(response.status()).isEqualTo(RequestStatus.PENDING);
             assertThat(response.rejectReason()).isNull();
+            assertThat(response.price().participantPrice()).isEqualTo(10_000);
+            assertThat(response.price().expectedParticipantRevenue()).isEqualTo(80_000);
+            assertThat(response.price().spaceRentalFee()).isEqualTo(20_000);
+            assertThat(response.price().platformMatchingFee()).isEqualTo(5_000);
+            assertThat(response.price().expectedOperatingProfit()).isEqualTo(55_000);
         }
 
         @Test
