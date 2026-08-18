@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -74,6 +75,35 @@ class SpaceControllerTest {
                 .andExpect(jsonPath("$.data.name").value("불당동 스튜디오"));
 
         verify(spaceService).create(eq(TestUsers.HOST), any());
+    }
+
+    @Test
+    @DisplayName("원시 타입 필드(capacity)가 통째로 빠지면 400 INVALID_REQUEST (#77 회귀)")
+    void createRejectsMissingPrimitiveField() throws Exception {
+        // Jackson 3 는 record 의 원시 타입 컴포넌트가 빠지면 0 으로 채우지 않고 역직렬화를 실패시킨다
+        // → HttpMessageNotReadableException → 기존 핸들러가 400 INVALID_REQUEST 로 변환.
+        String body = BODY.replace("\"capacity\":10,", "");
+
+        mockMvc.perform(post("/api/spaces").with(TestUsers.host())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+
+        verify(spaceService, never()).create(any(), any());
+    }
+
+    @Test
+    @DisplayName("boolean 원시 타입 필드(noiseAllowed)가 빠져도 400 INVALID_REQUEST (#77 회귀)")
+    void createRejectsMissingBooleanField() throws Exception {
+        // int 와 마찬가지로 false 로 조용히 채워지지 않는다 — 역직렬화 단계에서 걸린다.
+        String body = BODY.replace(",\"noiseAllowed\":true", "");
+
+        mockMvc.perform(post("/api/spaces").with(TestUsers.host())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+
+        verify(spaceService, never()).create(any(), any());
     }
 
     @Test
