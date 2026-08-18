@@ -26,6 +26,9 @@ export function RequestCard({
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
           <Badge label={ActivityFieldLabel[activity.field]} tone="primary" />
+          {request.scheduleMismatch && (
+            <Badge label="일정 불일치" tone="accent" icon="warning-outline" />
+          )}
         </View>
         <RequestStatusBadge status={status} />
       </View>

@@ -154,6 +154,10 @@ export const spaceApi = {
   addSlot: (spaceId: number, body: SpaceSlotRequest) =>
     apiClient.post<SpaceSlotResponse>(`/api/spaces/${spaceId}/slots`, body),
 
+  /** 유휴시간 슬롯 수정 (소유자) — 요청 body는 등록(POST)과 동일 */
+  updateSlot: (spaceId: number, slotId: number, body: SpaceSlotRequest) =>
+    apiClient.put<SpaceSlotResponse>(`/api/spaces/${spaceId}/slots/${slotId}`, body),
+
   /** 유휴시간 슬롯 삭제 (소유자) */
   deleteSlot: (spaceId: number, slotId: number) =>
     apiClient.delete<void>(`/api/spaces/${spaceId}/slots/${slotId}`),
