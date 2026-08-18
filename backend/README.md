@@ -1,7 +1,8 @@
 # Borrow Backend
 
 천안 유휴공간 대여 서비스의 Spring Boot 백엔드 (해커톤 MVP).
-로그인 없이 프론트가 생성한 UUID를 `X-Guest-Id` 헤더로 사용자 식별.
+ID/PW 로그인(Spring Security + HTTP Basic). 회원 유형은 역할(Role)로 나눈다 —
+`MEMBER`(일반 회원) / `HOST`(공간 제공자) / `ARTIST`(예술가).
 
 - 스택: Spring Boot 4.1 / Java 17 / MySQL 8.4 / JPA
 - API 문서(Swagger): http://localhost:8080/swagger-ui.html
@@ -15,6 +16,42 @@ docker compose up -d       # MySQL 기동 (최초 1회)
 ```
 
 AI 매칭 기능은 `.env`의 `AI_PROVIDER` / API 키 환경변수가 필요하다 (`application.yml` 주석 참고).
+
+---
+
+## 인증 (ID/PW · HTTP Basic)
+
+매 요청에 `Authorization: Basic base64(로그인아이디:비밀번호)` 헤더를 보낸다.
+별도 로그인 API는 없다 — 프론트의 "로그인 버튼"은 `GET /api/auth/me`를 호출해 200이면 성공 처리한다.
+
+```bash
+# 회원가입 (비로그인 호출)  role: MEMBER | HOST | ARTIST
+curl -X POST http://localhost:8080/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"loginId":"hong","password":"pw1234","nickname":"홍길동","role":"MEMBER"}'
+
+# 인증 확인 / 내 정보
+curl -u hong:pw1234 http://localhost:8080/api/auth/me
+#  → {"success":true,"data":{"loginId":"hong","nickname":"홍길동","role":"MEMBER"},"error":null}
+```
+
+Swagger UI 우측 상단 **Authorize** 버튼에 아이디/비밀번호를 넣으면 이후 호출에 자동 적용된다.
+미인증은 401 `UNAUTHORIZED`, 역할이 맞지 않으면 403 `FORBIDDEN` — 둘 다 공통 `{success, data, error}` 포맷으로 나간다.
+
+### 역할별 권한
+
+| 대상 | 접근 범위 |
+|---|---|
+| 누구나(비로그인) | `POST /api/auth/signup`, `GET /api/activities`(목록·상세), `GET /api/spaces`(목록·상세·슬롯), `/files/**`, Swagger |
+| 로그인 전체(역할 무관) | 활동 참여·취소, `/api/me/**`, `/api/ai/**`, `POST /api/uploads`, `GET /api/auth/me` |
+| `MEMBER`, `ARTIST` | 활동 개설, 요구조건 수정, 개최 요청 전송·상태 조회 |
+| `HOST` | `/api/spaces/**` 쓰기(등록·수정·삭제·슬롯), `/api/host/**`(요청 목록·승인·거절·홈·일정) |
+
+활동 유형과 배지는 **서버가 로그인 역할을 보고 정한다** — MEMBER 개설 → `type=HOBBY`·`hostCertified=false`,
+ARTIST 개설 → `type=CLASS`·`hostCertified=true`. 개설자/참여자 닉네임도 계정 값으로 서버가 채우므로
+요청 본문에 `type`·`hostCertified`·`hostNickname`·`nickname`을 보내지 않는다.
+
+> 기존 게스트(UUID) 데이터는 로그인 아이디와 값이 달라 소유권 판정이 깨진다. **DB를 비우고 시작할 것.**
 
 ---
 
@@ -172,16 +209,16 @@ import { imageUri } from "./api";
 서버만으로 업로드→조회→등록을 먼저 검증한다 (앱 문제와 서버 문제 분리).
 ```bash
 # 업로드
-curl -F "files=@a.jpg" -F "files=@b.jpg" http://localhost:8080/api/uploads
+curl -u hong:pw1234 -F "files=@a.jpg" -F "files=@b.jpg" http://localhost:8080/api/uploads
 #  → {"success":true,"data":{"urls":["/files/xxxx.jpg","/files/yyyy.jpg"]}}
 
 # 조회 (정적 서빙 확인)
 curl -o check.jpg http://localhost:8080/files/xxxx.jpg
 
 # 등록에 URL 반영 확인 (활동 예시)
-curl -X POST http://localhost:8080/api/activities \
-  -H "Content-Type: application/json" -H "X-Guest-Id: test-guest" \
-  -d '{"hostNickname":"t","field":"ART","title":"t","date":"2026-07-30",
+curl -X POST http://localhost:8080/api/activities -u hong:pw1234 \
+  -H "Content-Type: application/json" \
+  -d '{"field":"ART","title":"t","date":"2026-07-30",
        "startTime":"10:00","endTime":"12:00","capacity":4,"entryFee":0,
        "imageUrls":["/files/xxxx.jpg"]}'
 #  → 응답 data.imageUrls 에 그대로 반환되면 OK

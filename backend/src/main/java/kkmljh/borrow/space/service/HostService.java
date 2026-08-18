@@ -31,19 +31,19 @@ public class HostService {
     private final HostingRequestRepository hostingRequestRepository;
     private final SpaceRepository spaceRepository;
 
-    /** B-01: 운영 현황 요약 (요청 수, 일정 요약) */
-    public HostHomeResponse getHome() {
-        long pendingCount = hostingRequestRepository.countByStatus(RequestStatus.PENDING);
-        long confirmedCount = hostingRequestRepository.countByStatus(RequestStatus.APPROVED);
-        long spaceCount = spaceRepository.count();
+    /** B-01: 운영 현황 요약 (요청 수, 일정 요약) — 집계 범위는 내 공간으로 한정 */
+    public HostHomeResponse getHome(String ownerId) {
+        long pendingCount = hostingRequestRepository.countByStatusAndSpaceOwnerId(RequestStatus.PENDING, ownerId);
+        long confirmedCount = hostingRequestRepository.countByStatusAndSpaceOwnerId(RequestStatus.APPROVED, ownerId);
+        long spaceCount = spaceRepository.countByOwnerId(ownerId);
 
         List<HostingRequestResponse> recentPending = hostingRequestRepository
-                .findByStatusOrderByIdDesc(RequestStatus.PENDING).stream()
+                .findByStatusAndSpaceOwnerIdOrderByIdDesc(RequestStatus.PENDING, ownerId).stream()
                 .limit(HOME_PREVIEW_SIZE)
                 .map(HostingRequestResponse::from)
                 .toList();
 
-        List<ScheduleResponse> upcoming = confirmedSchedulesStream()
+        List<ScheduleResponse> upcoming = confirmedSchedulesStream(ownerId)
                 .limit(HOME_PREVIEW_SIZE)
                 .map(ScheduleResponse::from)
                 .toList();
@@ -51,15 +51,16 @@ public class HostService {
         return new HostHomeResponse(pendingCount, confirmedCount, spaceCount, recentPending, upcoming);
     }
 
-    /** B-11: 확정(승인) 일정 목록 — 날짜·시간순 */
-    public List<ScheduleResponse> getConfirmedSchedules() {
-        return confirmedSchedulesStream()
+    /** B-11: 확정(승인) 일정 목록 — 내 공간 기준, 날짜·시간순 */
+    public List<ScheduleResponse> getConfirmedSchedules(String ownerId) {
+        return confirmedSchedulesStream(ownerId)
                 .map(ScheduleResponse::from)
                 .toList();
     }
 
-    private java.util.stream.Stream<HostingRequest> confirmedSchedulesStream() {
-        return hostingRequestRepository.findByStatusOrderByIdDesc(RequestStatus.APPROVED).stream()
+    private java.util.stream.Stream<HostingRequest> confirmedSchedulesStream(String ownerId) {
+        return hostingRequestRepository
+                .findByStatusAndSpaceOwnerIdOrderByIdDesc(RequestStatus.APPROVED, ownerId).stream()
                 .sorted(BY_SCHEDULE);
     }
 }

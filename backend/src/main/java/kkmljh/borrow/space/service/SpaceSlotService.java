@@ -31,11 +31,11 @@ public class SpaceSlotService {
     }
 
     @Transactional
-    public SpaceSlotResponse add(Long spaceId, SpaceSlotRequest req) {
+    public SpaceSlotResponse add(String ownerId, Long spaceId, SpaceSlotRequest req) {
         if (!req.startTime().isBefore(req.endTime())) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST, "종료 시각은 시작 시각보다 늦어야 합니다.");
         }
-        Space space = getSpace(spaceId);
+        Space space = getOwnedSpace(ownerId, spaceId);
         SpaceSlot slot = SpaceSlot.builder()
                 .space(space)
                 .dayOfWeek(req.dayOfWeek())
@@ -46,7 +46,8 @@ public class SpaceSlotService {
     }
 
     @Transactional
-    public void delete(Long spaceId, Long slotId) {
+    public void delete(String ownerId, Long spaceId, Long slotId) {
+        getOwnedSpace(ownerId, spaceId);
         SpaceSlot slot = spaceSlotRepository.findById(slotId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SLOT_NOT_FOUND));
         if (!slot.getSpace().getId().equals(spaceId)) {
@@ -58,6 +59,15 @@ public class SpaceSlotService {
     private Space getSpace(Long spaceId) {
         return spaceRepository.findById(spaceId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SPACE_NOT_FOUND));
+    }
+
+    /** 슬롯 등록·삭제는 내 공간에만 (목록 조회는 비로그인 열람이라 제외) */
+    private Space getOwnedSpace(String ownerId, Long spaceId) {
+        Space space = getSpace(spaceId);
+        if (!space.isOwnedBy(ownerId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        return space;
     }
 
     private void ensureSpaceExists(Long spaceId) {
