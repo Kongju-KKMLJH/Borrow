@@ -211,4 +211,87 @@ class SpaceRepositoryTest {
             assertThat(hostingRequestRepository.existsBySpaceId(empty.getId())).isFalse();
         }
     }
+
+    @Nested
+    @DisplayName("공간 중복 등록 판정 (기능명세 6.1 exceptions)")
+    class DuplicateSpace {
+
+        private static final String NAME = "불당동 스튜디오";
+        private static final String ADDRESS = "천안시 서북구 불당대로 1";
+
+        private Space spaceAt(String ownerId, String name, String address) {
+            return em.persistAndFlush(Space.builder()
+                    .ownerId(ownerId)
+                    .name(name)
+                    .region("천안시 서북구 불당동")
+                    .address(address)
+                    .capacity(10)
+                    .hourlyFee(10_000)
+                    .facilities(Set.of())
+                    .allowedFields(Set.of(ActivityField.ART))
+                    .build());
+        }
+
+        @Test
+        @DisplayName("같은 소유자가 이름·주소가 같은 공간을 또 올리면 중복이다")
+        void sameOwnerSameNameAndAddress() {
+            spaceAt(OWNER, NAME, ADDRESS);
+
+            assertThat(spaceRepository.existsByOwnerIdAndNameAndAddress(OWNER, NAME, ADDRESS)).isTrue();
+        }
+
+        @Test
+        @DisplayName("소유자가 다르면 중복이 아니다 — 같은 건물의 다른 층·호실은 정상 등록")
+        void differentOwnerIsNotDuplicate() {
+            spaceAt(OWNER, NAME, ADDRESS);
+
+            assertThat(spaceRepository.existsByOwnerIdAndNameAndAddress(OTHER, NAME, ADDRESS)).isFalse();
+        }
+
+        @Test
+        @DisplayName("이름만 같고 주소가 다르면 중복이 아니다")
+        void sameNameDifferentAddress() {
+            spaceAt(OWNER, NAME, ADDRESS);
+
+            assertThat(spaceRepository.existsByOwnerIdAndNameAndAddress(OWNER, NAME, "천안시 동남구 신부동 2"))
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("주소가 같아도 이름이 다르면 중복이 아니다")
+        void sameAddressDifferentName() {
+            spaceAt(OWNER, NAME, ADDRESS);
+
+            assertThat(spaceRepository.existsByOwnerIdAndNameAndAddress(OWNER, "2층 연습실", ADDRESS)).isFalse();
+        }
+
+        @Test
+        @DisplayName("주소는 선택 입력이라 비어(null) 있어도 소유자·이름이 같으면 중복이다")
+        void nullAddressStillMatches() {
+            spaceAt(OWNER, NAME, null);
+
+            assertThat(spaceRepository.existsByOwnerIdAndNameAndAddress(OWNER, NAME, null)).isTrue();
+            assertThat(spaceRepository.existsByOwnerIdAndNameAndAddress(OWNER, NAME, ADDRESS)).isFalse();
+        }
+
+        @Test
+        @DisplayName("수정 판정은 자기 자신을 제외한다 — 이용료만 고치는 정상 수정을 막지 않는다")
+        void excludesItself() {
+            Space mine = spaceAt(OWNER, NAME, ADDRESS);
+
+            assertThat(spaceRepository
+                    .existsByOwnerIdAndNameAndAddressAndIdNot(OWNER, NAME, ADDRESS, mine.getId())).isFalse();
+        }
+
+        @Test
+        @DisplayName("수정으로 내 다른 공간과 이름·주소가 겹치면 중복이다")
+        void collidesWithMyOtherSpace() {
+            Space first = spaceAt(OWNER, NAME, ADDRESS);
+            Space second = spaceAt(OWNER, "2층 연습실", ADDRESS);
+
+            assertThat(spaceRepository
+                    .existsByOwnerIdAndNameAndAddressAndIdNot(OWNER, NAME, ADDRESS, second.getId())).isTrue();
+            assertThat(first.getId()).isNotEqualTo(second.getId());
+        }
+    }
 }

@@ -1,6 +1,7 @@
 package kkmljh.borrow.activity.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -22,7 +23,7 @@ public record ActivityCreateRequest(
         @NotBlank String title,
         String description,
         List<String> imageUrls,
-        @NotNull LocalDate date,
+        @NotNull @FutureOrPresent LocalDate date,
         @NotNull LocalTime startTime,
         @NotNull LocalTime endTime,
         @Positive int capacity,

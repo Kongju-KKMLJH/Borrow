@@ -149,6 +149,37 @@ class SecurityConfigTest {
         }
 
         @Test
+        @DisplayName("예술가 인증은 /api/me/** 규칙을 그대로 탄다 — 비로그인 401, 조회는 역할 무관 (기능명세 1.2)")
+        void artistVerificationFollowsMeRule() throws Exception {
+            String body = """
+                    {"portfolioUrl":"https://portfolio.example/artist1","career":"수채화 3년"}
+                    """;
+
+            assertUnauthorized(get("/api/me/artist-verification"));
+            assertUnauthorized(post("/api/me/artist-verification")
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+
+            for (String user : new String[]{"member1", "host1", "artist1"}) {
+                assertAllowed(get("/api/me/artist-verification").with(httpBasic(user, PW)));
+            }
+        }
+
+        @Test
+        @DisplayName("인증 신청은 ARTIST 만 — 이 403은 SecurityConfig가 아니라 서비스 판정이다 (기능명세 1.2)")
+        void artistVerificationApplyIsArtistOnly() throws Exception {
+            String body = """
+                    {"portfolioUrl":"https://portfolio.example/artist1","career":"수채화 3년"}
+                    """;
+
+            assertAllowed(post("/api/me/artist-verification").with(httpBasic("artist1", PW))
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+            assertForbidden(post("/api/me/artist-verification").with(httpBasic("member1", PW))
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+            assertForbidden(post("/api/me/artist-verification").with(httpBasic("host1", PW))
+                    .contentType(MediaType.APPLICATION_JSON).content(body));
+        }
+
+        @Test
         @DisplayName("HOST 계정도 활동에 참여할 수 있다 (역할로 참여를 막지 않는다)")
         void participationIsRoleAgnostic() throws Exception {
             assertUnauthorized(post("/api/activities/1/participations")
@@ -179,7 +210,7 @@ class SecurityConfigTest {
     }
 
     @Nested
-    @DisplayName("활동 개설·관리는 MEMBER · ARTIST")
+    @DisplayName("활동 개설은 ARTIST 전용, 개설된 활동의 관리는 MEMBER · ARTIST")
     class ActivityWriteAccess {
 
         private RequestBuilder createActivity(String user) {
@@ -193,13 +224,13 @@ class SecurityConfigTest {
         }
 
         @Test
-        @DisplayName("MEMBER 는 활동을 개설할 수 있다")
-        void memberCanCreate() throws Exception {
-            assertAllowed(createActivity("member1"));
+        @DisplayName("MEMBER 는 활동을 개설할 수 없다 — 개설은 예술가로 한정 (기능명세 1.2)")
+        void memberCannotCreate() throws Exception {
+            assertForbidden(createActivity("member1"));
         }
 
         @Test
-        @DisplayName("ARTIST 도 같은 API 로 활동을 개설할 수 있다 (hasAnyRole 이어야 한다)")
+        @DisplayName("ARTIST 는 활동을 개설할 수 있다")
         void artistCanCreate() throws Exception {
             assertAllowed(createActivity("artist1"));
         }
@@ -256,6 +287,15 @@ class SecurityConfigTest {
             assertForbidden(delete("/api/activities/1").with(httpBasic("host1", PW)));
             assertAllowed(delete("/api/activities/1").with(httpBasic("member1", PW)));
             assertAllowed(delete("/api/activities/1").with(httpBasic("artist1", PW)));
+        }
+
+        @Test
+        @DisplayName("매칭 이용료 Mock 결제(POST payment)는 MEMBER · ARTIST 만 (기능명세 3.3)")
+        void activityPayment() throws Exception {
+            assertUnauthorized(post("/api/activities/1/payment"));
+            assertForbidden(post("/api/activities/1/payment").with(httpBasic("host1", PW)));
+            assertAllowed(post("/api/activities/1/payment").with(httpBasic("member1", PW)));
+            assertAllowed(post("/api/activities/1/payment").with(httpBasic("artist1", PW)));
         }
 
         /**

@@ -157,7 +157,18 @@ public class Activity {
         this.status = ActivityStatus.PENDING;
     }
 
-    /** 사업자 승인 시 모집 목록에 자동 공개 (B-09 → S-01) */
+    /**
+     * 사업자 승인 시 (B-09): 매칭은 확정되지만 아직 시민에게 공개하지 않는다.
+     * 예술가의 Mock 결제가 끝나야 {@link #publish()} 로 넘어간다 (기능명세 3.3/3.3.1).
+     */
+    public void confirmMatch() {
+        if (this.status != ActivityStatus.PENDING) {
+            throw new BusinessException(ErrorCode.REQUEST_ALREADY_HANDLED);
+        }
+        this.status = ActivityStatus.MATCHED;
+    }
+
+    /** 매칭 이용료 Mock 결제 완료 시 모집 목록에 공개 (기능명세 3.3 → S-01) */
     public void publish() {
         this.status = ActivityStatus.PUBLISHED;
     }
