@@ -15,6 +15,7 @@ import kkmljh.borrow.common.exception.ErrorCode;
 import kkmljh.borrow.domain.Activity;
 import kkmljh.borrow.domain.AppUser;
 import kkmljh.borrow.domain.ActivityField;
+import kkmljh.borrow.domain.ActivityStatus;
 import kkmljh.borrow.domain.ActivityType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -124,6 +125,25 @@ public class ActivityService {
 
         hostingRequestRepository.deleteByActivityId(activityId);
         activityRepository.delete(activity);
+    }
+
+    /**
+     * 기능명세 3.3 매칭 이용료 Mock 결제 (개설자 본인만). 공간 승인으로 매칭이 확정(MATCHED)된
+     * 활동만 결제할 수 있다. 실제 PG 연동 없이 즉시 성공 처리하고 시민에게 공개(PUBLISHED)한다.
+     * 예상 수익·매칭 이용료 확인은 개최 요청 상세(U-12)의 {@code PriceBreakdown}을 그대로 쓴다 —
+     * 여기서 다시 계산하지 않는다.
+     */
+    @Transactional
+    public ActivityDetailResponse pay(String guestId, Long activityId) {
+        Activity activity = findOwned(guestId, activityId);
+        if (activity.getStatus() != ActivityStatus.MATCHED) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST,
+                    "공간 승인 후 매칭이 확정된 활동만 결제할 수 있습니다.");
+        }
+
+        activity.publish();
+        return ActivityDetailResponse.of(activity, currentHeadcount(activityId), false, true,
+                confirmedSpaces(List.of(activity)).get(activityId));
     }
 
     /**
