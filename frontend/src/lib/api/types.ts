@@ -11,7 +11,7 @@ export type ActivityType = 'HOBBY' | 'CLASS';
 
 export type ActivityField = 'ART' | 'PHOTO';
 
-export type ActivityStatus = 'DRAFT' | 'PENDING' | 'PUBLISHED' | 'REJECTED';
+export type ActivityStatus = 'DRAFT' | 'PENDING' | 'MATCHED' | 'PUBLISHED' | 'REJECTED';
 
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 

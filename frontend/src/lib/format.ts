@@ -34,7 +34,7 @@ export function formatCurrency(amount: number): string {
 export const ActivityTypeLabel: Record<ActivityType, string> = { HOBBY: '취미 모임', CLASS: '전문 클래스' };
 export const ActivityFieldLabel: Record<ActivityField, string> = { ART: '그림', PHOTO: '촬영' };
 export const ActivityStatusLabel: Record<ActivityStatus, string> = {
-  DRAFT: '작성 중', PENDING: '공간 승인 대기', PUBLISHED: '모집 중', REJECTED: '거절',
+  DRAFT: '작성 중', PENDING: '공간 승인 대기', MATCHED: '결제 대기', PUBLISHED: '모집 중', REJECTED: '거절',
 };
 export const RequestStatusLabel: Record<RequestStatus, string> = { PENDING: '승인 대기', APPROVED: '승인', REJECTED: '거절' };
 export const FacilityTypeLabel: Record<FacilityType, string> = {

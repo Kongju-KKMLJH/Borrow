@@ -10,14 +10,21 @@ import { formatCurrency } from '@/lib/format';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
 
-const MATCHING_FEE = 5000;
-
 export default function PaymentDone() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const activityId = Number(id);
 
   const { data: activity } = useAsync(() => activityApi.detail(activityId), [activityId]);
+  const { data: hostingRequest } = useAsync(async () => {
+    if (!activity?.mine) return null;
+    try {
+      return await activityApi.hostingRequestStatus(activityId);
+    } catch {
+      return null;
+    }
+  }, [activityId, activity?.mine]);
+  const matchingFee = hostingRequest?.price?.platformMatchingFee;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top', 'bottom']}>
@@ -34,7 +41,7 @@ export default function PaymentDone() {
           <Card tone="flat" padding="lg" radius="lg" style={{ width: '100%', gap: Spacing.md }}>
             <Row label="활동명" value={activity.title} />
             <Row label="참가비" value={formatCurrency(activity.entryFee)} />
-            <Row label="매칭 이용료" value={formatCurrency(MATCHING_FEE)} last />
+            {matchingFee != null && <Row label="매칭 이용료" value={formatCurrency(matchingFee)} last />}
           </Card>
         )}
       </View>

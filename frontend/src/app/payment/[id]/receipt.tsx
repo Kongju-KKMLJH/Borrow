@@ -1,4 +1,5 @@
 import { useLocalSearchParams, router } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -29,6 +30,18 @@ export default function PaymentReceipt() {
     if (!hostingRequest?.spaceId) return null;
     return await spaceApi.detail(hostingRequest.spaceId);
   }, [hostingRequest?.spaceId]);
+
+  const [paying, setPaying] = useState(false);
+
+  const pay = async () => {
+    setPaying(true);
+    try {
+      await activityApi.confirmPayment(activityId);
+      router.push(`/payment/${activityId}/done`);
+    } finally {
+      setPaying(false);
+    }
+  };
 
   if (!activity || !space) {
     return (
@@ -81,7 +94,7 @@ export default function PaymentReceipt() {
       </ScrollView>
 
       <View style={{ padding: Spacing.xl, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: theme.border }}>
-        <Button label="결제 및 프로그램 공개" fullWidth size="lg" onPress={() => router.push(`/payment/${activityId}/done`)} />
+        <Button label={paying ? '' : '결제 및 프로그램 공개'} loading={paying} fullWidth size="lg" onPress={pay} />
       </View>
     </SafeAreaView>
   );

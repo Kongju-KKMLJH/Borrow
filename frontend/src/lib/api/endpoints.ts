@@ -109,6 +109,10 @@ export const activityApi = {
     apiClient.get<ActivityHostingRequestResponse>(
       `/api/activities/${activityId}/hosting-request`
     ),
+
+  /** 매칭 이용료 Mock 결제 — MATCHED 상태인 활동만 결제 가능, 성공 시 PUBLISHED 전환 (개설자 본인) */
+  confirmPayment: (activityId: number) =>
+    apiClient.post<ActivityDetailResponse>(`/api/activities/${activityId}/payment`),
 };
 
 // ── Me (내 활동) ────────────────────────────────────────────────────────

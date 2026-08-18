@@ -60,7 +60,11 @@ export default function MyActivities() {
             a.status === 'REJECTED' ? (
               <RejectedCard key={a.id} activity={a} />
             ) : (
-              <CreatedRow key={a.id} activity={a} onPress={() => router.push(`/activity/${a.id}`)} />
+              <CreatedRow
+                key={a.id}
+                activity={a}
+                onPress={() => router.push(a.status === 'MATCHED' ? `/payment/${a.id}` : `/activity/${a.id}`)}
+              />
             ),
           )
         )}
