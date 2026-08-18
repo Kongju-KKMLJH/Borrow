@@ -18,4 +18,11 @@ public interface ActivityHostingRequestRepository extends JpaRepository<HostingR
 
     /** U-12 상태 조회: 활동에 대한 최신 개최 요청 (재요청 시 여러 건일 수 있어 id 내림차순 첫 건) */
     Optional<HostingRequest> findFirstByActivityIdOrderByIdDesc(Long activityId);
+
+    /**
+     * 활동 삭제(기능명세 2.1) 시 FK 위반을 피하려면 개최 요청을 먼저 지워야 한다.
+     * REJECTED 활동에는 거절된 요청이 남아 있다.
+     * {@code SpaceSlotRepository.deleteBySpaceId} 와 같은 패턴.
+     */
+    long deleteByActivityId(Long activityId);
 }
