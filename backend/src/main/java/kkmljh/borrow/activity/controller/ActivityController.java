@@ -99,4 +99,12 @@ public class ActivityController {
         activityService.delete(guestId, activityId);
         return ApiResponse.ok();
     }
+
+    @Operation(summary = "기능명세 3.3 매칭 이용료 Mock 결제",
+            description = "개설자 본인만 가능. 공간 승인으로 매칭이 확정(MATCHED)된 활동만 결제할 수 있다. "
+                    + "실제 PG 연동 없이 즉시 성공 처리하고, 완료되면 활동이 시민에게 공개(PUBLISHED)된다.")
+    @PostMapping("/{activityId}/payment")
+    public ApiResponse<ActivityDetailResponse> pay(@GuestId String guestId, @PathVariable Long activityId) {
+        return ApiResponse.ok(activityService.pay(guestId, activityId));
+    }
 }
