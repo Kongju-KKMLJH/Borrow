@@ -102,4 +102,46 @@ class HostingRequestTest {
 
         assertThat(request.getStatus()).isEqualTo(RequestStatus.REJECTED);
     }
+
+    @Test
+    @DisplayName("모집 정원이 공간 수용 인원을 넘으면 승인할 수 없다 — CAPACITY_EXCEEDS_SPACE (이슈 #9)")
+    void cannotApproveWhenCapacityExceedsSpace() {
+        // TestFixtures.space() 는 capacity=10 — 그보다 큰 정원(20명)의 활동으로 요청을 만든다.
+        Activity oversized = Activity.builder()
+                .guestId("member1").hostNickname("일반회원").hostCertified(false)
+                .type(ActivityType.HOBBY).field(ActivityField.ART)
+                .title("대형 모임").capacity(20).entryFee(0)
+                .date(java.time.LocalDate.of(2026, 9, 12))
+                .startTime(java.time.LocalTime.of(14, 0)).endTime(java.time.LocalTime.of(16, 0))
+                .build();
+        oversized.markPending();
+        HostingRequest oversizedRequest = HostingRequest.builder().activity(oversized).space(space).build();
+
+        assertThatThrownBy(oversizedRequest::approve)
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CAPACITY_EXCEEDS_SPACE);
+
+        assertThat(oversizedRequest.getStatus()).isEqualTo(RequestStatus.PENDING);
+        assertThat(oversized.getStatus()).isEqualTo(ActivityStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("모집 정원이 공간 수용 인원과 같으면 승인할 수 있다 (경계값)")
+    void canApproveWhenCapacityEqualsSpace() {
+        Activity exact = Activity.builder()
+                .guestId("member1").hostNickname("일반회원").hostCertified(false)
+                .type(ActivityType.HOBBY).field(ActivityField.ART)
+                .title("딱 맞는 모임").capacity(space.getCapacity()).entryFee(0)
+                .date(java.time.LocalDate.of(2026, 9, 12))
+                .startTime(java.time.LocalTime.of(14, 0)).endTime(java.time.LocalTime.of(16, 0))
+                .build();
+        exact.markPending();
+        HostingRequest exactRequest = HostingRequest.builder().activity(exact).space(space).build();
+
+        exactRequest.approve();
+
+        assertThat(exactRequest.getStatus()).isEqualTo(RequestStatus.APPROVED);
+        assertThat(exact.getStatus()).isEqualTo(ActivityStatus.MATCHED);
+    }
 }

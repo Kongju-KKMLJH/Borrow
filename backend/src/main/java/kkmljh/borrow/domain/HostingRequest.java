@@ -55,9 +55,15 @@ public class HostingRequest {
     /**
      * 승인 (B-09): 요청 승인 + 활동 매칭 확정(MATCHED).
      * 시민 공개(S-01)는 즉시 되지 않고, 예술가의 Mock 결제 후에 이뤄진다 (기능명세 3.3/3.3.1).
+     *
+     * <p>모집 정원이 공간의 실제 수용 인원을 넘는 매칭은 확정할 수 없다 (이슈 #9).
+     * 여기서 막아야 참여 신청(U-04) 단계에서 다시 검사하지 않아도 물리적으로 안전하다.
      */
     public void approve() {
         ensurePending();
+        if (this.activity.getCapacity() > this.space.getCapacity()) {
+            throw new BusinessException(ErrorCode.CAPACITY_EXCEEDS_SPACE);
+        }
         this.status = RequestStatus.APPROVED;
         this.activity.confirmMatch();
     }

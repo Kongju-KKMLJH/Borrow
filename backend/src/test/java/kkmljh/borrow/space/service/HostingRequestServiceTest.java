@@ -177,6 +177,24 @@ class HostingRequestServiceTest {
         }
 
         @Test
+        @DisplayName("모집 정원이 공간 수용 인원을 넘으면 승인할 수 없다 — 400 CAPACITY_EXCEEDS_SPACE (이슈 #9)")
+        void cannotApproveWhenCapacityExceedsSpace() {
+            // TestFixtures.space() 는 capacity=10 — 그보다 큰 정원(20명)의 활동으로 요청을 만든다.
+            Activity oversized = TestFixtures.activity(1L, "member1");
+            oversized.markPending();
+            org.springframework.test.util.ReflectionTestUtils.setField(oversized, "capacity", 20);
+            HostingRequest request = TestFixtures.hostingRequest(1L, oversized, TestFixtures.space(5L, OWNER));
+            given(hostingRequestRepository.findById(1L)).willReturn(Optional.of(request));
+
+            assertThatThrownBy(() -> hostingRequestService.approve(OWNER, 1L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.CAPACITY_EXCEEDS_SPACE);
+
+            assertThat(request.getStatus()).isEqualTo(RequestStatus.PENDING);
+        }
+
+        @Test
         @DisplayName("거절하면 사유가 남고 활동은 REJECTED 가 된다")
         void reject() {
             HostingRequest request = request(1L, OWNER);
