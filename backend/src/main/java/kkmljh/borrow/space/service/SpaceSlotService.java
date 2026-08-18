@@ -46,13 +46,20 @@ public class SpaceSlotService {
     }
 
     @Transactional
+    public SpaceSlotResponse update(String ownerId, Long spaceId, Long slotId, SpaceSlotRequest req) {
+        if (!req.startTime().isBefore(req.endTime())) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "종료 시각은 시작 시각보다 늦어야 합니다.");
+        }
+        getOwnedSpace(ownerId, spaceId);
+        SpaceSlot slot = getOwnedSlot(spaceId, slotId);
+        slot.update(req.dayOfWeek(), req.startTime(), req.endTime());
+        return SpaceSlotResponse.from(slot);
+    }
+
+    @Transactional
     public void delete(String ownerId, Long spaceId, Long slotId) {
         getOwnedSpace(ownerId, spaceId);
-        SpaceSlot slot = spaceSlotRepository.findById(slotId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.SLOT_NOT_FOUND));
-        if (!slot.getSpace().getId().equals(spaceId)) {
-            throw new BusinessException(ErrorCode.SLOT_NOT_FOUND);
-        }
+        SpaceSlot slot = getOwnedSlot(spaceId, slotId);
         spaceSlotRepository.delete(slot);
     }
 
@@ -74,5 +81,15 @@ public class SpaceSlotService {
         if (!spaceRepository.existsById(spaceId)) {
             throw new BusinessException(ErrorCode.SPACE_NOT_FOUND);
         }
+    }
+
+    /** 슬롯이 이 공간 소속인지까지 확인 (다른 공간의 slotId로 접근하는 것을 차단) */
+    private SpaceSlot getOwnedSlot(Long spaceId, Long slotId) {
+        SpaceSlot slot = spaceSlotRepository.findById(slotId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SLOT_NOT_FOUND));
+        if (!slot.getSpace().getId().equals(spaceId)) {
+            throw new BusinessException(ErrorCode.SLOT_NOT_FOUND);
+        }
+        return slot;
     }
 }

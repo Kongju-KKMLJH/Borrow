@@ -23,6 +23,7 @@ import java.util.stream.Stream;
 public class HostingRequestService {
 
     private final HostingRequestRepository hostingRequestRepository;
+    private final ScheduleMismatchChecker scheduleMismatchChecker;
 
     /** 받은 개최요청 목록 — 공간/상태로 선택 필터링 */
     public List<HostingRequestResponse> findRequests(String ownerId, Long spaceId, RequestStatus status) {
@@ -34,11 +35,12 @@ public class HostingRequestService {
         if (status != null) {
             stream = stream.filter(r -> r.getStatus() == status);
         }
-        return stream.map(HostingRequestResponse::from).toList();
+        return stream.map(r -> HostingRequestResponse.from(r, scheduleMismatchChecker.isMismatch(r))).toList();
     }
 
     public HostingRequestResponse findById(String ownerId, Long requestId) {
-        return HostingRequestResponse.from(getOwnedRequest(ownerId, requestId));
+        HostingRequest request = getOwnedRequest(ownerId, requestId);
+        return HostingRequestResponse.from(request, scheduleMismatchChecker.isMismatch(request));
     }
 
     /** 승인 (B-09): 요청 승인 + 활동 자동 공개 (S-01) */
@@ -46,7 +48,7 @@ public class HostingRequestService {
     public HostingRequestResponse approve(String ownerId, Long requestId) {
         HostingRequest request = getOwnedRequest(ownerId, requestId);
         request.approve();
-        return HostingRequestResponse.from(request);
+        return HostingRequestResponse.from(request, scheduleMismatchChecker.isMismatch(request));
     }
 
     /** 거절 (B-10): 요청 거절 + 활동 REJECTED 전환 */
@@ -54,7 +56,7 @@ public class HostingRequestService {
     public HostingRequestResponse reject(String ownerId, Long requestId, String reason) {
         HostingRequest request = getOwnedRequest(ownerId, requestId);
         request.reject(reason);
-        return HostingRequestResponse.from(request);
+        return HostingRequestResponse.from(request, scheduleMismatchChecker.isMismatch(request));
     }
 
     /**

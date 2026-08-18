@@ -18,7 +18,9 @@ public record HostingRequestResponse(
         RequestStatus status,
         String rejectReason,
         SpaceInfo space,
-        ActivityInfo activity
+        ActivityInfo activity,
+        /** 활동 일정이 공간에 등록된 유휴시간(슬롯) 어디에도 완전히 포함되지 않으면 true (F-XOKOSU) */
+        boolean scheduleMismatch
 ) {
     public record SpaceInfo(Long id, String name, String region) {
         static SpaceInfo from(Space space) {
@@ -77,13 +79,14 @@ public record HostingRequestResponse(
         }
     }
 
-    public static HostingRequestResponse from(HostingRequest request) {
+    public static HostingRequestResponse from(HostingRequest request, boolean scheduleMismatch) {
         return new HostingRequestResponse(
                 request.getId(),
                 request.getStatus(),
                 request.getRejectReason(),
                 SpaceInfo.from(request.getSpace()),
-                ActivityInfo.from(request.getActivity())
+                ActivityInfo.from(request.getActivity()),
+                scheduleMismatch
         );
     }
 }

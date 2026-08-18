@@ -56,4 +56,11 @@ public class SpaceSlot {
                 && !from.isBefore(this.startTime)
                 && !to.isAfter(this.endTime);
     }
+
+    /** 요일/시작·종료 시각 수정. 유효성(시작 &lt; 종료)은 호출부(서비스)에서 검증한다. */
+    public void update(DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime) {
+        this.dayOfWeek = dayOfWeek;
+        this.startTime = startTime;
+        this.endTime = endTime;
+    }
 }
