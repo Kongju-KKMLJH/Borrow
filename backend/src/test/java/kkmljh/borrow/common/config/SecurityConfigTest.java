@@ -258,6 +258,15 @@ class SecurityConfigTest {
             assertAllowed(delete("/api/activities/1").with(httpBasic("artist1", PW)));
         }
 
+        @Test
+        @DisplayName("매칭 이용료 Mock 결제(POST payment)는 MEMBER · ARTIST 만 (기능명세 3.3)")
+        void activityPayment() throws Exception {
+            assertUnauthorized(post("/api/activities/1/payment"));
+            assertForbidden(post("/api/activities/1/payment").with(httpBasic("host1", PW)));
+            assertAllowed(post("/api/activities/1/payment").with(httpBasic("member1", PW)));
+            assertAllowed(post("/api/activities/1/payment").with(httpBasic("artist1", PW)));
+        }
+
         /**
          * 이 절에서 제일 나기 쉬운 버그 — PUT/DELETE 규칙에 HttpMethod 를 빼고 경로만 쓰면
          * 같은 URL 의 비로그인 GET(U-03 상세)까지 함께 잡혀 목록에서 상세로 못 들어간다.
