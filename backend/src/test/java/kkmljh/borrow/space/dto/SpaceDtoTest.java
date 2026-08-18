@@ -74,6 +74,30 @@ class SpaceDtoTest {
     }
 
     @Test
+    @DisplayName("공개용 from 은 주소 전문을 담지 않고 동 단위(region)만 남긴다 (기능명세 6.1 rules)")
+    void spaceResponseHidesFullAddress() {
+        Space space = TestFixtures.space(1L, "host1");
+
+        SpaceResponse response = SpaceResponse.from(space);
+
+        assertThat(response.address()).isNull();
+        assertThat(response.region()).isEqualTo("천안시 서북구 불당동");
+        assertThat(response.toString()).doesNotContain("불당대로 1");
+    }
+
+    @Test
+    @DisplayName("소유자용 forOwner 는 주소 전문을 담는다")
+    void spaceResponseForOwnerKeepsAddress() {
+        Space space = TestFixtures.space(1L, "host1");
+
+        SpaceResponse response = SpaceResponse.forOwner(space);
+
+        assertThat(response.address()).isEqualTo("불당대로 1");
+        assertThat(response.region()).isEqualTo("천안시 서북구 불당동");
+        assertThat(response.toString()).doesNotContain("host1");
+    }
+
+    @Test
     @DisplayName("SpaceSlotResponse 변환")
     void slotResponse() {
         SpaceSlot slot = TestFixtures.slot(10L, TestFixtures.space(),
@@ -97,11 +121,12 @@ class SpaceDtoTest {
             Activity activity = TestFixtures.activity(1L, "member1");
             HostingRequest request = TestFixtures.hostingRequest(7L, activity, TestFixtures.space(5L, "host1"));
 
-            HostingRequestResponse response = HostingRequestResponse.from(request);
+            HostingRequestResponse response = HostingRequestResponse.from(request, true);
 
             assertThat(response.id()).isEqualTo(7L);
             assertThat(response.status()).isEqualTo(RequestStatus.PENDING);
             assertThat(response.rejectReason()).isNull();
+            assertThat(response.scheduleMismatch()).isTrue();
             assertThat(response.space().id()).isEqualTo(5L);
             assertThat(response.space().name()).isEqualTo("불당동 스튜디오");
             assertThat(response.space().region()).isEqualTo("천안시 서북구 불당동");
@@ -131,7 +156,7 @@ class SpaceDtoTest {
             HostingRequest request = TestFixtures.hostingRequest(
                     7L, TestFixtures.withId(activity, 1L), TestFixtures.space(5L, "host1"));
 
-            assertThat(HostingRequestResponse.from(request).activity().requirement()).isNull();
+            assertThat(HostingRequestResponse.from(request, false).activity().requirement()).isNull();
         }
 
         /**
@@ -153,7 +178,7 @@ class SpaceDtoTest {
             HostingRequest request = TestFixtures.hostingRequest(
                     7L, TestFixtures.withId(activity, 1L), TestFixtures.space(5L, "host1"));
 
-            assertThat(HostingRequestResponse.from(request).activity().requirement()).isNull();
+            assertThat(HostingRequestResponse.from(request, false).activity().requirement()).isNull();
         }
 
         @Test
@@ -163,7 +188,7 @@ class SpaceDtoTest {
                     7L, TestFixtures.activity(1L, "member1"), TestFixtures.space(5L, "host1"));
             request.reject("예약이 있습니다.");
 
-            HostingRequestResponse response = HostingRequestResponse.from(request);
+            HostingRequestResponse response = HostingRequestResponse.from(request, false);
 
             assertThat(response.status()).isEqualTo(RequestStatus.REJECTED);
             assertThat(response.rejectReason()).isEqualTo("예약이 있습니다.");

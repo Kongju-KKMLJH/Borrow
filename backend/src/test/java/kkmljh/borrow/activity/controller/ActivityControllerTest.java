@@ -267,6 +267,45 @@ class ActivityControllerTest {
     }
 
     @Test
+    @DisplayName("비공개 활동 상세는 비로그인에게 404 — 존재 자체를 감춘다 (기능명세 4.1)")
+    void detailHiddenAnonymous() throws Exception {
+        given(activityService.detail(isNull(), eq(1L)))
+                .willThrow(new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND));
+
+        mockMvc.perform(get("/api/activities/1"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ACTIVITY_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("남의 비공개 활동 상세는 로그인 회원에게도 404 — 403 이면 그 id 에 뭔가 있다고 알려준다")
+    void detailHiddenOtherMember() throws Exception {
+        given(activityService.detail(eq(TestUsers.MEMBER), eq(1L)))
+                .willThrow(new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND));
+
+        mockMvc.perform(get("/api/activities/1").with(TestUsers.member()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ACTIVITY_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("공개된 활동 상세는 비로그인으로 계속 열린다 (회귀)")
+    void detailPublishedAnonymous() throws Exception {
+        ActivityDetailResponse published = new ActivityDetailResponse(
+                1L, ActivityType.HOBBY, ActivityField.ART, "수채화 모임", "설명", List.of("/files/a.jpg"),
+                "일반회원", false, LocalDate.of(2026, 9, 12),
+                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 10_000,
+                ActivityStatus.PUBLISHED,
+                new SpaceRequirementDto("천안시 서북구", 6, Set.of(FacilityType.WATER), false, true),
+                false, false);
+        given(activityService.detail(isNull(), eq(1L))).willReturn(published);
+
+        mockMvc.perform(get("/api/activities/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PUBLISHED"));
+    }
+
+    @Test
     @DisplayName("U-08 요구조건 수정은 개설자 본인만 — 남의 활동이면 403")
     void updateRequirementForbidden() throws Exception {
         given(activityService.updateRequirement(eq(TestUsers.MEMBER), eq(1L), any()))

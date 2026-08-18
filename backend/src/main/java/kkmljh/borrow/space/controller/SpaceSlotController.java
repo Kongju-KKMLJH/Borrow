@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,6 +41,15 @@ public class SpaceSlotController {
                                               @PathVariable Long spaceId,
                                               @RequestBody @Valid SpaceSlotRequest request) {
         return ApiResponse.ok(spaceSlotService.add(ownerId, spaceId, request));
+    }
+
+    @Operation(summary = "유휴시간 수정", description = "공간의 유휴시간 슬롯의 요일·시작/종료 시각을 수정한다. 소유자 본인만 가능.")
+    @PutMapping("/{slotId}")
+    public ApiResponse<SpaceSlotResponse> update(@GuestId String ownerId,
+                                                 @PathVariable Long spaceId,
+                                                 @PathVariable Long slotId,
+                                                 @RequestBody @Valid SpaceSlotRequest request) {
+        return ApiResponse.ok(spaceSlotService.update(ownerId, spaceId, slotId, request));
     }
 
     @Operation(summary = "유휴시간 삭제", description = "공간의 유휴시간 슬롯을 삭제한다. 소유자 본인만 가능.")

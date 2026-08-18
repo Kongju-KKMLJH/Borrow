@@ -151,6 +151,39 @@ class SpaceServiceTest {
             assertThat(spaceService.findMySpaces(OWNER)).hasSize(1);
             verify(spaceRepository).findByOwnerIdOrderByIdDesc(OWNER);
         }
+
+        @Test
+        @DisplayName("공개 목록에는 주소 전문이 없고 동 단위(region)만 나간다 (기능명세 6.1 rules)")
+        void findAllHidesAddress() {
+            given(spaceRepository.findAll()).willReturn(List.of(TestFixtures.space(1L, OWNER)));
+
+            assertThat(spaceService.findAll()).singleElement()
+                    .satisfies(space -> {
+                        assertThat(space.address()).isNull();
+                        assertThat(space.region()).isEqualTo("천안시 서북구 불당동");
+                    });
+        }
+
+        @Test
+        @DisplayName("공개 상세에도 주소 전문이 없다")
+        void findByIdHidesAddress() {
+            given(spaceRepository.findById(2L)).willReturn(Optional.of(TestFixtures.space(2L, OTHER)));
+
+            SpaceResponse response = spaceService.findById(2L);
+
+            assertThat(response.address()).isNull();
+            assertThat(response.region()).isEqualTo("천안시 서북구 불당동");
+        }
+
+        @Test
+        @DisplayName("내 공간 목록에는 주소 전문이 그대로 나간다 (본인 공간)")
+        void findMySpacesKeepsAddress() {
+            given(spaceRepository.findByOwnerIdOrderByIdDesc(OWNER))
+                    .willReturn(List.of(TestFixtures.space(1L, OWNER)));
+
+            assertThat(spaceService.findMySpaces(OWNER)).singleElement()
+                    .satisfies(space -> assertThat(space.address()).isEqualTo("불당대로 1"));
+        }
     }
 
     @Nested
@@ -170,6 +203,7 @@ class SpaceServiceTest {
 
             assertThat(response.name()).isEqualTo("새 이름");
             assertThat(response.region()).isEqualTo("천안시 동남구");
+            assertThat(response.address()).isEqualTo("새 주소");   // 소유자 응답이라 주소 전문을 준다
             assertThat(response.capacity()).isEqualTo(20);
             assertThat(response.hourlyFee()).isEqualTo(25_000);
             assertThat(response.conditions()).isEqualTo("정리 시간 포함");
