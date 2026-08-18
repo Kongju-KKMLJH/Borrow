@@ -52,11 +52,14 @@ public class HostingRequest {
         this.status = RequestStatus.PENDING;
     }
 
-    /** 승인 (B-09): 요청 승인 + 활동 자동 공개 (S-01) */
+    /**
+     * 승인 (B-09): 요청 승인 + 활동 매칭 확정(MATCHED).
+     * 시민 공개(S-01)는 즉시 되지 않고, 예술가의 Mock 결제 후에 이뤄진다 (기능명세 3.3/3.3.1).
+     */
     public void approve() {
         ensurePending();
         this.status = RequestStatus.APPROVED;
-        this.activity.publish();
+        this.activity.confirmMatch();
     }
 
     /** 거절 (B-10): 요청 거절 + 활동 REJECTED 전환 */

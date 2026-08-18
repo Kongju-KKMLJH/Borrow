@@ -20,6 +20,7 @@ class HostingRequestTest {
     @BeforeEach
     void setUp() {
         activity = TestFixtures.activity();
+        activity.markPending();   // approve() 는 PENDING 상태에서만 매칭을 확정한다
         space = TestFixtures.space();
         request = HostingRequest.builder()
                 .activity(activity)
@@ -37,22 +38,18 @@ class HostingRequestTest {
     }
 
     @Test
-    @DisplayName("승인하면 요청은 APPROVED, 활동은 자동으로 PUBLISHED 가 된다 (B-09 → S-01)")
-    void approvePublishesActivity() {
-        activity.markPending();
-
+    @DisplayName("승인하면 요청은 APPROVED, 활동은 매칭 확정(MATCHED) 상태가 된다 (B-09, 시민 공개는 결제 후)")
+    void approveConfirmsMatch() {
         request.approve();
 
         assertThat(request.getStatus()).isEqualTo(RequestStatus.APPROVED);
-        assertThat(activity.getStatus()).isEqualTo(ActivityStatus.PUBLISHED);
-        assertThat(activity.isPublished()).isTrue();
+        assertThat(activity.getStatus()).isEqualTo(ActivityStatus.MATCHED);
+        assertThat(activity.isPublished()).isFalse();
     }
 
     @Test
     @DisplayName("거절하면 요청은 REJECTED, 활동도 REJECTED 로 바뀌고 사유가 남는다 (B-10)")
     void rejectWithReason() {
-        activity.markPending();
-
         request.reject("그 시간에 이미 예약이 있습니다.");
 
         assertThat(request.getStatus()).isEqualTo(RequestStatus.REJECTED);

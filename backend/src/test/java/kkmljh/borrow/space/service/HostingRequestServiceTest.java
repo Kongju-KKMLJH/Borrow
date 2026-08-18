@@ -165,15 +165,15 @@ class HostingRequestServiceTest {
     class ApproveReject {
 
         @Test
-        @DisplayName("승인하면 요청은 APPROVED, 활동은 자동 공개된다 (S-01)")
-        void approvePublishesActivity() {
+        @DisplayName("승인하면 요청은 APPROVED, 활동은 매칭 확정(MATCHED) 상태가 된다 (시민 공개는 결제 후)")
+        void approveConfirmsMatch() {
             HostingRequest request = request(1L, OWNER);
             given(hostingRequestRepository.findById(1L)).willReturn(Optional.of(request));
 
             HostingRequestResponse response = hostingRequestService.approve(OWNER, 1L);
 
             assertThat(response.status()).isEqualTo(RequestStatus.APPROVED);
-            assertThat(request.getActivity().getStatus()).isEqualTo(ActivityStatus.PUBLISHED);
+            assertThat(request.getActivity().getStatus()).isEqualTo(ActivityStatus.MATCHED);
         }
 
         @Test
