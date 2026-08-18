@@ -6,8 +6,6 @@
 
 취미 모임 개설(일반 회원) → AI 공간 매칭 → 개최 요청 전송 → 공간 제공자 승인 → 활동 자동 공개(S-01) → 다른 회원 참여 신청
 
-**로그인은 ID/PW 방식이다.** Spring Security + HTTP Basic으로 인증하고, 회원 유형을 역할(Role)로 구분해 권한을 나눈다. 기존 `X-Guest-Id` 헤더 방식은 **폐기**한다.
-
 ## 회원 유형과 역할
 
 | 명세 용어 | 코드 | 하는 일 |
@@ -19,89 +17,6 @@
 역할은 **회원가입 시 하나만 선택**하고 변경 API는 만들지 않는다. 한 계정이 두 역할을 겸하지 않는다.
 
 **역할이 가르는 것은 "무엇을 개설·관리할 수 있는가"뿐이다.** 활동 목록·상세 열람과 참여·취소, `/api/me/**`는 **역할과 무관하게 로그인한 모두에게** 허용한다. 그러지 않으면 HOST 계정이 자기 서비스의 활동에 참여조차 못 하고, 시연 중 계정을 갈아끼워야 한다.
-
-## 🔑 인증 / 인가
-
-### 방식: HTTP Basic
-
-매 요청에 `Authorization: Basic base64(로그인아이디:비밀번호)` 헤더를 보낸다. Spring Security가 검증하므로 **커스텀 필터를 짜지 마라.** JWT·세션 쿠키는 채택하지 않는다. 프론트는 기존 `X-Guest-Id` 자리에 `Authorization` 헤더를 넣으면 된다.
-
-> ⚠️ Spring Boot 4.1은 **Spring Security 7.x**를 쓴다. Security 7부터 **람다 DSL이 필수**라 `.and()` 체이닝을 쓰는 옛 예제는 그대로 두면 컴파일이 안 된다.
-
-### 핵심 전략: `@GuestId`를 그대로 둔다
-
-`GuestIdArgumentResolver`가 값을 가져오는 **출처만 헤더 → SecurityContext로** 바꾼다. 그러면 서비스의 소유권 비교 로직과 컨트롤러 시그니처를 **한 줄도 고치지 않는다.**
-
-```java
-// GuestIdArgumentResolver.resolveArgument 내부만 교체
-Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-    if (required) throw new BusinessException(ErrorCode.UNAUTHORIZED);   // 400 GUEST_ID_REQUIRED 아님
-    return null;                 // @GuestId(required = false) 는 기존대로 null
-}
-return auth.getName();           // 로그인 아이디가 guestId 자리에 들어간다
-```
-
-- 기존 `GUEST_ID_REQUIRED`(400)를 그대로 쓰지 마라. 같은 "로그인 안 됨" 상황인데 필터의 entryPoint는 401을, 리졸버는 400을 내보내 **응답이 갈린다.** 둘 다 `UNAUTHORIZED`(401)로 통일한다.
-
-- `Activity.guestId` 등 **컬럼·필드 이름은 바꾸지 않는다.** 들어가는 값만 UUID → 로그인 아이디로 바뀐다.
-- 컨트롤러는 계속 `@GuestId String guestId`를 쓴다. `@AuthenticationPrincipal`을 새로 도입하지 마라 — 두 방식이 섞이면 소유권 판정이 갈린다.
-- **역할·닉네임이 필요하면 `AppUserRepository.findByLoginId(guestId)`로 조회한다.** 없으면 `USER_NOT_FOUND`. `getAuthorities()` 파싱이나 서비스에서의 `SecurityContextHolder` 직접 접근은 금지 — **인가(URL 접근 가능 여부)는 `SecurityConfig`가, 비즈니스 분기(HOBBY냐 CLASS냐)는 `AppUser` 조회가** 담당한다.
-  - 조회가 필요한 곳은 활동 개설(role→`type`·`hostCertified`, nickname→`hostNickname`), 참여 신청(nickname), `GET /api/auth/me` 뿐이다. 공간 등록의 `ownerId`는 `guestId` 값을 그대로 쓴다.
-  - 여러 패키지에서 `AppUser`를 조회할 때는 **리포지토리 인터페이스 이름을 패키지마다 다르게** 둔다(예: `ActivityUserRepository`) — 빈 이름 충돌 회피, `SpaceMatchRepository`가 쓰는 패턴과 동일.
-
-### 권한 매핑 (SecurityConfig 기준)
-
-| 대상 | 접근 범위 |
-|---|---|
-| 누구나(비로그인) | `POST /api/auth/signup`, `GET /api/activities`, `GET /api/activities/{id}`, `GET /api/spaces`, `GET /api/spaces/{id}`, `GET /api/spaces/{id}/slots`, `/files/**`, Swagger |
-| 로그인 전체(역할 무관) | 활동 참여·취소, `/api/me/**`, `/api/ai/**`, `POST /api/uploads`, `GET /api/auth/me` |
-| `MEMBER`, `ARTIST` | 활동 개설, 요구조건 수정, 개최 요청 전송·상태 조회 |
-| `HOST` | `/api/spaces/**` 쓰기(등록·수정·삭제·슬롯), `/api/host/**`(요청 목록·승인·거절·홈·일정) |
-
-> ⚠️ **`GET`을 `/**`로 열지 마라.** `GET /api/activities/**`를 통째로 열면 개설자 전용인 `GET /api/activities/{id}/hosting-request`(U-12)까지 비로그인에 노출된다. 위 표처럼 **경로를 하나씩 명시**한다.
-
-> ⚠️ **규칙은 위에서부터 먼저 매칭되는 것이 이긴다.** 비로그인 `GET` 줄을 `/api/spaces/** hasRole("HOST")` 줄보다 **위에** 둬야 목록 조회가 안 막힌다. 이 설정에서 제일 흔한 버그가 순서 실수다.
-
-> ⚠️ **ARTIST는 별도 엔드포인트가 없다.** 활동 개설은 MEMBER와 같은 API를 쓰고 서버가 역할을 보고 CLASS로 분기할 뿐이다. 따라서 활동 관련 규칙은 반드시 **`hasAnyRole("MEMBER", "ARTIST")`** 로 쓴다 — `hasRole("MEMBER")`로 쓰면 예술가가 활동을 못 만든다.
-
-권한 규칙은 `SecurityConfig` **한 곳에** 모은다. `@PreAuthorize`를 서비스마다 흩뿌리지 마라.
-
-**CORS는 `CorsConfigurationSource` 빈으로 옮긴다.** 기존 `WebConfig.addCorsMappings` 설정은 Security 필터체인에 적용되지 않아, 필터체인에 `.cors(Customizer.withDefaults())`만 켜두면 프리플라이트(`OPTIONS`)가 401로 막힌다. 설정을 빈으로 등록해야 필터가 그 값을 읽는다.
-
-### 회원가입 / 로그인
-
-- `POST /api/auth/signup` — 로그인아이디·비밀번호·닉네임·역할. 아이디 중복이면 `DUPLICATE_LOGIN_ID`.
-- **로그인 API는 만들지 않는다.** Basic 인증은 매 요청에 자격증명을 보내므로, 프론트의 "로그인 버튼"은 `GET /api/auth/me`를 호출해 200이면 성공 처리한다.
-- `GET /api/auth/me` — 인증 확인 겸 내 정보 조회. 공통 응답 래퍼를 그대로 따른다.
-
-  ```json
-  { "success": true,
-    "data": { "loginId": "hong", "nickname": "홍길동", "role": "MEMBER" },
-    "error": null }
-  ```
-
-  PK(`id`)와 비밀번호는 절대 담지 않는다. 미인증이면 401 `UNAUTHORIZED`.
-- 비밀번호는 **반드시 `PasswordEncoder.encode()`를 거쳐 저장**한다.
-
-### 401 / 403 응답 포맷 (놓치기 쉬움)
-
-401/403은 **컨트롤러에 도달하기 전 필터에서** 발생하므로 `GlobalExceptionHandler`가 못 잡는다. 그대로 두면 프론트가 파싱하는 `{success, data, error}` 형태가 아닌 응답이 나간다. `AuthenticationEntryPoint`(401)와 `AccessDeniedHandler`(403)에서 직접 `ApiResponse.fail(...)` JSON을 써준다. 커스텀 entryPoint를 쓰면 브라우저의 Basic 인증 팝업창도 안 뜬다.
-
-```java
-@Bean AuthenticationEntryPoint entryPoint() {
-    return (req, res, e) -> writeError(res, ErrorCode.UNAUTHORIZED);
-}
-@Bean AccessDeniedHandler deniedHandler() {
-    return (req, res, e) -> writeError(res, ErrorCode.FORBIDDEN);
-}
-// writeError(res, code):
-//   res.setStatus(code.getStatus().value());
-//   res.setContentType("application/json;charset=UTF-8");
-//   objectMapper.writeValue(res.getWriter(), ApiResponse.fail(code));
-```
-
-코드명·메시지·상태값을 리터럴로 박지 마라. `ErrorCode` enum이 이미 셋을 다 들고 있으므로 그걸 그대로 쓴다 — 문자열을 따로 적으면 enum과 갈라져 프론트가 못 읽는 코드가 나간다.
 
 ## 용어
 
@@ -116,6 +31,103 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 이 분기는 **서버가 로그인 역할을 보고 정한다.** 요청 DTO에 `type`·`hostCertified` 필드를 추가하지 마라 (클라이언트가 배지를 위조하게 된다).
 
 **닉네임도 같은 원칙으로 서버가 채운다.** `Activity.hostNickname`과 `Participation.nickname`은 로그인한 `AppUser.nickname` 값으로 서버가 채우고, 요청 DTO(`ActivityCreateRequest`, 참여 신청 요청)에서 닉네임 필드를 **제거**한다. 클라이언트가 보낸 값을 그대로 쓰면 남의 이름을 사칭할 수 있고, 계정 닉네임과 화면 표시 이름이 갈라진다.
+
+## 활동 수정·삭제 (기능명세 2.1)
+
+기능명세 2.1은 "프로그램 개설과 **수정·삭제**"인데 현재 개설만 있다. 고칠 수 있는 것은 요구조건(U-08)뿐이라 **제목·일정·정원·참가비를 잘못 넣으면 활동을 새로 만드는 수밖에 없다.**
+
+| 대상 | 엔드포인트 | 권한 |
+|---|---|---|
+| 활동 수정 | `PUT /api/activities/{activityId}` | `MEMBER`, `ARTIST` + **개설자 본인** |
+| 활동 삭제 | `DELETE /api/activities/{activityId}` | `MEMBER`, `ARTIST` + **개설자 본인** |
+
+> ⚠️ **기능코드(U-xx)를 임의로 붙이지 마라.** 현재 문서의 U 코드는 U-01~U-08, U-11~U-14뿐이고 **U-09·U-10이 비어 있으나 그것이 무엇인지는 확인되지 않는다.** 명세 담당자에게 확인한 뒤 `@Operation(summary = ...)`에 반영한다. 확인 전에는 `@Operation(summary = "활동 수정")`처럼 코드 없이 둔다.
+
+### 메서드와 경계
+
+- **수정은 `PUT`**(전체 교체)이다. `PUT /api/spaces/{spaceId}`와 같은 형태를 따른다.
+- **요구조건(`SpaceRequirement`)은 이 API의 대상이 아니다.** `PATCH /api/activities/{activityId}/requirement`(U-08)가 이미 담당한다. **`PUT` 본문에 `region`·`headcount`·`requiredFacilities`·`noisy`·`messy`를 넣지 마라** — 진입점이 둘이 되면 어느 쪽이 최종값인지 갈린다.
+
+### 수정 가능한 필드
+
+| 필드 | 수정 | 비고 |
+|---|---|---|
+| `field`, `title`, `description`, `imageUrls` | ⭕ | |
+| `date`, `startTime`, `endTime` | ⭕ | 시간 순서 검증 대상 |
+| `capacity`, `entryFee` | ⭕ | |
+| `type`, `hostCertified`, `hostNickname` | ❌ | **서버가 로그인 역할·계정에서 정한다** |
+| `guestId`, `status`, `requirement` | ❌ | 소유자·상태·요구조건은 다른 경로로만 바뀐다 |
+
+> ⚠️ **요청 DTO(`ActivityUpdateRequest`)에 ❌ 필드를 두지 마라.** `ActivityCreateRequest`가 이미 같은 원칙으로 `type`·`hostCertified`·닉네임을 뺐다. 여기서 되살리면 클라이언트가 배지와 표시 이름을 위조한다.
+
+### 상태 조건 — `DRAFT` / `REJECTED`에서만
+
+`PENDING`·`PUBLISHED` 활동의 수정·삭제는 **이번 범위 밖이다.**
+
+- `PENDING`: 공간 제공자가 심사 중인 내용이 바뀌면 승인 근거가 달라진다.
+- `PUBLISHED`: 참여자가 이미 신청했다. 취소·환불 정책이 확정되지 않았으므로 손대지 않는다.
+
+> ⚠️ **새 에러코드를 만들지 마라.** U-08(요구조건 수정)이 **똑같은 상태 조건**에서 이미 코드를 던지고 있다. `ActivityService`의 요구조건 수정 메서드를 열어 확인하고 **그 코드를 그대로 재사용**한다. 상태별로 다른 코드를 새로 파면 프론트가 분기를 두 벌 짜야 한다.
+
+### 검증
+
+- **종료 시각 > 시작 시각.** 개설(U-06)과 **같은 규칙**이다. 검증 로직을 복사해 두 벌로 만들지 말고 한 곳으로 뽑아 개설·수정이 함께 쓴다.
+- 소유권은 서비스에서 `activity.getGuestId().equals(guestId)` 비교로 확인하고 아니면 `FORBIDDEN`. `SecurityConfig`의 역할 검사와 **별개**다.
+
+> ⚠️ `date`의 `@FutureOrPresent` 누락(이슈 #11)은 **개설 쪽 버그이며 이 브랜치 소관이 아니다.** 다만 **수정 API에서 같은 누락을 반복하지는 마라** — 새로 만드는 DTO에는 처음부터 넣는다.
+
+### 삭제 순서
+
+`DELETE /api/spaces/{spaceId}`가 슬롯을 먼저 지우는 패턴과 **동일하다.**
+
+1. 활동 조회 → 없으면 `ACTIVITY_NOT_FOUND`
+2. 개설자 본인 확인 → 아니면 `FORBIDDEN`
+3. 상태 확인 → `DRAFT`/`REJECTED`가 아니면 거부
+4. **개최요청(`HostingRequest`) 먼저 삭제** — `REJECTED` 활동에는 거절된 요청이 남아 있다. 안 지우면 FK 위반으로 삭제가 실패한다
+5. 활동 삭제
+
+> ⚠️ **참여(`Participation`)를 임의로 지우지 마라.** 참여는 `PUBLISHED`에서만 생기므로 대상 상태에는 없어야 한다. **정말 없는지 리포지토리로 확인하고, 남아 있으면 삭제를 거부한다.** 남의 신청 내역을 말없이 지우는 코드를 넣지 마라.
+
+> ⚠️ **업로드된 이미지 파일은 지우지 않는다.** `FileStorageService`에 삭제 기능이 있는지 확인되지 않았다. 고아 파일 정리는 별도 이슈다.
+
+- `imageUrls`(`activity_image`)·`requiredFacilities`(`activity_required_facility`) 컬렉션이 함께 지워지는지는 **엔티티의 cascade·orphanRemoval 설정에 달렸다.** 코드에서 직접 확인하고, 안 되어 있으면 삭제 순서에 넣는다.
+
+### `SecurityConfig` 규칙
+
+```java
+.requestMatchers(HttpMethod.PUT,    "/api/activities/{activityId}").hasAnyRole("MEMBER", "ARTIST")
+.requestMatchers(HttpMethod.DELETE, "/api/activities/{activityId}").hasAnyRole("MEMBER", "ARTIST")
+```
+
+> ⚠️ **HTTP 메서드를 반드시 명시한다.** 경로만 쓰면 같은 URL의 **`GET`(비로그인 활동 상세, U-03)까지 함께 잡혀** 목록에서 상세로 못 들어간다. 이 절에서 제일 나기 쉬운 버그다.
+
+> ⚠️ **`hasRole("MEMBER")`로 쓰지 마라.** 예술가가 자기 활동을 못 고친다. 활동 관련 규칙은 전부 `hasAnyRole("MEMBER", "ARTIST")`다.
+
+> ⚠️ 규칙은 **위에서부터 먼저 매칭되는 것이 이긴다.** 메서드가 달라 비로그인 `GET` 줄과 서로 삼키지는 않지만, 두 줄을 기존 활동 규칙 옆에 붙여 두고 순서를 눈으로 확인한다.
+
+### 테스트 (필수 — 예외 없음)
+
+| 층위 | 무엇을 검증하나 |
+|---|---|
+| 엔티티 | 수정 도메인 메서드로 대상 필드가 바뀌는가, **`guestId`·`type`·`hostCertified`·`status`는 그대로인가** |
+| DTO | `ActivityUpdateRequest`의 검증 애노테이션, 응답 변환(`from`/`of`) |
+| 서비스 | 남의 활동 → `FORBIDDEN` / 없는 활동 → `ACTIVITY_NOT_FOUND` / `PENDING`·`PUBLISHED` → 거부 / 종료 ≤ 시작 → 거부 / 삭제 시 **개최요청이 먼저 지워지는가** |
+| 컨트롤러 | `@WebMvcTest` + `TestUsers` — `member1` 200, `other-member` 403, 비로그인 401 |
+| 인가 매트릭스 | `SecurityConfigTest`에 `PUT`·`DELETE` 추가 + **`GET`이 여전히 비로그인 200인지 회귀 검증** |
+
+> ⚠️ 컨트롤러 테스트에서 `@WithMockUser`는 동작하지 않는다. `support/TestUsers`의 `.with(TestUsers.member()/artist())`로 **실제 Basic 헤더**를 실어 보낸다.
+
+### 함께 갱신할 문서
+
+- `PROJECT_CONTEXT.md` 5.1 — 활동 기능 목록에 수정·삭제 추가
+- `PROJECT_CONTEXT.md` 11절 — **"활동 수정·삭제 API 없음" 항목 제거**
+
+> ⚠️ **팀원 작업과 충돌 가능 (2026-08-18 확인).** 이슈 #44(가격 항목·예상 운영 수익 표시)와 #47(슬롯 수정 API·일정 불일치 표시)은 `kang/backend`에만 있고 **`backend`에는 아직 머지되지 않았다** — `origin/backend`는 `yonggyu/backend`와 같은 커밋이다. 통합 PR #46(base `backend` ← head `kang/backend`)은 Draft로 열려 있다.
+>
+> - **소스 충돌 없음.** #44가 건드린 활동 쪽 파일은 `activity/dto/HostingRequestResponse.java`(가격 `PriceBreakdown` 추가, `from(r)` → `from(r, matchingFee)`)와 `ActivityHostingRequestService` 뿐이다. `ActivityResponse`라는 클래스는 존재하지 않으며, `ActivityDetailResponse`·`ActivitySummaryResponse`·`Activity`·`ActivityService`·`ActivityController`·`SecurityConfig`는 kang 쪽에서 건드리지 않았다.
+> - **테스트 한 곳만 주의.** `ActivityDtoTest.java`는 kang이 **파일 끝** `ParticipationAndRequest` 중첩 클래스에 가격 검증을 붙였다. 수정 DTO 테스트를 파일 끝에 추가하면 같은 hunk에서 충돌하므로, `ActivityResponses` 뒤에 끼워 넣거나 별도 파일로 분리한다.
+
+---
 
 ## 🔐 보안 규칙 (필수)
 
@@ -220,25 +232,7 @@ yonggyu/feat/*  →  yonggyu/backend  →  backend
 
 7. `backend → main` 머지는 팀 합의 시점에만.
 
-## 인증 도입 작업 순서 (이슈 단위로 쪼갤 것)
-
-1. `spring-boot-starter-security` 의존성 추가
-2. `domain/AppUser` + `domain/Role`, `Space.ownerId` 추가
-3. `AppUserRepository`(`findByLoginId`, `existsByLoginId`) + `AppUserDetailsService`
-4. `SecurityConfig` — `PasswordEncoder`, 필터체인, 경로별 권한(순서 주의), Basic, entryPoint/deniedHandler
-5. `GuestIdArgumentResolver` 내부를 SecurityContext 기반으로 교체
-6. `/api/auth/signup`, `/api/auth/me`
-7. `OpenApiConfig` — `X-Guest-Id` 헤더 노출 제거, Basic SecurityScheme 추가
-8. 공간·개최요청·사업자 홈에 `ownerId` 소유자 검증 반영, 활동·참여 DTO에서 닉네임 필드 제거
-9. 프론트에 헤더 교체(`X-Guest-Id` → `Authorization`) 및 요청 DTO 변경 사항 전달
-
 ## 알려진 제약 / 같이 처리할 것
 
-- **`Space.ownerId`를 추가한다 (도입 확정).** 현재 `Space`에는 소유자 필드가 없어, `hasRole("HOST")`만 걸면 로그인한 아무 사업자나 **남의 공간을 수정하고 남의 요청을 승인할 수 있다.** 등록(`POST /api/spaces`) 시 `@GuestId` 값으로 `ownerId`를 채우고, 아래 지점에 소유자 비교를 넣는다 — 활동 쪽이 이미 쓰는 패턴과 동일하다.
-  - 공간: `PUT`/`DELETE /api/spaces/{id}`, 슬롯 추가·삭제
-  - 개최요청: `/api/host/requests` 목록·상세·승인·거절 — **내 공간에 온 요청만**
-  - 사업자 홈: `/api/host/home`, `/api/host/schedules`의 집계 범위를 내 공간으로 한정
-  - `GET /api/spaces` 목록·상세는 비로그인 열람이므로 그대로 둔다.
-- **ARTIST 역할이 의미를 가지려면 활동 개설 로직 분기가 필요하다.** 현재 `ActivityService`는 `type=HOBBY`, `hostCertified=false` 하드코딩이다. 역할 분기를 넣으면 "CLASS 개설 API 없음"·"hostCertified Mock" 두 TODO가 함께 해소된다.
-- **기존 게스트 데이터는 호환되지 않는다.** `Activity.guestId`의 UUID와 새 로그인 아이디는 다른 값이라 소유권 판정이 깨진다. **DB를 비우고 시작하는 게 빠르다.**
+- **활동 수정·삭제는 `DRAFT`/`REJECTED`에서만 가능하다 (설계 확정).** `PENDING`은 심사 중, `PUBLISHED`는 참여자가 있어 손대지 않는다. 공개된 활동의 수정·취소는 취소·환불 정책이 정해진 뒤 별도 이슈로 다룬다 `(미확정 — 결정 필요)`.
 - **`AppUser` 테이블 생성 방식은 로컬 `application.yml`의 `ddl-auto`에 달렸다.** 이 파일은 저장소에 없으므로(gitignore) 자동 생성 여부는 직접 확인해야 한다.
