@@ -1,0 +1,46 @@
+# 단일 오리진 리버스 프록시 — 프론트와 API 를 같은 출처로 묶어 CORS 문제를 없앤다.
+#
+# SITE_ADDRESS 가 :80 이면 HTTP, 도메인이면 Let's Encrypt 로 HTTPS 를 자동 발급한다(설정 0줄).
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# [인증서 전환 지점]
+	# 기본은 Let's Encrypt 자동 발급이라 아무것도 쓰지 않는다.
+	# 주최측에서 인증서를 받으면 아래 한 줄만 주석 해제하면 ACME 발급을 건너뛴다.
+	# tls /etc/caddy/certs/fullchain.pem /etc/caddy/certs/privkey.pem
+
+	# --- 백엔드 ---
+	handle /api/* {
+		reverse_proxy app:8080
+	}
+	# 업로드 이미지 (앱이 로컬 디스크에서 서빙)
+	handle /files/* {
+		reverse_proxy app:8080
+	}
+	# Swagger — 심사용으로 열어둔다. 필요하면 remote_ip 로 제한할 것.
+	handle /v3/api-docs* {
+		reverse_proxy app:8080
+	}
+	handle /swagger-ui* {
+		reverse_proxy app:8080
+	}
+
+	# --- 프론트 웹 번들 ---
+	handle {
+		root * /srv/web
+		# ⚠️ 폴백 순서가 중요하다.
+		#   현재 프론트는 app.json 의 web.output 이 "static" 이라 동적 라우트가
+		#   activity/[id].html 처럼 대괄호 파일명으로 떨어진다. /activity/5 로 직접 들어오면
+		#   일치하는 파일이 없으므로 마지막 /index.html 로 떨어뜨려 SPA 라우터가 처리하게 한다.
+		#   web.output 을 "single" 로 바꾸면 이 폴백이 정공법이 된다.
+		try_files {path} {path}.html {path}/index.html /index.html
+		file_server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10mb
+			roll_keep 3
+		}
+	}
+}
