@@ -44,8 +44,8 @@ class MeControllerTest {
         return new ActivitySummaryResponse(
                 id, ActivityType.HOBBY, ActivityField.ART, "수채화 모임", List.of(),
                 "일반회원", false, LocalDate.of(2026, 9, 12),
-                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 3, 10_000,
-                ActivityStatus.PUBLISHED, joined, mine);
+                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 3, 5, 10_000,
+                ActivityStatus.PUBLISHED, null, joined, mine);
     }
 
     @Test
