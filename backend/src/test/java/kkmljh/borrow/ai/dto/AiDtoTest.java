@@ -81,7 +81,7 @@ class AiDtoTest {
         void of() {
             Space space = TestFixtures.space(1L, "host1");
 
-            SpaceMatchResponse response = SpaceMatchResponse.of(space, 92, "물 사용 가능", true);
+            SpaceMatchResponse response = SpaceMatchResponse.of(space, 92, "물 사용 가능", List.of("수용 인원 여유가 4명뿐입니다."), true);
 
             assertThat(response.spaceId()).isEqualTo(1L);
             assertThat(response.name()).isEqualTo("불당동 스튜디오");
@@ -93,6 +93,7 @@ class AiDtoTest {
             assertThat(response.allowedFields()).contains(ActivityField.ART);
             assertThat(response.score()).isEqualTo(92);
             assertThat(response.reason()).isEqualTo("물 사용 가능");
+            assertThat(response.cautions()).containsExactly("수용 인원 여유가 4명뿐입니다.");
             assertThat(response.aiScored()).isTrue();
         }
 
@@ -100,22 +101,44 @@ class AiDtoTest {
         @DisplayName("규칙 기반 폴백은 aiScored=false 로 표시한다")
         void ruleBased() {
             SpaceMatchResponse response =
-                    SpaceMatchResponse.of(TestFixtures.space(1L, "host1"), 70, "규칙 기반 추천", false);
+                    SpaceMatchResponse.of(TestFixtures.space(1L, "host1"), 70, "규칙 기반 추천", List.of(), false);
 
             assertThat(response.aiScored()).isFalse();
         }
 
         @Test
-        @DisplayName("후보가 없을 때의 빈 목록")
-        void emptyList() {
-            assertThat(SpaceMatchResponse.emptyList()).isEmpty();
+        @DisplayName("주의사항이 null 로 와도 빈 목록으로 바꿔 담는다 (응답에 null 을 흘리지 않는다)")
+        void nullCautionsBecomeEmpty() {
+            SpaceMatchResponse response =
+                    SpaceMatchResponse.of(TestFixtures.space(1L, "host1"), 70, "이유", null, false);
+
+            assertThat(response.cautions()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("기능명세 3.1.1 — 후보 0건은 오류가 아니라 빈 matched + 조건 수정 안내다")
+        void noMatchResult() {
+            SpaceMatchResult result = SpaceMatchResult.noMatch(List.of("희망 지역을 넓혀 보세요."));
+
+            assertThat(result.matched()).isEmpty();
+            assertThat(result.suggestions()).containsExactly("희망 지역을 넓혀 보세요.");
+        }
+
+        @Test
+        @DisplayName("추천이 있으면 조건 수정 안내는 비운다")
+        void matchedResultHasNoSuggestions() {
+            SpaceMatchResult result = SpaceMatchResult.matched(List.of(
+                    SpaceMatchResponse.of(TestFixtures.space(1L, "host1"), 70, "이유", List.of(), false)));
+
+            assertThat(result.matched()).hasSize(1);
+            assertThat(result.suggestions()).isEmpty();
         }
 
         @Test
         @DisplayName("응답에 공간 소유자는 담기지 않는다")
         void hidesOwner() {
             SpaceMatchResponse response =
-                    SpaceMatchResponse.of(TestFixtures.space(1L, "host1"), 70, "이유", false);
+                    SpaceMatchResponse.of(TestFixtures.space(1L, "host1"), 70, "이유", List.of(), false);
 
             assertThat(response.toString()).doesNotContain("host1");
         }
@@ -134,22 +157,26 @@ class AiDtoTest {
         assertThat(analyzed.messy()).isFalse();
 
         RequirementResponse response = new RequirementResponse(
-                "천안시 동남구", 5, List.of(FacilityType.LIGHTING), true, false, ActivityField.PHOTO);
+                "천안시 동남구", 5, List.of(FacilityType.LIGHTING), true, false, ActivityField.PHOTO,
+                List.of(), List.of());
 
         assertThat(response.region()).isEqualTo("천안시 동남구");
         assertThat(response.field()).isEqualTo(ActivityField.PHOTO);
+        assertThat(response.missingFields()).isEmpty();
+        assertThat(response.followUpQuestions()).isEmpty();
     }
 
     @Test
     @DisplayName("SpaceScores 는 후보별 점수 목록을 담는다")
     void spaceScores() {
         SpaceScores scores = new SpaceScores(List.of(
-                new SpaceScores.SpaceScore(1L, 90, "좋음"),
-                new SpaceScores.SpaceScore(2L, 40, "아쉬움")));
+                new SpaceScores.SpaceScore(1L, 90, "좋음", List.of("주의")),
+                new SpaceScores.SpaceScore(2L, 40, "아쉬움", List.of("주의"))));
 
         assertThat(scores.scores()).hasSize(2);
         assertThat(scores.scores().get(0).spaceId()).isEqualTo(1L);
         assertThat(scores.scores().get(0).score()).isEqualTo(90);
         assertThat(scores.scores().get(0).reason()).isEqualTo("좋음");
+        assertThat(scores.scores().get(0).cautions()).containsExactly("주의");
     }
 }
