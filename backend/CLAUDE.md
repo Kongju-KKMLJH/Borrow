@@ -32,102 +32,90 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 
 **닉네임도 같은 원칙으로 서버가 채운다.** `Activity.hostNickname`과 `Participation.nickname`은 로그인한 `AppUser.nickname` 값으로 서버가 채우고, 요청 DTO(`ActivityCreateRequest`, 참여 신청 요청)에서 닉네임 필드를 **제거**한다. 클라이언트가 보낸 값을 그대로 쓰면 남의 이름을 사칭할 수 있고, 계정 닉네임과 화면 표시 이름이 갈라진다.
 
-## 활동 수정·삭제 (기능명세 2.1)
+## 기능명세 참조 규칙 (필수)
 
-기능명세 2.1은 "프로그램 개설과 **수정·삭제**"인데 현재 개설만 있다. 고칠 수 있는 것은 요구조건(U-08)뿐이라 **제목·일정·정원·참가비를 잘못 넣으면 활동을 새로 만드는 수밖에 없다.**
+**아트민 기능명세를 가리킬 때는 목차 번호만 쓴다.** 커밋 메시지·이슈·PR 본문·코드 주석·문서 전부 해당한다.
 
-| 대상 | 엔드포인트 | 권한 |
+- ⭕ `기능명세 4.1`, `4.1 프로그램 목록 및 상세 확인`, `6.1 rules`, `3.2 outcome`
+- ❌ 명세 도구(Manyfast)의 **내부 식별자** — `F-`·`R-`·`S-` 로 시작하는 6자 코드. 팀원이 읽지 못하고, 도구가 바뀌면 죽는 참조다. **문서에 남기지 마라.**
+- 슬롯을 가리킬 때는 **목차 번호 + 슬롯 이름**(`preconditions`·`trigger`·`action`·`outcome`·`exceptions`·`display`·`permissions`·`rules`·`dataSpec`).
+- 유저플로우는 섹션 이름으로 가리킨다 (`유저플로우 s6 프로필·계정 설정`).
+
+> ⚠️ **우리 코드의 기능코드는 별개다.** `U-03`·`B-09`·`A-01`·`S-01`·`F-01` 은 Borrow 자체 코드이므로 그대로 쓴다. 헷갈릴 자리에서는 `기능명세 4.1`처럼 접두어를 붙여 구분한다.
+
+### 기능명세 목차 (번호 정의 — 이 표가 기준이다)
+
+| 번호 | 요구사항 / 기능 |
+|---|---|
+| **1** | 역할 기반 계정과 인증 |
+| 1.1 | 역할별 가입과 접근 제어 |
+| 1.2 | 예술가 인증 신청과 상태 확인 |
+| **2** | 예술가 프로그램 기획과 관리 |
+| 2.1 | 프로그램 개설과 수정·삭제 |
+| 2.2 | AI 클래스 기획 가이드 |
+| 2.2.1 | 운영 조건 보완 질문 |
+| **3** | AI 공간 추천과 개최 확정 |
+| 3.1 | AI 공간 추천 |
+| 3.1.1 | 추천 공간 결과 확인 |
+| 3.2 | 추천 공간 선택 및 개최 요청 |
+| 3.3 | 매칭 이용료 Mock 결제와 공개 |
+| 3.3.1 | 매칭 확정과 프로그램 공개 상태 전환 |
+| 3.4 | 프로그램 운영 조건 추출 |
+| **4** | 시민 프로그램 탐색과 참여 |
+| 4.1 | 프로그램 목록 및 상세 확인 |
+| 4.2 | 시민 참여 신청 |
+| **5** | 가격 및 수익 구조 |
+| 5.1 | 가격 항목과 예상 운영 수익 표시 |
+| **6** | 공간 파트너 공간 관리 |
+| 6.1 | 공간 등록 및 수정 |
+| 6.2 | 이용 가능 시간 관리 |
+
+> ⚠️ **번호는 유도값이다.** 요구사항 순서와 각 요구사항 아래 기능 배열 순서로 매겼고, **원문에 검증된 것은 `2.1`뿐**이다(이슈 #49 제목 "기능명세 2.1"). 명세에서 항목이 추가·삭제되면 **번호가 밀린다** — 그때는 **이 표를 먼저 고치고** 다른 문서를 맞춘다. 표에 없는 번호를 새로 지어내지 마라.
+
+## 비공개 정보 노출 차단 (기능명세 4.1 · 6.1) — **구현 완료** (이슈 #53)
+
+명세가 "감추라"고 한 두 가지가 비로그인에게 새고 있던 문제를 막았다. **아래는 되돌리지 말아야 할 규칙이다.**
+
+| 대상 | 규칙 | 어디에 |
 |---|---|---|
-| 활동 수정 | `PUT /api/activities/{activityId}` | `MEMBER`, `ARTIST` + **개설자 본인** |
-| 활동 삭제 | `DELETE /api/activities/{activityId}` | `MEMBER`, `ARTIST` + **개설자 본인** |
+| 비공개·매칭 미확정 프로그램 상세 | `PUBLISHED`가 아니면 **개설자 본인에게만** 열고, 남에게는 `ACTIVITY_NOT_FOUND`(404) | `ActivityService.detail` |
+| 공간 주소 | 공개 응답은 동 단위(`region`)까지, 주소 전문은 **소유 HOST 본인**에게만 | `SpaceResponse.from` / `forOwner` |
 
-> ⚠️ **기능코드(U-xx)를 임의로 붙이지 마라.** 현재 문서의 U 코드는 U-01~U-08, U-11~U-14뿐이고 **U-09·U-10이 비어 있으나 그것이 무엇인지는 확인되지 않는다.** 명세 담당자에게 확인한 뒤 `@Operation(summary = ...)`에 반영한다. 확인 전에는 `@Operation(summary = "활동 수정")`처럼 코드 없이 둔다.
+- **404이지 403이 아니다.** 403은 "그 id에 뭔가 있다"를 알려준다. 존재 자체를 감추고, 덤으로 새 에러코드도 필요 없다.
+- **개설자 본인 예외는 필수다.** 개설 직후 화면·U-13 내 활동 → 상세·수정 화면 진입이 전부 `DRAFT`에서 상세를 읽는다. **HOST에게는 열지 마라** — 개최 요청 심사자는 `GET /api/host/requests/{requestId}`로 이미 받는다.
+- 판정 기준은 **"`PUBLISHED`인가"** 다. 결제 대기 상태가 추가돼도(기능명세 3.3) 가드를 다시 손댈 필요가 없다.
+- **주소 문자열을 파싱해 동을 잘라내지 마라.** `Space.region`이 이미 동 단위 값이다(예: `"천안시 서북구 불당동"`). 공개 응답에서 `address`를 빼면 명세가 그대로 충족된다.
+- `SpaceResponse.forOwner`를 쓰는 곳은 `findMySpaces`·`create`·`update` **뿐이다.** 비로그인 열람인 `findAll`·`findById`에 쓰지 마라.
+- 다른 응답 경로는 애초에 주소를 담지 않는다 — `ai/dto/SpaceMatchResponse`(`region`만), `space/dto/HostingRequestResponse.SpaceInfo`(`id`·`name`·`region`), `ScheduleResponse`·`HostHomeResponse`(위치 필드 없음). **주소를 다시 흘리지 않게 이 목록을 유지하라.**
 
-### 메서드와 경계
-
-- **수정은 `PUT`**(전체 교체)이다. `PUT /api/spaces/{spaceId}`와 같은 형태를 따른다.
-- **요구조건(`SpaceRequirement`)은 이 API의 대상이 아니다.** `PATCH /api/activities/{activityId}/requirement`(U-08)가 이미 담당한다. **`PUT` 본문에 `region`·`headcount`·`requiredFacilities`·`noisy`·`messy`를 넣지 마라** — 진입점이 둘이 되면 어느 쪽이 최종값인지 갈린다.
-
-### 수정 가능한 필드
-
-| 필드 | 수정 | 비고 |
-|---|---|---|
-| `field`, `title`, `description`, `imageUrls` | ⭕ | |
-| `date`, `startTime`, `endTime` | ⭕ | 시간 순서 검증 대상 |
-| `capacity`, `entryFee` | ⭕ | |
-| `type`, `hostCertified`, `hostNickname` | ❌ | **서버가 로그인 역할·계정에서 정한다** |
-| `guestId`, `status`, `requirement` | ❌ | 소유자·상태·요구조건은 다른 경로로만 바뀐다 |
-
-> ⚠️ **요청 DTO(`ActivityUpdateRequest`)에 ❌ 필드를 두지 마라.** `ActivityCreateRequest`가 이미 같은 원칙으로 `type`·`hostCertified`·닉네임을 뺐다. 여기서 되살리면 클라이언트가 배지와 표시 이름을 위조한다.
-
-### 상태 조건 — `DRAFT` / `REJECTED`에서만
-
-`PENDING`·`PUBLISHED` 활동의 수정·삭제는 **이번 범위 밖이다.**
-
-- `PENDING`: 공간 제공자가 심사 중인 내용이 바뀌면 승인 근거가 달라진다.
-- `PUBLISHED`: 참여자가 이미 신청했다. 취소·환불 정책이 확정되지 않았으므로 손대지 않는다.
-
-> ⚠️ **새 에러코드를 만들지 마라.** U-08(요구조건 수정)이 **똑같은 상태 조건**에서 이미 코드를 던지고 있다. `ActivityService`의 요구조건 수정 메서드를 열어 확인하고 **그 코드를 그대로 재사용**한다. 상태별로 다른 코드를 새로 파면 프론트가 분기를 두 벌 짜야 한다.
-
-### 검증
-
-- **종료 시각 > 시작 시각.** 개설(U-06)과 **같은 규칙**이다. 검증 로직을 복사해 두 벌로 만들지 말고 한 곳으로 뽑아 개설·수정이 함께 쓴다.
-- 소유권은 서비스에서 `activity.getGuestId().equals(guestId)` 비교로 확인하고 아니면 `FORBIDDEN`. `SecurityConfig`의 역할 검사와 **별개**다.
-
-> ⚠️ `date`의 `@FutureOrPresent` 누락(이슈 #11)은 **개설 쪽 버그이며 이 브랜치 소관이 아니다.** 다만 **수정 API에서 같은 누락을 반복하지는 마라** — 새로 만드는 DTO에는 처음부터 넣는다.
-
-### 삭제 순서
-
-`DELETE /api/spaces/{spaceId}`가 슬롯을 먼저 지우는 패턴과 **동일하다.**
-
-1. 활동 조회 → 없으면 `ACTIVITY_NOT_FOUND`
-2. 개설자 본인 확인 → 아니면 `FORBIDDEN`
-3. 상태 확인 → `DRAFT`/`REJECTED`가 아니면 거부
-4. **개최요청(`HostingRequest`) 먼저 삭제** — `REJECTED` 활동에는 거절된 요청이 남아 있다. 안 지우면 FK 위반으로 삭제가 실패한다
-5. 활동 삭제
-
-> ⚠️ **참여(`Participation`)를 임의로 지우지 마라.** 참여는 `PUBLISHED`에서만 생기므로 대상 상태에는 없어야 한다. **정말 없는지 리포지토리로 확인하고, 남아 있으면 삭제를 거부한다.** 남의 신청 내역을 말없이 지우는 코드를 넣지 마라.
-
-> ⚠️ **업로드된 이미지 파일은 지우지 않는다.** `FileStorageService`에 삭제 기능이 있는지 확인되지 않았다. 고아 파일 정리는 별도 이슈다.
-
-- `imageUrls`(`activity_image`)·`requiredFacilities`(`activity_required_facility`) 컬렉션이 함께 지워지는지는 **엔티티의 cascade·orphanRemoval 설정에 달렸다.** 코드에서 직접 확인하고, 안 되어 있으면 삭제 순서에 넣는다.
-
-### `SecurityConfig` 규칙
+### `SecurityConfig` — **건드리지 마라**
 
 ```java
-.requestMatchers(HttpMethod.PUT,    "/api/activities/{activityId}").hasAnyRole("MEMBER", "ARTIST")
-.requestMatchers(HttpMethod.DELETE, "/api/activities/{activityId}").hasAnyRole("MEMBER", "ARTIST")
+.requestMatchers(HttpMethod.GET, "/api/activities", "/api/activities/{activityId}").permitAll()
+.requestMatchers(HttpMethod.GET, "/api/spaces", "/api/spaces/{spaceId}", "/api/spaces/{spaceId}/slots").permitAll()
 ```
 
-> ⚠️ **HTTP 메서드를 반드시 명시한다.** 경로만 쓰면 같은 URL의 **`GET`(비로그인 활동 상세, U-03)까지 함께 잡혀** 목록에서 상세로 못 들어간다. 이 절에서 제일 나기 쉬운 버그다.
+두 줄 모두 **의도대로 열려 있는 것이 맞다**(U-03 비로그인 상세 열람, B-03/B-04 비로그인 공간 열람). 노출은 서비스·DTO 계층에서 막았다. permitAll을 `authenticated()`로 바꾸면 비로그인 탐색이라는 서비스 전제가 깨진다.
 
-> ⚠️ **`hasRole("MEMBER")`로 쓰지 마라.** 예술가가 자기 활동을 못 고친다. 활동 관련 규칙은 전부 `hasAnyRole("MEMBER", "ARTIST")`다.
+### ⚠️ 남은 후속
 
-> ⚠️ 규칙은 **위에서부터 먼저 매칭되는 것이 이긴다.** 메서드가 달라 비로그인 `GET` 줄과 서로 삼키지는 않지만, 두 줄을 기존 활동 규칙 옆에 붙여 두고 순서를 눈으로 확인한다.
+- **P0-2는 API 계약 변경이다.** 프론트(PR #43)가 공간 목록·상세에서 `address`를 쓰고 있으면 화면이 빈다. 백엔드 소스 충돌은 0건이지만 **계약은 공유하므로 머지 전에 front 담당에게 알린다.**
+- 다음 착수는 **P1-1 시민 탐색**(지역·일정 필터 + 확정 공간 + 잔여 인원, 기능명세 4.1)이다. 상세는 `docs/IMPLEMENTATION_PRIORITY.md`.
 
-### 테스트 (필수 — 예외 없음)
+### ⚠️ 팀원 작업과의 경계 (2026-08-18 확인)
 
-| 층위 | 무엇을 검증하나 |
-|---|---|
-| 엔티티 | 수정 도메인 메서드로 대상 필드가 바뀌는가, **`guestId`·`type`·`hostCertified`·`status`는 그대로인가** |
-| DTO | `ActivityUpdateRequest`의 검증 애노테이션, 응답 변환(`from`/`of`) |
-| 서비스 | 남의 활동 → `FORBIDDEN` / 없는 활동 → `ACTIVITY_NOT_FOUND` / `PENDING`·`PUBLISHED` → 거부 / 종료 ≤ 시작 → 거부 / 삭제 시 **개최요청이 먼저 지워지는가** |
-| 컨트롤러 | `@WebMvcTest` + `TestUsers` — `member1` 200, `other-member` 403, 비로그인 401 |
-| 인가 매트릭스 | `SecurityConfigTest`에 `PUT`·`DELETE` 추가 + **`GET`이 여전히 비로그인 200인지 회귀 검증** |
+kang의 통합 PR **#46이 Draft OPEN(미머지)**이다. **미머지 브랜치의 클래스를 import 하지 말고, 아래 파일을 건드리지 마라.**
 
-> ⚠️ 컨트롤러 테스트에서 `@WithMockUser`는 동작하지 않는다. `support/TestUsers`의 `.with(TestUsers.member()/artist())`로 **실제 Basic 헤더**를 실어 보낸다.
+```
+activity/dto/HostingRequestResponse.java      activity/service/ActivityHostingRequestService.java
+space/dto/HostingRequestResponse.java         space/service/HostingRequestService.java
+space/service/HostService.java                space/service/SpaceSlotService.java
+space/service/ScheduleMismatchChecker.java    space/controller/SpaceSlotController.java
+domain/SpaceSlot.java                         common/config/PlatformFeeProperties.java
++ 그 테스트 9종
+```
 
-### 함께 갱신할 문서
-
-- `PROJECT_CONTEXT.md` 5.1 — 활동 기능 목록에 수정·삭제 추가
-- `PROJECT_CONTEXT.md` 11절 — **"활동 수정·삭제 API 없음" 항목 제거**
-
-> ⚠️ **팀원 작업과 충돌 가능 (2026-08-18 확인).** 이슈 #44(가격 항목·예상 운영 수익 표시)와 #47(슬롯 수정 API·일정 불일치 표시)은 `kang/backend`에만 있고 **`backend`에는 아직 머지되지 않았다** — `origin/backend`는 `yonggyu/backend`와 같은 커밋이다. 통합 PR #46(base `backend` ← head `kang/backend`)은 Draft로 열려 있다.
->
-> - **소스 충돌 없음.** #44가 건드린 활동 쪽 파일은 `activity/dto/HostingRequestResponse.java`(가격 `PriceBreakdown` 추가, `from(r)` → `from(r, matchingFee)`)와 `ActivityHostingRequestService` 뿐이다. `ActivityResponse`라는 클래스는 존재하지 않으며, `ActivityDetailResponse`·`ActivitySummaryResponse`·`Activity`·`ActivityService`·`ActivityController`·`SecurityConfig`는 kang 쪽에서 건드리지 않았다.
-> - **테스트 한 곳만 주의.** `ActivityDtoTest.java`는 kang이 **파일 끝** `ParticipationAndRequest` 중첩 클래스에 가격 검증을 붙였다. 수정 DTO 테스트를 파일 끝에 추가하면 같은 hunk에서 충돌하므로, `ActivityResponses` 뒤에 끼워 넣거나 별도 파일로 분리한다.
-
----
+> ⚠️ **`SpaceDtoTest.java`만 예외다.** kang이 **97~170줄**(`RequestResponse` 중첩 클래스)을 고쳤다. `SpaceResponse` 테스트는 **60~76줄 근처**에 있으니 새 테스트를 그 근처에 넣어라. **파일 끝에 붙이면 같은 hunk에서 충돌한다.**
 
 ## 🔐 보안 규칙 (필수)
 
@@ -235,4 +223,5 @@ yonggyu/feat/*  →  yonggyu/backend  →  backend
 ## 알려진 제약 / 같이 처리할 것
 
 - **활동 수정·삭제는 `DRAFT`/`REJECTED`에서만 가능하다 (설계 확정).** `PENDING`은 심사 중, `PUBLISHED`는 참여자가 있어 손대지 않는다. 공개된 활동의 수정·취소는 취소·환불 정책이 정해진 뒤 별도 이슈로 다룬다 `(미확정 — 결정 필요)`.
+- **공간 주소를 승인된 개최 요청의 예술가에게 공개할지 미정** `(미확정 — 결정 필요)`. 기능명세 6.1 `rules` 는 "시민과 예술가에게 동 단위까지"라고만 쓴다. **결정 전까지는 소유 HOST 본인에게만** 주소 전문을 준다.
 - **`AppUser` 테이블 생성 방식은 로컬 `application.yml`의 `ddl-auto`에 달렸다.** 이 파일은 저장소에 없으므로(gitignore) 자동 생성 여부는 직접 확인해야 한다.

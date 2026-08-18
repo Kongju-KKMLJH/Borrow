@@ -41,10 +41,13 @@ public class SpaceService {
                 .noiseAllowed(req.noiseAllowed())
                 .messAllowed(req.messAllowed())
                 .build();
-        return SpaceResponse.from(spaceRepository.save(space));
+        return SpaceResponse.forOwner(spaceRepository.save(space));
     }
 
-    /** 목록·상세는 비로그인 열람이므로 소유자로 거르지 않는다. */
+    /**
+     * 목록·상세는 비로그인 열람이므로 소유자로 거르지 않는다.
+     * 그래서 주소 전문 없이 동 단위(region)까지만 내려준다 (기능명세 6.1 rules).
+     */
     public List<SpaceResponse> findAll() {
         return spaceRepository.findAll().stream()
                 .map(SpaceResponse::from)
@@ -55,10 +58,10 @@ public class SpaceService {
         return SpaceResponse.from(getSpace(id));
     }
 
-    /** 내가 등록한 공간만 */
+    /** 내가 등록한 공간만 — 본인 공간이므로 주소 전문을 준다. */
     public List<SpaceResponse> findMySpaces(String ownerId) {
         return spaceRepository.findByOwnerIdOrderByIdDesc(ownerId).stream()
-                .map(SpaceResponse::from)
+                .map(SpaceResponse::forOwner)
                 .toList();
     }
 
@@ -69,7 +72,7 @@ public class SpaceService {
         space.updateFacilities(req.facilitiesOrEmpty());
         space.updateAllowedActivities(req.allowedFieldsOrEmpty(), req.noiseAllowed(), req.messAllowed());
         space.updateFeeAndConditions(req.hourlyFee(), req.conditions());
-        return SpaceResponse.from(space);
+        return SpaceResponse.forOwner(space);
     }
 
     @Transactional

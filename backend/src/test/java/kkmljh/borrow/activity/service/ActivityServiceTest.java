@@ -23,6 +23,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
@@ -660,6 +662,56 @@ class ActivityServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.ACTIVITY_NOT_FOUND);
+        }
+
+        /** 비공개(PUBLISHED가 아닌) 상태의 활동 — 기능명세 4.1 이 시민 탐색에서 제외하라고 한 대상 */
+        private Activity hidden(ActivityStatus status) {
+            Activity activity = TestFixtures.activity(1L, MEMBER);
+            switch (status) {
+                case PENDING -> activity.markPending();
+                case REJECTED -> activity.reject();
+                default -> { /* DRAFT — 개설 직후 상태 그대로 */ }
+            }
+            return activity;
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(value = ActivityStatus.class, names = {"DRAFT", "PENDING", "REJECTED"})
+        @DisplayName("비로그인은 비공개 활동 상세를 볼 수 없다 — 존재를 감추려고 ACTIVITY_NOT_FOUND (기능명세 4.1)")
+        void anonymousCannotSeeHidden(ActivityStatus status) {
+            given(activityRepository.findById(1L)).willReturn(Optional.of(hidden(status)));
+
+            assertThatThrownBy(() -> activityService.detail(null, 1L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ACTIVITY_NOT_FOUND);
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(value = ActivityStatus.class, names = {"DRAFT", "PENDING", "REJECTED"})
+        @DisplayName("남의 비공개 활동도 볼 수 없다 — FORBIDDEN 이 아니라 ACTIVITY_NOT_FOUND")
+        void otherGuestCannotSeeHidden(ActivityStatus status) {
+            given(activityRepository.findById(1L)).willReturn(Optional.of(hidden(status)));
+
+            assertThatThrownBy(() -> activityService.detail("other1", 1L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ACTIVITY_NOT_FOUND);
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(value = ActivityStatus.class, names = {"DRAFT", "PENDING", "REJECTED"})
+        @DisplayName("개설자 본인은 비공개 활동 상세를 본다 (개설 직후 화면·U-13 → 상세·수정 화면 진입)")
+        void ownerSeesHidden(ActivityStatus status) {
+            given(activityRepository.findById(1L)).willReturn(Optional.of(hidden(status)));
+            given(participationRepository.sumHeadcountByActivityId(1L)).willReturn(0);
+            given(participationRepository.existsByActivityIdAndGuestId(1L, MEMBER)).willReturn(false);
+
+            ActivityDetailResponse response = activityService.detail(MEMBER, 1L);
+
+            assertThat(response.id()).isEqualTo(1L);
+            assertThat(response.status()).isEqualTo(status);
+            assertThat(response.mine()).isTrue();
         }
     }
 

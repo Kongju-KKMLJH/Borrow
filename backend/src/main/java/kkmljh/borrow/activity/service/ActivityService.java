@@ -132,12 +132,24 @@ public class ActivityService {
                 .toList();
     }
 
-    /** U-03 활동 상세. guestId가 있으면 참여 여부·개설자 여부를 함께 내려준다. */
+    /**
+     * U-03 활동 상세. guestId가 있으면 참여 여부·개설자 여부를 함께 내려준다.
+     * 시민에게 열린 것은 공개(PUBLISHED)된 프로그램뿐이다 (기능명세 4.1) —
+     * 목록(U-01)이 PUBLISHED만 거르는데 상세만 열려 있으면 id로 남의 초안을 읽을 수 있다.
+     */
     public ActivityDetailResponse detail(String guestId, Long activityId) {
         Activity activity = findActivity(activityId);
+        boolean mine = isMine(guestId, activity);
+
+        // 개설자 본인은 자기 초안을 봐야 한다 (개설 직후 화면·U-13 내 활동 → 상세·수정 화면 진입).
+        // 남에게는 FORBIDDEN이 아니라 NOT_FOUND다 — 403은 "그 id에 뭔가 있다"를 알려준다.
+        if (!activity.isPublished() && !mine) {
+            throw new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND);
+        }
+
         boolean alreadyJoined = guestId != null
                 && participationRepository.existsByActivityIdAndGuestId(activityId, guestId);
-        return ActivityDetailResponse.of(activity, currentHeadcount(activityId), alreadyJoined, isMine(guestId, activity));
+        return ActivityDetailResponse.of(activity, currentHeadcount(activityId), alreadyJoined, mine);
     }
 
     /** U-13 내가 개설한 활동 (정의상 모두 mine=true) */

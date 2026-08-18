@@ -74,6 +74,30 @@ class SpaceDtoTest {
     }
 
     @Test
+    @DisplayName("공개용 from 은 주소 전문을 담지 않고 동 단위(region)만 남긴다 (기능명세 6.1 rules)")
+    void spaceResponseHidesFullAddress() {
+        Space space = TestFixtures.space(1L, "host1");
+
+        SpaceResponse response = SpaceResponse.from(space);
+
+        assertThat(response.address()).isNull();
+        assertThat(response.region()).isEqualTo("천안시 서북구 불당동");
+        assertThat(response.toString()).doesNotContain("불당대로 1");
+    }
+
+    @Test
+    @DisplayName("소유자용 forOwner 는 주소 전문을 담는다")
+    void spaceResponseForOwnerKeepsAddress() {
+        Space space = TestFixtures.space(1L, "host1");
+
+        SpaceResponse response = SpaceResponse.forOwner(space);
+
+        assertThat(response.address()).isEqualTo("불당대로 1");
+        assertThat(response.region()).isEqualTo("천안시 서북구 불당동");
+        assertThat(response.toString()).doesNotContain("host1");
+    }
+
+    @Test
     @DisplayName("SpaceSlotResponse 변환")
     void slotResponse() {
         SpaceSlot slot = TestFixtures.slot(10L, TestFixtures.space(),
