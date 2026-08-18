@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("Space 엔티티")
 class SpaceTest {
@@ -194,20 +193,57 @@ class SpaceTest {
         }
 
         @Test
-        @DisplayName("⚠️ 알려진 제약: 불변 컬렉션으로 생성된 인스턴스는 그대로 수정할 수 없다")
-        void updateFailsOnImmutableCollections() {
-            // 생성자가 전달받은 컬렉션을 방어적 복사 없이 그대로 들고, update*는 clear()로 시작한다.
-            // 실사용에서는 수정 시점의 엔티티를 DB에서 다시 읽어오므로(가변 컬렉션) 드러나지 않지만,
-            // 등록 직후 같은 인스턴스를 이어서 수정하면 여기서 깨진다.
-            // 이 제약이 사라지면(방어적 복사 도입) 이 테스트가 실패하므로 그때 지우면 된다.
+        @DisplayName("불변 컬렉션으로 생성해도 이어서 수정할 수 있다 (#76 회귀)")
+        void updateWorksOnImmutableCollections() {
+            // 빌더가 방어적 복사 없이 그대로 들고 있던 시절에는, update*의 clear()에서
+            // UnsupportedOperationException 이 났다. 등록 직후 같은 인스턴스를 이어서 수정하는 경로다.
             Space space = base()
                     .imageUrls(List.of())
                     .facilities(Set.of())
                     .allowedFields(Set.of())
                     .build();
 
-            assertThatThrownBy(() -> space.updateFacilities(Set.of(FacilityType.WIFI)))
-                    .isInstanceOf(UnsupportedOperationException.class);
+            space.updateFacilities(Set.of(FacilityType.WIFI));
+            space.updateAllowedActivities(Set.of(ActivityField.PHOTO), true, true);
+            space.updateBasicInfo("새 이름", "천안시 동남구", "새 주소", List.of("/files/new.jpg"), 20);
+
+            assertThat(space.getFacilities()).containsExactly(FacilityType.WIFI);
+            assertThat(space.getAllowedFields()).containsExactly(ActivityField.PHOTO);
+            assertThat(space.getImageUrls()).containsExactly("/files/new.jpg");
+        }
+
+        @Test
+        @DisplayName("빌더에 넘긴 컬렉션을 나중에 바꿔도 엔티티 상태는 따라 바뀌지 않는다 (#76 회귀)")
+        void builderCopiesGivenCollections() {
+            List<String> images = mutableList("/files/a.jpg");
+            Set<FacilityType> facilities = mutableSet(FacilityType.TABLE);
+            Set<ActivityField> fields = mutableSet(ActivityField.ART);
+
+            Space space = base()
+                    .imageUrls(images)
+                    .facilities(facilities)
+                    .allowedFields(fields)
+                    .build();
+
+            images.add("/files/b.jpg");
+            facilities.add(FacilityType.WIFI);
+            fields.add(ActivityField.PHOTO);
+
+            assertThat(space.getImageUrls()).containsExactly("/files/a.jpg");
+            assertThat(space.getFacilities()).containsExactly(FacilityType.TABLE);
+            assertThat(space.getAllowedFields()).containsExactly(ActivityField.ART);
+        }
+
+        @Test
+        @DisplayName("수정에 넘긴 컬렉션도 복사해 담는다 — 원본을 바꿔도 엔티티는 그대로 (#76 회귀)")
+        void updateCopiesGivenCollections() {
+            Space space = base().build();
+            List<String> images = mutableList("/files/new.jpg");
+
+            space.updateBasicInfo("새 이름", "천안시 동남구", "새 주소", images, 20);
+            images.add("/files/extra.jpg");
+
+            assertThat(space.getImageUrls()).containsExactly("/files/new.jpg");
         }
     }
 
