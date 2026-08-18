@@ -96,6 +96,9 @@ public class SecurityConfig {
                         .hasAnyRole("MEMBER", "ARTIST")
                         .requestMatchers("/api/activities/{activityId}/hosting-request")
                         .hasAnyRole("MEMBER", "ARTIST")
+                        // 기능명세 3.3 매칭 이용료 Mock 결제. 개설된 활동의 관리로 취급 — 위 규칙들과 동일 정책.
+                        .requestMatchers(HttpMethod.POST, "/api/activities/{activityId}/payment")
+                        .hasAnyRole("MEMBER", "ARTIST")
 
                         // --- 공간 운영: HOST ---
                         .requestMatchers("/api/spaces/**").hasRole("HOST")

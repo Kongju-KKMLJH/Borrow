@@ -37,6 +37,7 @@ public enum ErrorCode {
     DUPLICATE_SPACE(HttpStatus.CONFLICT, "이미 등록한 공간입니다."),
     ALREADY_REQUESTED(HttpStatus.CONFLICT, "이미 개최 요청이 존재합니다."),
     REQUEST_ALREADY_HANDLED(HttpStatus.CONFLICT, "이미 처리된 요청입니다."),
+    CAPACITY_EXCEEDS_SPACE(HttpStatus.BAD_REQUEST, "모집 정원이 공간의 수용 인원을 초과합니다."),
 
     // AI (A)
     AI_ANALYSIS_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "활동 분석에 실패했습니다."),

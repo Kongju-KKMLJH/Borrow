@@ -559,6 +559,80 @@ class ActivityServiceTest {
     }
 
     @Nested
+    @DisplayName("매칭 이용료 Mock 결제 (기능명세 3.3)")
+    class Payment {
+
+        private Activity matched(Long id, String guestId) {
+            Activity activity = TestFixtures.activity(id, guestId);
+            activity.markPending();
+            activity.confirmMatch();
+            return activity;
+        }
+
+        @Test
+        @DisplayName("MATCHED 상태의 내 활동은 결제하면 PUBLISHED 로 공개된다")
+        void payPublishesActivity() {
+            Activity activity = matched(1L, MEMBER);
+            given(activityRepository.findById(1L)).willReturn(Optional.of(activity));
+
+            ActivityDetailResponse response = activityService.pay(MEMBER, 1L);
+
+            assertThat(activity.getStatus()).isEqualTo(ActivityStatus.PUBLISHED);
+            assertThat(response.status()).isEqualTo(ActivityStatus.PUBLISHED);
+            assertThat(response.mine()).isTrue();
+        }
+
+        @Test
+        @DisplayName("승인 전(PENDING)이면 결제할 수 없다 — INVALID_REQUEST")
+        void cannotPayBeforeApproval() {
+            Activity activity = TestFixtures.activity(1L, MEMBER);
+            activity.markPending();
+            given(activityRepository.findById(1L)).willReturn(Optional.of(activity));
+
+            assertThatThrownBy(() -> activityService.pay(MEMBER, 1L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_REQUEST);
+
+            assertThat(activity.getStatus()).isEqualTo(ActivityStatus.PENDING);
+        }
+
+        @Test
+        @DisplayName("이미 결제·공개된(PUBLISHED) 활동은 다시 결제할 수 없다")
+        void cannotPayAlreadyPublished() {
+            Activity activity = TestFixtures.publishedActivity(1L, MEMBER);
+            given(activityRepository.findById(1L)).willReturn(Optional.of(activity));
+
+            assertThatThrownBy(() -> activityService.pay(MEMBER, 1L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_REQUEST);
+        }
+
+        @Test
+        @DisplayName("남의 활동은 결제할 수 없다 — FORBIDDEN")
+        void cannotPayOthersActivity() {
+            given(activityRepository.findById(1L)).willReturn(Optional.of(matched(1L, "other-member")));
+
+            assertThatThrownBy(() -> activityService.pay(MEMBER, 1L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("없는 활동이면 ACTIVITY_NOT_FOUND")
+        void activityNotFound() {
+            given(activityRepository.findById(99L)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> activityService.pay(MEMBER, 99L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ACTIVITY_NOT_FOUND);
+        }
+    }
+
+    @Nested
     @DisplayName("목록·검색 (U-01, U-02)")
     class Search {
 

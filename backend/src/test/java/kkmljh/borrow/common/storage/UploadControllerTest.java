@@ -84,13 +84,12 @@ class UploadControllerTest {
     }
 
     @Test
-    @DisplayName("⚠️ 알려진 제약: files 파트가 없으면 400이 아니라 500 INTERNAL_ERROR 가 나간다")
+    @DisplayName("files 파트가 없으면 400 INVALID_REQUEST 가 나간다 (#8·#30 회귀)")
     void missingFilePart() throws Exception {
-        // GlobalExceptionHandler 가 Exception 을 통째로 잡아 500으로 바꾸는 탓에,
-        // 스프링이 400으로 처리했을 MissingServletRequestPartException 도 500이 된다.
-        // (405·415 등 다른 표준 MVC 예외도 마찬가지) — 핸들러를 손보면 이 테스트가 실패하므로 그때 400으로 고치면 된다.
+        // MissingServletRequestPartException 전용 핸들러가 없던 시절에는
+        // @ExceptionHandler(Exception.class) 가 통째로 잡아 500이 나갔다.
         mockMvc.perform(multipart("/api/uploads").with(TestUsers.member()))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error.code").value("INTERNAL_ERROR"));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
     }
 }

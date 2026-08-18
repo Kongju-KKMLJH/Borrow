@@ -160,6 +160,17 @@ class HostingRequestControllerTest {
     }
 
     @Test
+    @DisplayName("모집 정원이 공간 수용 인원을 넘으면 승인은 400 CAPACITY_EXCEEDS_SPACE (이슈 #9)")
+    void approveCapacityExceedsSpace() throws Exception {
+        given(hostingRequestService.approve(any(), any()))
+                .willThrow(new BusinessException(ErrorCode.CAPACITY_EXCEEDS_SPACE));
+
+        mockMvc.perform(post("/api/host/requests/1/approve").with(TestUsers.host()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("CAPACITY_EXCEEDS_SPACE"));
+    }
+
+    @Test
     @DisplayName("B-10 거절하면 사유가 함께 저장된다")
     void reject() throws Exception {
         given(hostingRequestService.reject(TestUsers.HOST, 1L, "예약이 있습니다."))

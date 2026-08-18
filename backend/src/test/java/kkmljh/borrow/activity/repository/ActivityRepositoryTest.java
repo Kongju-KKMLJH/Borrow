@@ -70,10 +70,11 @@ class ActivityRepositoryTest {
                 .build());
     }
 
-    /** 개최 요청을 만들고, approve=true면 승인(=개최지 확정, S-01 공개)까지 시킨다. */
+    /** 개최 요청을 만들고, approve=true면 승인(=개최지 확정, 매칭 MATCHED)까지 시킨다. */
     private HostingRequest request(Activity activity, Space space, boolean approve) {
         HostingRequest request = HostingRequest.builder().activity(activity).space(space).build();
         if (approve) {
+            activity.markPending();   // approve() 는 PENDING 상태에서만 매칭을 확정한다
             request.approve();
         }
         return em.persistAndFlush(request);
@@ -311,11 +312,12 @@ class ActivityRepositoryTest {
     @DisplayName("기능명세 4.1 지역·일정 필터")
     class RegionAndDateFilter {
 
-        /** 승인된 개최지가 붙은 공개 활동 하나를 만든다. */
+        /** 승인·Mock 결제까지 마쳐 시민에게 공개된 활동 하나를 만든다. */
         private Activity hostedAt(String title, LocalDate date, String region) {
             Activity activity = save("member1", ActivityType.HOBBY, ActivityField.ART, title, "설명",
                     date, LocalTime.of(14, 0), false);
-            request(activity, space(region + " 공간", region), true);   // approve() 안에서 publish 된다
+            request(activity, space(region + " 공간", region), true);   // 승인 → 매칭 확정(MATCHED)
+            activity.publish();   // Mock 결제 완료 → 시민 공개 (기능명세 3.3)
             em.flush();
             return activity;
         }
@@ -363,6 +365,7 @@ class ActivityRepositoryTest {
                     LocalDate.of(2026, 9, 12), LocalTime.of(14, 0), false);
             request(activity, space("A 카페", "천안시 서북구 불당동"), false);
             request(activity, space("B 카페", "천안시 서북구 불당동"), true);
+            activity.publish();   // Mock 결제 완료 → 시민 공개
             em.flush();
 
             assertThat(activityRepository.search(null, null, null, "불당동", null, null))

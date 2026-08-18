@@ -75,11 +75,15 @@ class ActivityControllerTest {
     private ActivityService activityService;
 
     private ActivityDetailResponse detail(ActivityType type, boolean certified) {
+        return detail(type, certified, ActivityStatus.DRAFT);
+    }
+
+    private ActivityDetailResponse detail(ActivityType type, boolean certified, ActivityStatus status) {
         return new ActivityDetailResponse(
                 1L, type, ActivityField.ART, "수채화 모임", "설명", List.of("/files/a.jpg"),
                 "일반회원", certified, LocalDate.of(2026, 9, 12),
                 LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 8, 10_000,
-                ActivityStatus.DRAFT, null,
+                status, null,
                 new SpaceRequirementDto("천안시 서북구", 6, Set.of(FacilityType.WATER), false, true),
                 false, false);
     }
@@ -292,13 +296,58 @@ class ActivityControllerTest {
     }
 
     @Test
-    @DisplayName("⚠️ 알려진 제약: 알 수 없는 필터 값은 400이 아니라 500 INTERNAL_ERROR 로 나간다")
+    @DisplayName("과거 날짜로는 개설할 수 없다 — 400 INVALID_REQUEST (#75)")
+    void createRejectsPastDate() throws Exception {
+        // 고정된 과거 날짜라 현재 시각과 무관하게 항상 과거다.
+        String pastDateBody = CREATE_BODY.replace("\"date\":\"2026-09-12\"", "\"date\":\"2020-01-01\"");
+
+        mockMvc.perform(post("/api/activities")
+                        .with(TestUsers.artist())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pastDateBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+
+        verify(activityService, never()).create(any(), any());
+    }
+
+    @Test
+    @DisplayName("원시 타입 필드(capacity)가 통째로 빠지면 400 INVALID_REQUEST (#77 회귀)")
+    void createRejectsMissingPrimitiveField() throws Exception {
+        // Jackson 3 는 record 의 원시 타입 컴포넌트가 빠지면 0 으로 채우지 않고 역직렬화를 실패시킨다
+        // → HttpMessageNotReadableException → 기존 핸들러가 400 INVALID_REQUEST 로 변환한다.
+        // 조용히 0 으로 저장되지 않는다는 것이 이 테스트가 지키는 계약이다.
+        String body = """
+                {"field":"ART","title":"수채화 모임","date":"2026-09-12",
+                 "startTime":"14:00:00","endTime":"16:00:00","entryFee":10000}
+                """;
+
+        mockMvc.perform(post("/api/activities")
+                        .with(TestUsers.artist())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+
+        verify(activityService, never()).create(any(), any());
+    }
+
+    @Test
+    @DisplayName("알 수 없는 필터 값은 400 INVALID_REQUEST 로 나간다 (#8·#30 회귀)")
     void invalidFilterValue() throws Exception {
-        // MethodArgumentTypeMismatchException 은 스프링이 400으로 처리하는 예외지만,
-        // GlobalExceptionHandler 의 @ExceptionHandler(Exception.class) 가 먼저 잡아 500으로 바꾼다.
+        // MethodArgumentTypeMismatchException 전용 핸들러가 없던 시절에는
+        // @ExceptionHandler(Exception.class) 가 먼저 잡아 500이 나갔다.
         mockMvc.perform(get("/api/activities").param("type", "UNKNOWN"))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error.code").value("INTERNAL_ERROR"));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("경로 변수 타입이 맞지 않아도 400 INVALID_REQUEST 다 (#8·#30 회귀)")
+    void invalidPathVariableType() throws Exception {
+        mockMvc.perform(get("/api/activities/not-a-number"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
     }
 
     @Test
@@ -600,6 +649,61 @@ class ActivityControllerTest {
                 .given(activityService).delete(TestUsers.MEMBER, 99L);
 
         mockMvc.perform(delete("/api/activities/99").with(TestUsers.member()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ACTIVITY_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("기능명세 3.3 개설자 본인은 MATCHED 활동을 결제해 공개할 수 있다")
+    void payByOwner() throws Exception {
+        given(activityService.pay(TestUsers.MEMBER, 1L))
+                .willReturn(detail(ActivityType.HOBBY, false, ActivityStatus.PUBLISHED));
+
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.member()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PUBLISHED"));
+
+        verify(activityService).pay(TestUsers.MEMBER, 1L);
+    }
+
+    @Test
+    @DisplayName("승인 전(MATCHED 아님) 활동 결제는 400 INVALID_REQUEST")
+    void payBeforeApproval() throws Exception {
+        willThrow(new BusinessException(ErrorCode.INVALID_REQUEST, "공간 승인 후 매칭이 확정된 활동만 결제할 수 있습니다."))
+                .given(activityService).pay(TestUsers.MEMBER, 1L);
+
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.member()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("남의 활동 결제는 403 FORBIDDEN")
+    void payOthersActivity() throws Exception {
+        willThrow(new BusinessException(ErrorCode.FORBIDDEN))
+                .given(activityService).pay("other-member", 1L);
+
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.as("other-member")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("HOST 는 결제할 수 없다 — 403, 비로그인은 401")
+    void payRequiresMemberOrArtist() throws Exception {
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.host()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/activities/1/payment"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("없는 활동 결제는 404 ACTIVITY_NOT_FOUND")
+    void payNotFound() throws Exception {
+        willThrow(new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND))
+                .given(activityService).pay(TestUsers.MEMBER, 99L);
+
+        mockMvc.perform(post("/api/activities/99/payment").with(TestUsers.member()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("ACTIVITY_NOT_FOUND"));
     }
