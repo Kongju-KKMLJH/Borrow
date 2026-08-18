@@ -57,9 +57,12 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
+          # ⚠️ 블록 스칼라(|) 안에는 주석을 쓸 수 없다 — 주석 문자열이 태그에 그대로 붙어
+          #    "invalid reference format" 으로 실패한다. 설명은 반드시 블록 밖에 둔다.
+          #    두 번째 태그는 커밋 SHA — 롤백용 불변 태그다.
           tags: |
             ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:${{ github.sha }}   # 롤백용 불변 태그
+            ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
