@@ -36,6 +36,19 @@ public record SpaceRequest(
 
         boolean messAllowed
 ) {
+    /**
+     * 중복 판정·저장에 함께 쓰는 정규화 값 (기능명세 6.1 exceptions).
+     * 정규화는 trim()까지만 한다 — 공백 접기·대소문자 정규화는 한글 주소에 효과가 거의 없는데
+     * "왜 이건 중복이 아니냐"는 경계 질문만 늘린다.
+     */
+    public String trimmedName() {
+        return name == null ? null : name.trim();
+    }
+
+    public String trimmedAddress() {
+        return address == null ? null : address.trim();
+    }
+
     public List<String> imageUrlsOrEmpty() {
         return imageUrls == null ? List.of() : imageUrls;
     }
