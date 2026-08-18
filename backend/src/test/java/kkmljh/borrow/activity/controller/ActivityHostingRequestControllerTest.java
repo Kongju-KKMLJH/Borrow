@@ -1,6 +1,7 @@
 package kkmljh.borrow.activity.controller;
 
 import kkmljh.borrow.activity.dto.HostingRequestResponse;
+import kkmljh.borrow.activity.dto.HostingRequestResponse.PriceBreakdown;
 import kkmljh.borrow.activity.service.ActivityHostingRequestService;
 import kkmljh.borrow.common.config.SecurityConfig;
 import kkmljh.borrow.common.exception.BusinessException;
@@ -36,11 +37,15 @@ class ActivityHostingRequestControllerTest {
     @MockitoBean
     private ActivityHostingRequestService hostingRequestService;
 
+    /** 참가비 10,000원 × 정원 8명, 공간 이용 2시간(시간당 10,000원), 매칭료 5,000원 가정 */
+    private static final PriceBreakdown PRICE =
+            new PriceBreakdown(10_000, 80_000, 20_000, 5_000, 55_000);
+
     @Test
-    @DisplayName("U-11 선택한 공간으로 개최 요청을 보내면 PENDING 요청이 생성된다")
+    @DisplayName("U-11 선택한 공간으로 개최 요청을 보내면 PENDING 요청이 생성되고 가격 구성이 함께 온다")
     void send() throws Exception {
         given(hostingRequestService.send(TestUsers.MEMBER, 1L, 5L))
-                .willReturn(new HostingRequestResponse(7L, 1L, 5L, "불당동 스튜디오", RequestStatus.PENDING, null));
+                .willReturn(new HostingRequestResponse(7L, 1L, 5L, "불당동 스튜디오", RequestStatus.PENDING, null, PRICE));
 
         mockMvc.perform(post("/api/activities/1/hosting-request").with(TestUsers.member())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"spaceId\":5}"))
@@ -48,7 +53,12 @@ class ActivityHostingRequestControllerTest {
                 .andExpect(jsonPath("$.data.id").value(7))
                 .andExpect(jsonPath("$.data.spaceId").value(5))
                 .andExpect(jsonPath("$.data.spaceName").value("불당동 스튜디오"))
-                .andExpect(jsonPath("$.data.status").value("PENDING"));
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.price.participantPrice").value(10_000))
+                .andExpect(jsonPath("$.data.price.expectedParticipantRevenue").value(80_000))
+                .andExpect(jsonPath("$.data.price.spaceRentalFee").value(20_000))
+                .andExpect(jsonPath("$.data.price.platformMatchingFee").value(5_000))
+                .andExpect(jsonPath("$.data.price.expectedOperatingProfit").value(55_000));
 
         verify(hostingRequestService).send(TestUsers.MEMBER, 1L, 5L);
     }
@@ -57,7 +67,7 @@ class ActivityHostingRequestControllerTest {
     @DisplayName("ARTIST 도 개최 요청을 보낼 수 있다")
     void artistCanSend() throws Exception {
         given(hostingRequestService.send(eq(TestUsers.ARTIST), eq(1L), eq(5L)))
-                .willReturn(new HostingRequestResponse(7L, 1L, 5L, "불당동 스튜디오", RequestStatus.PENDING, null));
+                .willReturn(new HostingRequestResponse(7L, 1L, 5L, "불당동 스튜디오", RequestStatus.PENDING, null, PRICE));
 
         mockMvc.perform(post("/api/activities/1/hosting-request").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"spaceId\":5}"))
@@ -109,7 +119,7 @@ class ActivityHostingRequestControllerTest {
     @DisplayName("U-12 요청 상태 조회 — 거절이면 사유도 함께 온다")
     void readStatus() throws Exception {
         given(hostingRequestService.status(TestUsers.MEMBER, 1L)).willReturn(
-                new HostingRequestResponse(7L, 1L, 5L, "불당동 스튜디오", RequestStatus.REJECTED, "예약이 있습니다."));
+                new HostingRequestResponse(7L, 1L, 5L, "불당동 스튜디오", RequestStatus.REJECTED, "예약이 있습니다.", PRICE));
 
         mockMvc.perform(get("/api/activities/1/hosting-request").with(TestUsers.member()))
                 .andExpect(status().isOk())
