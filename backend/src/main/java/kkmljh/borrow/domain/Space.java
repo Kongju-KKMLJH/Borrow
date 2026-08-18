@@ -91,12 +91,14 @@ public class Space {
         this.name = name;
         this.region = region;
         this.address = address;
-        if (imageUrls != null) this.imageUrls = imageUrls;
+        // 방어적 복사 — 호출자가 넘긴 컬렉션을 그대로 들면 ⑴ List.of() 같은 불변 컬렉션일 때
+        // update* 의 clear() 가 터지고 ⑵ 호출자가 원본을 바꾸면 엔티티 상태가 몰래 따라 바뀐다.
+        if (imageUrls != null) this.imageUrls = new ArrayList<>(imageUrls);
         this.capacity = capacity;
         this.hourlyFee = hourlyFee;
         this.conditions = conditions;
-        if (facilities != null) this.facilities = facilities;
-        if (allowedFields != null) this.allowedFields = allowedFields;
+        if (facilities != null) this.facilities = new HashSet<>(facilities);
+        if (allowedFields != null) this.allowedFields = new HashSet<>(allowedFields);
         this.noiseAllowed = noiseAllowed;
         this.messAllowed = messAllowed;
     }
