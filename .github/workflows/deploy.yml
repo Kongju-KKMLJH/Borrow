@@ -158,6 +158,10 @@ jobs:
             # 4) 기동
             $COMPOSE pull
             $COMPOSE up -d --remove-orphans
+            # ⚠️ caddy 는 반드시 재생성한다. bind mount 는 경로가 아니라 디렉터리 inode 를
+            #    따라가므로, 위에서 web 디렉터리를 통째로 바꾸면 컨테이너는 옛 디렉터리를
+            #    계속 보고 있다(= 새 번들이 서빙되지 않는다).
+            $COMPOSE up -d --force-recreate caddy
 
             # 5) 헬스체크 (actuator 가 없으므로 공개 GET 사용)
             ok=0
