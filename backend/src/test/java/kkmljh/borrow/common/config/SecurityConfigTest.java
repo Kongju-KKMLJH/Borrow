@@ -210,7 +210,7 @@ class SecurityConfigTest {
     }
 
     @Nested
-    @DisplayName("활동 개설·관리는 MEMBER · ARTIST")
+    @DisplayName("활동 개설은 ARTIST 전용, 개설된 활동의 관리는 MEMBER · ARTIST")
     class ActivityWriteAccess {
 
         private RequestBuilder createActivity(String user) {
@@ -224,13 +224,13 @@ class SecurityConfigTest {
         }
 
         @Test
-        @DisplayName("MEMBER 는 활동을 개설할 수 있다")
-        void memberCanCreate() throws Exception {
-            assertAllowed(createActivity("member1"));
+        @DisplayName("MEMBER 는 활동을 개설할 수 없다 — 개설은 예술가로 한정 (기능명세 1.2)")
+        void memberCannotCreate() throws Exception {
+            assertForbidden(createActivity("member1"));
         }
 
         @Test
-        @DisplayName("ARTIST 도 같은 API 로 활동을 개설할 수 있다 (hasAnyRole 이어야 한다)")
+        @DisplayName("ARTIST 는 활동을 개설할 수 있다")
         void artistCanCreate() throws Exception {
             assertAllowed(createActivity("artist1"));
         }
