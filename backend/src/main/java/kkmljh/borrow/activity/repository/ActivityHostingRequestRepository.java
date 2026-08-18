@@ -2,7 +2,11 @@ package kkmljh.borrow.activity.repository;
 
 import kkmljh.borrow.domain.HostingRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -25,4 +29,24 @@ public interface ActivityHostingRequestRepository extends JpaRepository<HostingR
      * {@code SpaceSlotRepository.deleteBySpaceId} 와 같은 패턴.
      */
     long deleteByActivityId(Long activityId);
+
+    /**
+     * 기능명세 4.1 상세·목록의 <b>확정 공간</b> 표시용 배치 조회.
+     * 승인(APPROVED)된 요청만 확정으로 본다 — PENDING·REJECTED는 개최지가 정해진 것이 아니다.
+     *
+     * <p>목록에서 활동마다 개별 조회하면 N+1이 된다. 활동 id를 모아 한 번에 읽고
+     * 서비스가 {@code Map<activityId, …>} 로 나눠 쓴다.
+     *
+     * <p>투영에 주소를 넣지 않는다 (기능명세 6.1 {@code rules} — 공개 주소는 동 단위까지).
+     */
+    @Query("""
+            SELECT new kkmljh.borrow.activity.repository.ConfirmedSpace(
+                       hr.activity.id, sp.id, sp.name, sp.region)
+            FROM HostingRequest hr
+            JOIN hr.space sp
+            WHERE hr.activity.id IN :activityIds
+              AND hr.status = kkmljh.borrow.domain.RequestStatus.APPROVED
+            ORDER BY hr.id ASC
+            """)
+    List<ConfirmedSpace> findConfirmedSpaces(@Param("activityIds") Collection<Long> activityIds);
 }

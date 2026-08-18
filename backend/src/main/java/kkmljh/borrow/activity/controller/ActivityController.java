@@ -14,6 +14,7 @@ import kkmljh.borrow.common.response.ApiResponse;
 import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.ActivityType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /** 활동 개설/수정/삭제/목록/검색/상세 (U-01~U-03, U-06~U-08, 기능명세 2.1) */
@@ -45,14 +47,21 @@ public class ActivityController {
     }
 
     @Operation(summary = "U-01/U-02 활동 목록·검색",
-            description = "type/field 필터 + keyword 검색. 비로그인 열람 가능하며, 로그인 상태면 참여 여부(alreadyJoined) 표시.")
+            description = "type/field/region/dateFrom/dateTo 필터 + keyword 검색 (기능명세 4.1 지역·일정 탐색). "
+                    + "파라미터를 비우면 그 조건은 무시한다. region은 승인된 개최지(Space.region) 부분일치. "
+                    + "비로그인 열람 가능하며, 로그인 상태면 참여 여부(alreadyJoined) 표시.")
     @GetMapping
     public ApiResponse<List<ActivitySummaryResponse>> list(
             @GuestId(required = false) String guestId,
             @RequestParam(required = false) ActivityType type,
             @RequestParam(required = false) ActivityField field,
-            @RequestParam(required = false) String keyword) {
-        return ApiResponse.ok(activityService.search(guestId, type, field, keyword));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ApiResponse.ok(activityService.search(guestId, type, field, keyword, region, dateFrom, dateTo));
     }
 
     @Operation(summary = "U-03 활동 상세",

@@ -6,6 +6,7 @@ import kkmljh.borrow.activity.dto.ActivitySummaryResponse;
 import kkmljh.borrow.activity.dto.ActivityUpdateRequest;
 import kkmljh.borrow.activity.dto.RequirementUpdateRequest;
 import kkmljh.borrow.activity.repository.ActivityHostingRequestRepository;
+import kkmljh.borrow.activity.repository.ConfirmedSpace;
 import kkmljh.borrow.activity.repository.ActivityRepository;
 import kkmljh.borrow.activity.repository.ActivityUserRepository;
 import kkmljh.borrow.activity.repository.ParticipationRepository;
@@ -19,9 +20,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /** 활동 개설/수정/삭제/목록/검색/상세, 내 활동 (U-01~U-03, U-06~U-08, U-13, S-01 노출, 기능명세 2.1) */
 @Service
@@ -122,13 +126,26 @@ public class ActivityService {
         activityRepository.delete(activity);
     }
 
-    /** U-01 목록 + U-02 필터 + 키워드 검색 (PUBLISHED만). guestId가 있으면 참여 여부·개설자 여부 표시. */
-    public List<ActivitySummaryResponse> search(String guestId, ActivityType type, ActivityField field, String keyword) {
-        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+    /**
+     * U-01 목록 + U-02 필터 + 키워드 검색 + 기능명세 4.1 지역·일정 필터 (PUBLISHED만).
+     * guestId가 있으면 참여 여부·개설자 여부 표시.
+     *
+     * <p>필터 파라미터는 기존 규약 그대로 <b>null이면 그 조건을 무시</b>한다.
+     * 지역은 승인된 공간의 실제 개최지 기준이다 (리포지토리 주석 참고).
+     */
+    public List<ActivitySummaryResponse> search(String guestId, ActivityType type, ActivityField field,
+                                                String keyword, String region,
+                                                LocalDate dateFrom, LocalDate dateTo) {
+        validateDateRange(dateFrom, dateTo);
+
         Set<Long> joinedIds = joinedActivityIds(guestId);
-        return activityRepository.search(type, field, kw).stream()
+        List<Activity> activities = activityRepository.search(
+                type, field, blankToNull(keyword), blankToNull(region), dateFrom, dateTo);
+        Map<Long, ActivityDetailResponse.SpaceInfo> spaces = confirmedSpaces(activities);
+
+        return activities.stream()
                 .map(a -> ActivitySummaryResponse.of(a, currentHeadcount(a.getId()),
-                        joinedIds.contains(a.getId()), isMine(guestId, a)))
+                        joinedIds.contains(a.getId()), isMine(guestId, a), spaces.get(a.getId())))
                 .toList();
     }
 
@@ -149,15 +166,19 @@ public class ActivityService {
 
         boolean alreadyJoined = guestId != null
                 && participationRepository.existsByActivityIdAndGuestId(activityId, guestId);
-        return ActivityDetailResponse.of(activity, currentHeadcount(activityId), alreadyJoined, mine);
+        return ActivityDetailResponse.of(activity, currentHeadcount(activityId), alreadyJoined, mine,
+                confirmedSpaces(List.of(activity)).get(activityId));
     }
 
     /** U-13 내가 개설한 활동 (정의상 모두 mine=true) */
     public List<ActivitySummaryResponse> myActivities(String guestId) {
         Set<Long> joinedIds = joinedActivityIds(guestId);
-        return activityRepository.findByGuestIdOrderByIdDesc(guestId).stream()
+        List<Activity> activities = activityRepository.findByGuestIdOrderByIdDesc(guestId);
+        Map<Long, ActivityDetailResponse.SpaceInfo> spaces = confirmedSpaces(activities);
+
+        return activities.stream()
                 .map(a -> ActivitySummaryResponse.of(a, currentHeadcount(a.getId()),
-                        joinedIds.contains(a.getId()), true))
+                        joinedIds.contains(a.getId()), true, spaces.get(a.getId())))
                 .toList();
     }
 
@@ -176,6 +197,22 @@ public class ActivityService {
         return activity;
     }
 
+    /**
+     * 기능명세 4.1 확정 공간 — 활동 id를 모아 <b>한 번에</b> 읽는다.
+     * 활동마다 개별 조회하면 목록에서 N+1이 된다.
+     * 승인된 요청이 없는 활동은 맵에 없으므로 {@code get()}이 null → 응답의 {@code space}도 null.
+     */
+    private Map<Long, ActivityDetailResponse.SpaceInfo> confirmedSpaces(List<Activity> activities) {
+        List<Long> ids = activities.stream().map(Activity::getId).toList();
+        if (ids.isEmpty()) {
+            return Map.of();   // 빈 컬렉션으로 IN 절을 태우지 않는다
+        }
+        return hostingRequestRepository.findConfirmedSpaces(ids).stream()
+                .collect(Collectors.toMap(ConfirmedSpace::activityId,
+                        ActivityDetailResponse.SpaceInfo::from,
+                        (first, second) -> first));
+    }
+
     private int currentHeadcount(Long activityId) {
         return participationRepository.sumHeadcountByActivityId(activityId);
     }
@@ -188,6 +225,21 @@ public class ActivityService {
     /** 이 게스트가 활동 개설자인지 (guestId 없으면 false) */
     private boolean isMine(String guestId, Activity activity) {
         return guestId != null && activity.getGuestId().equals(guestId);
+    }
+
+    private static String blankToNull(String value) {
+        return (value != null && !value.isBlank()) ? value.trim() : null;
+    }
+
+    /**
+     * 기능명세 4.1 일정 필터의 범위 검증. 뒤집힌 범위는 기존 {@code INVALID_REQUEST}로 거절한다 —
+     * <b>새 에러코드를 만들지 않는다</b>(프론트가 분기를 두 벌 짜게 된다).
+     */
+    private void validateDateRange(LocalDate dateFrom, LocalDate dateTo) {
+        if (dateFrom != null && dateTo != null && dateFrom.isAfter(dateTo)) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST,
+                    "조회 시작일(dateFrom)은 종료일(dateTo)보다 늦을 수 없습니다.");
+        }
     }
 
     /** 개설(U-06)과 수정(기능명세 2.1)이 함께 쓰는 일정 검증 — 규칙이 두 벌로 갈리지 않게 한 곳에 둔다. */

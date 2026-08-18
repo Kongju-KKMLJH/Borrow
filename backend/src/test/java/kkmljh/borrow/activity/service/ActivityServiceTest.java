@@ -9,6 +9,7 @@ import kkmljh.borrow.activity.dto.SpaceRequirementDto;
 import kkmljh.borrow.activity.repository.ActivityHostingRequestRepository;
 import kkmljh.borrow.activity.repository.ActivityRepository;
 import kkmljh.borrow.activity.repository.ActivityUserRepository;
+import kkmljh.borrow.activity.repository.ConfirmedSpace;
 import kkmljh.borrow.activity.repository.ParticipationRepository;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
@@ -553,13 +554,13 @@ class ActivityServiceTest {
         @Test
         @DisplayName("필터를 그대로 리포지토리에 넘기고 요약 응답으로 변환한다")
         void searchPassesFilters() {
-            given(activityRepository.search(ActivityType.HOBBY, ActivityField.ART, "수채화"))
+            given(activityRepository.search(ActivityType.HOBBY, ActivityField.ART, "수채화", null, null, null))
                     .willReturn(List.of(TestFixtures.publishedActivity(1L, "other-member")));
             given(participationRepository.findActivityIdsByGuestId(MEMBER)).willReturn(Set.of());
             given(participationRepository.sumHeadcountByActivityId(1L)).willReturn(3);
 
             List<ActivitySummaryResponse> result =
-                    activityService.search(MEMBER, ActivityType.HOBBY, ActivityField.ART, "수채화");
+                    activityService.search(MEMBER, ActivityType.HOBBY, ActivityField.ART, "수채화", null, null, null);
 
             assertThat(result).hasSize(1);
             assertThat(result.get(0).currentHeadcount()).isEqualTo(3);
@@ -570,35 +571,35 @@ class ActivityServiceTest {
         @Test
         @DisplayName("키워드 앞뒤 공백은 잘라서 넘긴다")
         void keywordIsTrimmed() {
-            given(activityRepository.search(isNull(), isNull(), eq("수채화"))).willReturn(List.of());
+            given(activityRepository.search(isNull(), isNull(), eq("수채화"), isNull(), isNull(), isNull())).willReturn(List.of());
             given(participationRepository.findActivityIdsByGuestId(MEMBER)).willReturn(Set.of());
 
-            activityService.search(MEMBER, null, null, "  수채화  ");
+            activityService.search(MEMBER, null, null, "  수채화  ", null, null, null);
 
-            verify(activityRepository).search(null, null, "수채화");
+            verify(activityRepository).search(null, null, "수채화", null, null, null);
         }
 
         @Test
         @DisplayName("빈 키워드는 null 로 바꿔 조건에서 뺀다")
         void blankKeywordBecomesNull() {
-            given(activityRepository.search(isNull(), isNull(), isNull())).willReturn(List.of());
+            given(activityRepository.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull())).willReturn(List.of());
             given(participationRepository.findActivityIdsByGuestId(MEMBER)).willReturn(Set.of());
 
-            activityService.search(MEMBER, null, null, "   ");
+            activityService.search(MEMBER, null, null, "   ", null, null, null);
 
-            verify(activityRepository).search(null, null, null);
+            verify(activityRepository).search(null, null, null, null, null, null);
         }
 
         @Test
         @DisplayName("참여 중인 활동은 alreadyJoined=true, 내가 만든 활동은 mine=true")
         void marksJoinedAndMine() {
-            given(activityRepository.search(isNull(), isNull(), isNull())).willReturn(List.of(
+            given(activityRepository.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull())).willReturn(List.of(
                     TestFixtures.publishedActivity(1L, "other-member"),
                     TestFixtures.publishedActivity(2L, MEMBER)));
             given(participationRepository.findActivityIdsByGuestId(MEMBER)).willReturn(Set.of(1L));
             given(participationRepository.sumHeadcountByActivityId(anyLong())).willReturn(0);
 
-            List<ActivitySummaryResponse> result = activityService.search(MEMBER, null, null, null);
+            List<ActivitySummaryResponse> result = activityService.search(MEMBER, null, null, null, null, null, null);
 
             assertThat(result.get(0).alreadyJoined()).isTrue();
             assertThat(result.get(0).mine()).isFalse();
@@ -609,15 +610,151 @@ class ActivityServiceTest {
         @Test
         @DisplayName("비로그인 조회는 참여 여부를 묻지 않고 모두 false 로 내려준다")
         void anonymousSearch() {
-            given(activityRepository.search(isNull(), isNull(), isNull()))
+            given(activityRepository.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
                     .willReturn(List.of(TestFixtures.publishedActivity(1L, "other-member")));
             given(participationRepository.sumHeadcountByActivityId(1L)).willReturn(0);
 
-            List<ActivitySummaryResponse> result = activityService.search(null, null, null, null);
+            List<ActivitySummaryResponse> result = activityService.search(null, null, null, null, null, null, null);
 
             assertThat(result.get(0).alreadyJoined()).isFalse();
             assertThat(result.get(0).mine()).isFalse();
             verify(participationRepository, never()).findActivityIdsByGuestId(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("기능명세 4.1 지역·일정 필터 · 확정 공간 · 잔여 인원")
+    class CitizenDiscovery {
+
+        private static final ConfirmedSpace BULDANG =
+                new ConfirmedSpace(1L, 7L, "불당 카페", "천안시 서북구 불당동");
+
+        @Test
+        @DisplayName("지역 필터는 앞뒤 공백을 잘라 넘기고, 빈 문자열은 null 로 바꿔 조건에서 뺀다")
+        void regionIsTrimmedAndBlankBecomesNull() {
+            given(activityRepository.search(isNull(), isNull(), isNull(), eq("불당동"), isNull(), isNull()))
+                    .willReturn(List.of());
+            given(activityRepository.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
+                    .willReturn(List.of());
+            given(participationRepository.findActivityIdsByGuestId(MEMBER)).willReturn(Set.of());
+
+            activityService.search(MEMBER, null, null, null, "  불당동  ", null, null);
+            activityService.search(MEMBER, null, null, null, "   ", null, null);
+
+            verify(activityRepository).search(null, null, null, "불당동", null, null);
+            verify(activityRepository).search(null, null, null, null, null, null);
+        }
+
+        @Test
+        @DisplayName("dateFrom 이 dateTo 보다 늦으면 INVALID_REQUEST — 새 에러코드를 만들지 않는다")
+        void invertedDateRangeRejected() {
+            assertThatThrownBy(() -> activityService.search(MEMBER, null, null, null, null,
+                    LocalDate.of(2026, 9, 20), LocalDate.of(2026, 9, 12)))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_REQUEST);
+
+            verify(activityRepository, never()).search(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("dateFrom 과 dateTo 가 같은 날이면 통과한다 (경계)")
+        void sameDayRangeAllowed() {
+            LocalDate day = LocalDate.of(2026, 9, 12);
+            given(activityRepository.search(isNull(), isNull(), isNull(), isNull(), eq(day), eq(day)))
+                    .willReturn(List.of());
+            given(participationRepository.findActivityIdsByGuestId(MEMBER)).willReturn(Set.of());
+
+            assertThat(activityService.search(MEMBER, null, null, null, null, day, day)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("확정 공간은 한 번에 조회해 활동별로 나눠 붙인다 (목록 N+1 방지)")
+        void confirmedSpacesAreBatched() {
+            given(activityRepository.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
+                    .willReturn(List.of(TestFixtures.publishedActivity(1L, "other-member"),
+                            TestFixtures.publishedActivity(2L, "other-member")));
+            given(participationRepository.findActivityIdsByGuestId(MEMBER)).willReturn(Set.of());
+            given(participationRepository.sumHeadcountByActivityId(anyLong())).willReturn(0);
+            given(hostingRequestRepository.findConfirmedSpaces(List.of(1L, 2L)))
+                    .willReturn(List.of(BULDANG));   // 2번 활동은 아직 미확정
+
+            List<ActivitySummaryResponse> result = activityService.search(MEMBER, null, null, null, null, null, null);
+
+            assertThat(result.get(0).space())
+                    .isEqualTo(new ActivityDetailResponse.SpaceInfo(7L, "불당 카페", "천안시 서북구 불당동"));
+            assertThat(result.get(1).space()).isNull();
+            verify(hostingRequestRepository).findConfirmedSpaces(List.of(1L, 2L));
+        }
+
+        @Test
+        @DisplayName("검색 결과가 비면 빈 IN 절로 확정 공간을 조회하지 않는다")
+        void noQueryWhenNoActivities() {
+            given(activityRepository.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
+                    .willReturn(List.of());
+            given(participationRepository.findActivityIdsByGuestId(MEMBER)).willReturn(Set.of());
+
+            activityService.search(MEMBER, null, null, null, null, null, null);
+
+            verify(hostingRequestRepository, never()).findConfirmedSpaces(any());
+        }
+
+        @Test
+        @DisplayName("상세에도 확정 공간을 붙인다")
+        void detailCarriesConfirmedSpace() {
+            given(activityRepository.findById(1L))
+                    .willReturn(Optional.of(TestFixtures.publishedActivity(1L, MEMBER)));
+            given(participationRepository.sumHeadcountByActivityId(1L)).willReturn(0);
+            given(hostingRequestRepository.findConfirmedSpaces(List.of(1L))).willReturn(List.of(BULDANG));
+
+            assertThat(activityService.detail(MEMBER, 1L).space())
+                    .isEqualTo(new ActivityDetailResponse.SpaceInfo(7L, "불당 카페", "천안시 서북구 불당동"));
+        }
+
+        @Test
+        @DisplayName("개최지가 확정되지 않았으면 space 는 null")
+        void detailWithoutConfirmedSpace() {
+            given(activityRepository.findById(1L))
+                    .willReturn(Optional.of(TestFixtures.publishedActivity(1L, MEMBER)));
+            given(participationRepository.sumHeadcountByActivityId(1L)).willReturn(0);
+            given(hostingRequestRepository.findConfirmedSpaces(List.of(1L))).willReturn(List.of());
+
+            assertThat(activityService.detail(MEMBER, 1L).space()).isNull();
+        }
+
+        @Test
+        @DisplayName("잔여 인원 = 정원 - 현재 인원")
+        void remainingCapacity() {
+            given(activityRepository.findById(1L))
+                    .willReturn(Optional.of(TestFixtures.publishedActivity(1L, MEMBER)));   // capacity 8
+            given(participationRepository.sumHeadcountByActivityId(1L)).willReturn(3);
+
+            assertThat(activityService.detail(MEMBER, 1L).remainingCapacity()).isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("참여 합계가 정원을 넘어도 잔여 인원은 0 하한 (음수를 내려보내지 않는다)")
+        void remainingCapacityFloorsAtZero() {
+            given(activityRepository.findById(1L))
+                    .willReturn(Optional.of(TestFixtures.publishedActivity(1L, MEMBER)));   // capacity 8
+            given(participationRepository.sumHeadcountByActivityId(1L)).willReturn(12);
+
+            assertThat(activityService.detail(MEMBER, 1L).remainingCapacity()).isZero();
+        }
+
+        @Test
+        @DisplayName("U-13 내 활동에도 확정 공간·잔여 인원이 붙는다")
+        void myActivitiesCarrySpace() {
+            given(activityRepository.findByGuestIdOrderByIdDesc(MEMBER))
+                    .willReturn(List.of(TestFixtures.publishedActivity(1L, MEMBER)));
+            given(participationRepository.findActivityIdsByGuestId(MEMBER)).willReturn(Set.of());
+            given(participationRepository.sumHeadcountByActivityId(1L)).willReturn(2);
+            given(hostingRequestRepository.findConfirmedSpaces(List.of(1L))).willReturn(List.of(BULDANG));
+
+            ActivitySummaryResponse response = activityService.myActivities(MEMBER).get(0);
+
+            assertThat(response.space().name()).isEqualTo("불당 카페");
+            assertThat(response.remainingCapacity()).isEqualTo(6);
         }
     }
 
