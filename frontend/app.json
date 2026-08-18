@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Borrow",
-    "slug": "borrow",
+    "name": "아트민",
+    "slug": "artmin",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "borrow",
-    "userInterfaceStyle": "automatic",
+    "scheme": "artmin",
+    "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/expo.icon"
     },
@@ -28,9 +28,23 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#E98AAD",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-build-properties",
+        {
+          "android": { "usesCleartextTraffic": true },
+          "ios": {
+            "infoPlist": {
+              "NSAppTransportSecurity": {
+                "NSAllowsArbitraryLoads": true
+              }
+            }
+          }
         }
       ]
     ],
