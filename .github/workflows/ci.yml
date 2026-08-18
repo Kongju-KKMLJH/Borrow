@@ -62,13 +62,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Node 20 설치
+      - name: Node 24 설치
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # Node 24(npm 11) 기준. Node 20(npm 10)에서는 락파일 해석이 달라
+      # `npm ci` 가 "Missing: typescript@5.9.3 from lock file" 로 실패한다.
       - name: 의존성 설치 (락파일 고정)
         run: npm ci
 
@@ -90,3 +92,4 @@ jobs:
           name: web-dist
           path: frontend/dist
           retention-days: 7
+          if-no-files-found: ignore
