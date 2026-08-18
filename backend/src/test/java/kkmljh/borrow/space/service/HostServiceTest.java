@@ -40,6 +40,9 @@ class HostServiceTest {
     @Mock
     private SpaceRepository spaceRepository;
 
+    @Mock
+    private ScheduleMismatchChecker scheduleMismatchChecker;
+
     @InjectMocks
     private HostService hostService;
 

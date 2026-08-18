@@ -97,11 +97,12 @@ class SpaceDtoTest {
             Activity activity = TestFixtures.activity(1L, "member1");
             HostingRequest request = TestFixtures.hostingRequest(7L, activity, TestFixtures.space(5L, "host1"));
 
-            HostingRequestResponse response = HostingRequestResponse.from(request);
+            HostingRequestResponse response = HostingRequestResponse.from(request, true);
 
             assertThat(response.id()).isEqualTo(7L);
             assertThat(response.status()).isEqualTo(RequestStatus.PENDING);
             assertThat(response.rejectReason()).isNull();
+            assertThat(response.scheduleMismatch()).isTrue();
             assertThat(response.space().id()).isEqualTo(5L);
             assertThat(response.space().name()).isEqualTo("불당동 스튜디오");
             assertThat(response.space().region()).isEqualTo("천안시 서북구 불당동");
@@ -131,7 +132,7 @@ class SpaceDtoTest {
             HostingRequest request = TestFixtures.hostingRequest(
                     7L, TestFixtures.withId(activity, 1L), TestFixtures.space(5L, "host1"));
 
-            assertThat(HostingRequestResponse.from(request).activity().requirement()).isNull();
+            assertThat(HostingRequestResponse.from(request, false).activity().requirement()).isNull();
         }
 
         /**
@@ -153,7 +154,7 @@ class SpaceDtoTest {
             HostingRequest request = TestFixtures.hostingRequest(
                     7L, TestFixtures.withId(activity, 1L), TestFixtures.space(5L, "host1"));
 
-            assertThat(HostingRequestResponse.from(request).activity().requirement()).isNull();
+            assertThat(HostingRequestResponse.from(request, false).activity().requirement()).isNull();
         }
 
         @Test
@@ -163,7 +164,7 @@ class SpaceDtoTest {
                     7L, TestFixtures.activity(1L, "member1"), TestFixtures.space(5L, "host1"));
             request.reject("예약이 있습니다.");
 
-            HostingRequestResponse response = HostingRequestResponse.from(request);
+            HostingRequestResponse response = HostingRequestResponse.from(request, false);
 
             assertThat(response.status()).isEqualTo(RequestStatus.REJECTED);
             assertThat(response.rejectReason()).isEqualTo("예약이 있습니다.");

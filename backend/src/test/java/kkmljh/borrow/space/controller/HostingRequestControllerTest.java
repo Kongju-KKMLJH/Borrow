@@ -45,12 +45,17 @@ class HostingRequestControllerTest {
     private HostingRequestService hostingRequestService;
 
     private HostingRequestResponse response(Long id, RequestStatus status, String reason) {
+        return response(id, status, reason, false);
+    }
+
+    private HostingRequestResponse response(Long id, RequestStatus status, String reason, boolean scheduleMismatch) {
         return new HostingRequestResponse(id, status, reason,
                 new HostingRequestResponse.SpaceInfo(5L, "불당동 스튜디오", "천안시 서북구"),
                 new HostingRequestResponse.ActivityInfo(1L, "수채화 모임", "설명", ActivityField.ART,
                         LocalDate.of(2026, 9, 12), LocalTime.of(14, 0), LocalTime.of(16, 0),
                         8, 10_000, "일반회원",
-                        new HostingRequestResponse.RequirementInfo(6, Set.of(FacilityType.WATER), false, true)));
+                        new HostingRequestResponse.RequirementInfo(6, Set.of(FacilityType.WATER), false, true)),
+                scheduleMismatch);
     }
 
     @Test
@@ -101,7 +106,19 @@ class HostingRequestControllerTest {
 
         mockMvc.perform(get("/api/host/requests/1").with(TestUsers.host()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.activity.entryFee").value(10000));
+                .andExpect(jsonPath("$.data.activity.entryFee").value(10000))
+                .andExpect(jsonPath("$.data.scheduleMismatch").value(false));
+    }
+
+    @Test
+    @DisplayName("B-08 상세 조회 — 공간 유휴시간과 안 맞는 요청은 scheduleMismatch=true (F-XOKOSU)")
+    void detailScheduleMismatch() throws Exception {
+        given(hostingRequestService.findById(TestUsers.HOST, 1L))
+                .willReturn(response(1L, RequestStatus.PENDING, null, true));
+
+        mockMvc.perform(get("/api/host/requests/1").with(TestUsers.host()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scheduleMismatch").value(true));
     }
 
     @Test

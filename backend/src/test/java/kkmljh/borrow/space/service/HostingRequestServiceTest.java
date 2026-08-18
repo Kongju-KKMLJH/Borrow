@@ -22,6 +22,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -35,6 +36,9 @@ class HostingRequestServiceTest {
 
     @Mock
     private HostingRequestRepository hostingRequestRepository;
+
+    @Mock
+    private ScheduleMismatchChecker scheduleMismatchChecker;
 
     @InjectMocks
     private HostingRequestService hostingRequestService;
@@ -106,6 +110,18 @@ class HostingRequestServiceTest {
             given(hostingRequestRepository.findBySpaceOwnerIdOrderByIdDesc(OWNER)).willReturn(List.of());
 
             assertThat(hostingRequestService.findRequests(OWNER, null, null)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("공간 유휴시간과 일정이 안 맞으면 scheduleMismatch=true (F-XOKOSU)")
+        void scheduleMismatchIsReported() {
+            given(hostingRequestRepository.findBySpaceOwnerIdOrderByIdDesc(OWNER))
+                    .willReturn(List.of(request(1L, OWNER)));
+            given(scheduleMismatchChecker.isMismatch(any(HostingRequest.class))).willReturn(true);
+
+            HostingRequestResponse response = hostingRequestService.findRequests(OWNER, null, null).get(0);
+
+            assertThat(response.scheduleMismatch()).isTrue();
         }
     }
 
