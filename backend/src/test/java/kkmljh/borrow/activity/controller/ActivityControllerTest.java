@@ -77,8 +77,8 @@ class ActivityControllerTest {
         return new ActivityDetailResponse(
                 1L, type, ActivityField.ART, "수채화 모임", "설명", List.of("/files/a.jpg"),
                 "일반회원", certified, LocalDate.of(2026, 9, 12),
-                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 10_000,
-                ActivityStatus.DRAFT,
+                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 8, 10_000,
+                ActivityStatus.DRAFT, null,
                 new SpaceRequirementDto("천안시 서북구", 6, Set.of(FacilityType.WATER), false, true),
                 false, false);
     }
@@ -87,8 +87,10 @@ class ActivityControllerTest {
         return new ActivitySummaryResponse(
                 id, ActivityType.HOBBY, ActivityField.ART, "수채화 모임", List.of(),
                 "일반회원", false, LocalDate.of(2026, 9, 12),
-                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 3, 10_000,
-                ActivityStatus.PUBLISHED, joined, mine);
+                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 3, 5, 10_000,
+                ActivityStatus.PUBLISHED,
+                new ActivityDetailResponse.SpaceInfo(7L, "불당 카페", "천안시 서북구 불당동"),
+                joined, mine);
     }
 
     @Test
@@ -197,7 +199,7 @@ class ActivityControllerTest {
     @Test
     @DisplayName("U-01 목록은 비로그인으로 조회할 수 있고 참여 여부는 false 로 나간다")
     void listAnonymous() throws Exception {
-        given(activityService.search(isNull(), isNull(), isNull(), isNull()))
+        given(activityService.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
                 .willReturn(List.of(summary(1L, false, false)));
 
         mockMvc.perform(get("/api/activities"))
@@ -210,7 +212,7 @@ class ActivityControllerTest {
     @Test
     @DisplayName("U-02 type·field·keyword 필터가 서비스로 그대로 전달된다")
     void listWithFilters() throws Exception {
-        given(activityService.search(eq(TestUsers.MEMBER), eq(ActivityType.CLASS), eq(ActivityField.PHOTO), eq("출사")))
+        given(activityService.search(eq(TestUsers.MEMBER), eq(ActivityType.CLASS), eq(ActivityField.PHOTO), eq("출사"), isNull(), isNull(), isNull()))
                 .willReturn(List.of());
 
         mockMvc.perform(get("/api/activities")
@@ -218,19 +220,77 @@ class ActivityControllerTest {
                         .with(TestUsers.member()))
                 .andExpect(status().isOk());
 
-        verify(activityService).search(TestUsers.MEMBER, ActivityType.CLASS, ActivityField.PHOTO, "출사");
+        verify(activityService).search(TestUsers.MEMBER, ActivityType.CLASS, ActivityField.PHOTO, "출사", null, null, null);
     }
 
     @Test
     @DisplayName("로그인 상태로 목록을 보면 참여 여부·개설자 여부가 표시된다")
     void listAuthenticated() throws Exception {
-        given(activityService.search(eq(TestUsers.MEMBER), isNull(), isNull(), isNull()))
+        given(activityService.search(eq(TestUsers.MEMBER), isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
                 .willReturn(List.of(summary(1L, true, true)));
 
         mockMvc.perform(get("/api/activities").with(TestUsers.member()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].alreadyJoined").value(true))
                 .andExpect(jsonPath("$.data[0].mine").value(true));
+    }
+
+    @Test
+    @DisplayName("기능명세 4.1 region·dateFrom·dateTo 가 서비스로 그대로 전달된다")
+    void listWithRegionAndDateFilters() throws Exception {
+        given(activityService.search(isNull(), isNull(), isNull(), isNull(), eq("불당동"),
+                eq(LocalDate.of(2026, 9, 1)), eq(LocalDate.of(2026, 9, 30))))
+                .willReturn(List.of(summary(1L, false, false)));
+
+        mockMvc.perform(get("/api/activities")
+                        .param("region", "불당동")
+                        .param("dateFrom", "2026-09-01")
+                        .param("dateTo", "2026-09-30"))
+                .andExpect(status().isOk());
+
+        verify(activityService).search(null, null, null, null, "불당동",
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30));
+    }
+
+    @Test
+    @DisplayName("기능명세 4.1 목록 응답에 잔여 인원과 확정 공간이 실린다")
+    void listCarriesRemainingCapacityAndSpace() throws Exception {
+        given(activityService.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
+                .willReturn(List.of(summary(1L, false, false)));
+
+        mockMvc.perform(get("/api/activities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].remainingCapacity").value(5))
+                .andExpect(jsonPath("$.data[0].space.id").value(7))
+                .andExpect(jsonPath("$.data[0].space.name").value("불당 카페"))
+                .andExpect(jsonPath("$.data[0].space.region").value("천안시 서북구 불당동"))
+                .andExpect(jsonPath("$.data[0].space.address").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("dateFrom 이 dateTo 보다 늦으면 400 INVALID_REQUEST")
+    void listWithInvertedDateRange() throws Exception {
+        given(activityService.search(isNull(), isNull(), isNull(), isNull(), isNull(),
+                eq(LocalDate.of(2026, 9, 30)), eq(LocalDate.of(2026, 9, 1))))
+                .willThrow(new BusinessException(ErrorCode.INVALID_REQUEST,
+                        "조회 시작일(dateFrom)은 종료일(dateTo)보다 늦을 수 없습니다."));
+
+        mockMvc.perform(get("/api/activities")
+                        .param("dateFrom", "2026-09-30")
+                        .param("dateTo", "2026-09-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("기능명세 4.1 상세 응답에도 잔여 인원·확정 공간이 실리고, 공간에 주소는 없다 (회귀)")
+    void detailCarriesRemainingCapacityAndSpaceWithoutAddress() throws Exception {
+        given(activityService.detail(isNull(), eq(1L))).willReturn(detail(ActivityType.HOBBY, false));
+
+        mockMvc.perform(get("/api/activities/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.remainingCapacity").value(8))
+                .andExpect(jsonPath("$.data.space").doesNotExist());
     }
 
     @Test
@@ -294,8 +354,9 @@ class ActivityControllerTest {
         ActivityDetailResponse published = new ActivityDetailResponse(
                 1L, ActivityType.HOBBY, ActivityField.ART, "수채화 모임", "설명", List.of("/files/a.jpg"),
                 "일반회원", false, LocalDate.of(2026, 9, 12),
-                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 10_000,
+                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 8, 10_000,
                 ActivityStatus.PUBLISHED,
+                new ActivityDetailResponse.SpaceInfo(7L, "불당 카페", "천안시 서북구 불당동"),
                 new SpaceRequirementDto("천안시 서북구", 6, Set.of(FacilityType.WATER), false, true),
                 false, false);
         given(activityService.detail(isNull(), eq(1L))).willReturn(published);
