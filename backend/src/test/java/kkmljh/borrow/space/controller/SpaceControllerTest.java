@@ -7,6 +7,7 @@ import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.FacilityType;
 import kkmljh.borrow.space.dto.SpaceResponse;
 import kkmljh.borrow.space.service.SpaceService;
+import kkmljh.borrow.support.TestFixtures;
 import kkmljh.borrow.support.TestUsers;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,11 @@ class SpaceControllerTest {
         return new SpaceResponse(id, "불당동 스튜디오", "천안시 서북구 불당동", "불당대로 1",
                 List.of("/files/s.jpg"), 10, 10_000, "음료 1잔 주문",
                 Set.of(FacilityType.TABLE), Set.of(ActivityField.ART), true, false);
+    }
+
+    /** 공개 응답 — 주소 전문 없이 동 단위(region)까지만 (기능명세 6.1 rules) */
+    private SpaceResponse publicResponse(Long id) {
+        return SpaceResponse.from(TestFixtures.space(id, TestUsers.HOST));
     }
 
     @Test
@@ -174,6 +180,39 @@ class SpaceControllerTest {
         mockMvc.perform(get("/api/spaces/99"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("SPACE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("공개 목록 응답에는 주소 전문이 없다 (기능명세 6.1 rules)")
+    void listHidesAddress() throws Exception {
+        given(spaceService.findAll()).willReturn(List.of(publicResponse(1L)));
+
+        mockMvc.perform(get("/api/spaces"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].address").doesNotExist())
+                .andExpect(jsonPath("$.data[0].region").value("천안시 서북구 불당동"));
+    }
+
+    @Test
+    @DisplayName("공개 상세 응답에도 주소 전문이 없다")
+    void detailHidesAddress() throws Exception {
+        given(spaceService.findById(1L)).willReturn(publicResponse(1L));
+
+        mockMvc.perform(get("/api/spaces/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.address").doesNotExist())
+                .andExpect(jsonPath("$.data.region").value("천안시 서북구 불당동"));
+    }
+
+    @Test
+    @DisplayName("내 공간 목록(HOST 본인)에는 주소 전문이 나간다")
+    void mineKeepsAddress() throws Exception {
+        given(spaceService.findMySpaces(TestUsers.HOST))
+                .willReturn(List.of(SpaceResponse.forOwner(TestFixtures.space(1L, TestUsers.HOST))));
+
+        mockMvc.perform(get("/api/spaces/mine").with(TestUsers.host()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].address").value("불당대로 1"));
     }
 
     @Test
