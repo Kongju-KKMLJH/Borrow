@@ -213,4 +213,32 @@ class SpaceDtoTest {
         assertThat(response.spaceId()).isEqualTo(5L);
         assertThat(response.spaceName()).isEqualTo("불당동 스튜디오");
     }
+
+    @Nested
+    @DisplayName("SpaceRequest 중복 판정용 정규화 (기능명세 6.1 exceptions)")
+    class TrimmedValues {
+
+        private SpaceRequest request(String name, String address) {
+            return new SpaceRequest(name, "천안", address, null, 10, 10_000, "조건",
+                    null, null, false, false);
+        }
+
+        @Test
+        @DisplayName("앞뒤 공백만 제거한다 — 가운데 공백은 접지 않는다")
+        void trimsOnly() {
+            SpaceRequest request = request("  불당동  스튜디오 ", " 불당대로 1  ");
+
+            assertThat(request.trimmedName()).isEqualTo("불당동  스튜디오");
+            assertThat(request.trimmedAddress()).isEqualTo("불당대로 1");
+        }
+
+        @Test
+        @DisplayName("주소는 선택 입력이라 null 이면 null 그대로 둔다")
+        void keepsNullAddress() {
+            SpaceRequest request = request("스튜디오", null);
+
+            assertThat(request.trimmedAddress()).isNull();
+            assertThat(request.trimmedName()).isEqualTo("스튜디오");
+        }
+    }
 }
