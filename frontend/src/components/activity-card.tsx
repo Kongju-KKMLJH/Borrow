@@ -65,8 +65,19 @@ export function ActivityCard({
 
         <MetaRow icon="calendar-outline" text={`${formatDate(activity.date)} ${formatTime(activity.startTime)}`} />
 
+        {activity.space && (
+          <MetaRow icon="location-outline" text={activity.space.name} />
+        )}
+
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
-          <AppText variant="caption" color="textSecondary">{activity.currentHeadcount} / {activity.capacity}명</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <AppText variant="caption" color="textSecondary">{activity.currentHeadcount} / {activity.capacity}명</AppText>
+            {activity.status === 'PUBLISHED' && activity.remainingCapacity > 0 && (
+              <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, backgroundColor: theme.primarySoft }}>
+                <AppText variant="tiny" tint={theme.primary}>잔여 {activity.remainingCapacity}석</AppText>
+              </View>
+            )}
+          </View>
           <AppText variant="title" tint={theme.primary}>{formatCurrency(activity.entryFee)}</AppText>
         </View>
       </View>

@@ -23,6 +23,13 @@ export const PROVIDER_TABS: TabItem[] = [
   { name: 'space', label: '공간 관리', icon: 'storefront-outline', active: 'storefront' },
 ];
 
+export const ADMIN_TABS: TabItem[] = [
+  { name: 'index', label: '홈', icon: 'home-outline', active: 'home' },
+  { name: 'members', label: '회원', icon: 'people-outline', active: 'people' },
+  { name: 'activities', label: '프로그램', icon: 'documents-outline', active: 'documents' },
+  { name: 'spaces', label: '공간', icon: 'storefront-outline', active: 'storefront' },
+];
+
 type TabBarProps = {
   state: { index: number; routes: { key: string; name: string }[] };
   navigation: { emit: (...a: any[]) => any; navigate: (name: string) => void };

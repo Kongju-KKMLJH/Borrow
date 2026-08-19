@@ -6,6 +6,7 @@ import kkmljh.borrow.ai.dto.RequirementResponse;
 import kkmljh.borrow.ai.llm.LlmClient;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
+import kkmljh.borrow.domain.FacilityType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,13 +47,24 @@ public class ActivityAnalysisService {
                 throw new BusinessException(ErrorCode.AI_ANALYSIS_FAILED);
             }
 
+            String region = request.region() == null ? "" : request.region().trim();
+            List<FacilityType> facilities =
+                    analyzed.requiredFacilities() == null ? List.of() : analyzed.requiredFacilities();
+
+            // 기능명세 2.2.1 보완 질문 — LLM을 다시 부르지 않고 빈 값 판정으로 끝낸다.
+            // 인원은 아래에서 1 이상으로 보정하므로, 판정은 반드시 <b>보정 전 원본값</b>으로 한다.
+            List<String> missingFields =
+                    RequirementGuide.missingFields(region, analyzed.headcount(), facilities);
+
             return new RequirementResponse(
-                    request.region() == null ? "" : request.region().trim(),
+                    region,
                     Math.max(analyzed.headcount(), 1),
-                    analyzed.requiredFacilities() == null ? List.of() : analyzed.requiredFacilities(),
+                    facilities,
                     analyzed.noisy(),
                     analyzed.messy(),
-                    analyzed.field()
+                    analyzed.field(),
+                    missingFields,
+                    RequirementGuide.questionsFor(missingFields)
             );
         } catch (BusinessException e) {
             throw e;

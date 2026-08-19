@@ -44,7 +44,9 @@ export default function LoginScreen() {
       } else {
         await signup({ loginId: loginId.trim(), password, nickname: nickname.trim(), role });
       }
-      router.replace('/(user)');
+      // 역할 분기는 진입 화면 한 곳(app/index.tsx)에만 둔다 — login() 이 역할을 돌려주지 않고,
+      // 분기를 두 벌로 만들면 관리자 라우팅이 한쪽에서만 갱신된다.
+      router.replace('/');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '오류가 발생했어요.';
       setError(msg);

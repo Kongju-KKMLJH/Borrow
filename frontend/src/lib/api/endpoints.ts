@@ -29,6 +29,14 @@ import type {
   RequestStatus,
   RejectRequest,
   AnalyzeRequest,
+  AdminUserResponse,
+  AdminUserRequest,
+  AdminActivityRequest,
+  AdminSpaceRequest,
+  AdminVerificationResponse,
+  AdminActivityResponse,
+  AdminSpaceResponse,
+  ArtistVerificationStatus,
   RequirementResponse,
   MatchRequest,
   SpaceMatchResponse,
@@ -247,4 +255,75 @@ export const uploadApi = {
     }
     return apiClient.upload<UploadResponse>('/api/uploads', formData);
   },
+};
+
+// ── Admin (관리자 콘솔, 기능명세 7) ────────────────────────────────────
+
+export const adminApi = {
+  /** 7.1.1 전체 회원 목록 (ADMIN) — 탈퇴 회원까지 포함한 관리용 목록 */
+  users: () => apiClient.get<AdminUserResponse[]>('/api/admin/users'),
+
+  /** 7.1.2 임시(mock) 회원 생성 (ADMIN) */
+  createUser: (body: AdminUserRequest) =>
+    apiClient.post<AdminUserResponse>('/api/admin/users', body),
+
+  /** 7.1.2 임시 회원 수정 (ADMIN) — password 를 비우면 기존 값 유지 */
+  updateUser: (userId: number, body: AdminUserRequest) =>
+    apiClient.put<AdminUserResponse>(`/api/admin/users/${userId}`, body),
+
+  /** 7.1.2 임시 회원 삭제 (ADMIN) — 남긴 프로그램·공간·참여가 있으면 거절된다 */
+  deleteUser: (userId: number) => apiClient.delete<void>(`/api/admin/users/${userId}`),
+
+  /** 7.1.3 회원 강제 탈퇴 (ADMIN) — 로그인·서비스 이용이 차단된다 */
+  withdrawUser: (userId: number) =>
+    apiClient.post<AdminUserResponse>(`/api/admin/users/${userId}/withdraw`),
+
+  /** 7.1.4 예술가 인증 신청 목록 (ADMIN) — status 생략 시 심사 대기(PENDING)만 */
+  verifications: (status?: ArtistVerificationStatus) => {
+    const qs = status ? `?${new URLSearchParams({ status }).toString()}` : '';
+    return apiClient.get<AdminVerificationResponse[]>(`/api/admin/artist-verifications${qs}`);
+  },
+
+  /** 7.1.4 예술가 인증 승인 (ADMIN) */
+  approveVerification: (verificationId: number) =>
+    apiClient.post<AdminVerificationResponse>(
+      `/api/admin/artist-verifications/${verificationId}/approve`
+    ),
+
+  /** 7.2.1 전체 프로그램 목록 (ADMIN) — 상태·삭제 여부를 가리지 않는다 */
+  activities: () => apiClient.get<AdminActivityResponse[]>('/api/admin/activities'),
+
+  /** 7.2.2 임시(mock) 프로그램 생성 (ADMIN) */
+  createActivity: (body: AdminActivityRequest) =>
+    apiClient.post<AdminActivityResponse>('/api/admin/activities', body),
+
+  /** 7.2.2 임시 프로그램 수정 (ADMIN) — 개최 요청은 지우고 다시 만든다 */
+  updateActivity: (activityId: number, body: AdminActivityRequest) =>
+    apiClient.put<AdminActivityResponse>(`/api/admin/activities/${activityId}`, body),
+
+  /** 7.2.2 임시 프로그램 삭제 (ADMIN) — 참여 신청이 있으면 거절된다 */
+  deleteActivity: (activityId: number) =>
+    apiClient.delete<void>(`/api/admin/activities/${activityId}`),
+
+  /** 7.2.3 프로그램 강제 삭제 (ADMIN) — 시민 탐색·참여 신청에서 제외된다 */
+  forceDeleteActivity: (activityId: number) =>
+    apiClient.post<AdminActivityResponse>(`/api/admin/activities/${activityId}/force-delete`),
+
+  /** 7.3.1 전체 공간 목록 (ADMIN) — 강제 삭제된 공간도 포함한다 */
+  spaces: () => apiClient.get<AdminSpaceResponse[]>('/api/admin/spaces'),
+
+  /** 7.3.2 임시(mock) 공간 생성 (ADMIN) — 슬롯이 있어야 AI 추천 후보에 걸린다 */
+  createSpace: (body: AdminSpaceRequest) =>
+    apiClient.post<AdminSpaceResponse>('/api/admin/spaces', body),
+
+  /** 7.3.2 임시 공간 수정 (ADMIN) — 이용 가능 시간은 전체 교체된다 */
+  updateSpace: (spaceId: number, body: AdminSpaceRequest) =>
+    apiClient.put<AdminSpaceResponse>(`/api/admin/spaces/${spaceId}`, body),
+
+  /** 7.3.2 임시 공간 삭제 (ADMIN) — 개최 요청이 걸려 있으면 거절된다 */
+  deleteSpace: (spaceId: number) => apiClient.delete<void>(`/api/admin/spaces/${spaceId}`),
+
+  /** 7.3.3 공간 강제 삭제 (ADMIN) — 진행 중인 개최 요청은 모두 자동 거절된다 */
+  forceDeleteSpace: (spaceId: number) =>
+    apiClient.post<AdminSpaceResponse>(`/api/admin/spaces/${spaceId}/force-delete`),
 };

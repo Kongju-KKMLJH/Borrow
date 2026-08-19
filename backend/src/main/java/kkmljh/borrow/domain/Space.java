@@ -12,11 +12,16 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OrderColumn;
+import kkmljh.borrow.common.exception.BusinessException;
+import kkmljh.borrow.common.exception.ErrorCode;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -82,28 +87,64 @@ public class Space {
     /** 오염(물감 등) 발생 활동 허용 여부 (B-04 제한 조건) */
     private boolean messAllowed;
 
+    /** 등록일 — 관리자 공간 목록의 표시 항목 (기능명세 7.3.1 display) */
+    private LocalDateTime createdAt;
+
+    /** 관리자가 만든 임시(mock) 공간인지 (기능명세 7.3.2) */
+    @Column(nullable = false)
+    private boolean mock;
+
+    /** 관리자의 강제 삭제 처리 일시 — null 이면 정상 (기능명세 7.3.3 dataSpec) */
+    private LocalDateTime forceDeletedAt;
+
     @Builder
     private Space(String ownerId, String name, String region, String address, List<String> imageUrls,
                   int capacity, int hourlyFee, String conditions,
                   Set<FacilityType> facilities, Set<ActivityField> allowedFields,
-                  boolean noiseAllowed, boolean messAllowed) {
+                  boolean noiseAllowed, boolean messAllowed, boolean mock) {
+        this.mock = mock;
+        this.createdAt = LocalDateTime.now();
         this.ownerId = ownerId;
         this.name = name;
         this.region = region;
         this.address = address;
-        if (imageUrls != null) this.imageUrls = imageUrls;
+        // 방어적 복사 — 호출자가 넘긴 컬렉션을 그대로 들면 ⑴ List.of() 같은 불변 컬렉션일 때
+        // update* 의 clear() 가 터지고 ⑵ 호출자가 원본을 바꾸면 엔티티 상태가 몰래 따라 바뀐다.
+        if (imageUrls != null) this.imageUrls = new ArrayList<>(imageUrls);
         this.capacity = capacity;
         this.hourlyFee = hourlyFee;
         this.conditions = conditions;
-        if (facilities != null) this.facilities = facilities;
-        if (allowedFields != null) this.allowedFields = allowedFields;
+        if (facilities != null) this.facilities = new HashSet<>(facilities);
+        if (allowedFields != null) this.allowedFields = new HashSet<>(allowedFields);
         this.noiseAllowed = noiseAllowed;
         this.messAllowed = messAllowed;
+    }
+
+    /**
+     * 활동 시간(시작~종료) 기준 공간 이용료 — <b>시간당 단가 × 이용 시간</b>.
+     *
+     * <p>예술가용 매칭 확정 화면(기능명세 5.1 · {@code PriceBreakdown.spaceRentalFee})과
+     * 파트너용 개최 요청 상세(기능명세 3.2 {@code display})가 <b>같은 금액</b>을 보여야 한다.
+     * 그래서 계산은 여기 한 곳에만 둔다 — <b>어느 응답 DTO 에도 계산식을 복사하지 마라.</b>
+     *
+     * <p>시간은 분 단위로 계산해 원 단위로 반올림한다(예: 시간당 10,000원 × 1시간 30분 = 15,000원).
+     */
+    public int rentalFeeFor(LocalTime startTime, LocalTime endTime) {
+        long minutes = Duration.between(startTime, endTime).toMinutes();
+        return Math.round(this.hourlyFee * (minutes / 60f));
     }
 
     /** 이 공간의 소유자(공간 제공자)인지 */
     public boolean isOwnedBy(String loginId) {
         return this.ownerId.equals(loginId);
+    }
+
+    /**
+     * 등록자 변경 — 관리자가 만든 임시(mock) 공간에만 쓴다 (기능명세 7.3.2).
+     * 실제 공간의 소유자는 바뀌지 않는다(변경 API 없음). 호출부가 임시 공간인지 먼저 확인한다.
+     */
+    public void updateOwner(String ownerId) {
+        this.ownerId = ownerId;
     }
 
     public void updateBasicInfo(String name, String region, String address, List<String> imageUrls, int capacity) {
@@ -130,5 +171,21 @@ public class Space {
     public void updateFeeAndConditions(int hourlyFee, String conditions) {
         this.hourlyFee = hourlyFee;
         this.conditions = conditions;
+    }
+
+    /**
+     * 관리자의 강제 삭제 (기능명세 7.3.3). 행을 지우지 않고 삭제 상태로만 표시한다 —
+     * 승인된 개최 요청이 이 공간을 참조하고 있어 실제 삭제는 FK를 깨뜨린다.
+     * 진행 중인 개최 요청 자동 거절은 서비스가 이어서 처리한다(확정 정책).
+     */
+    public void forceDelete() {
+        if (isForceDeleted()) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "이미 삭제 처리된 공간입니다.");
+        }
+        this.forceDeletedAt = LocalDateTime.now();
+    }
+
+    public boolean isForceDeleted() {
+        return this.forceDeletedAt != null;
     }
 }

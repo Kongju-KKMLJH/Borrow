@@ -35,6 +35,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -74,11 +75,15 @@ class ActivityControllerTest {
     private ActivityService activityService;
 
     private ActivityDetailResponse detail(ActivityType type, boolean certified) {
+        return detail(type, certified, ActivityStatus.DRAFT);
+    }
+
+    private ActivityDetailResponse detail(ActivityType type, boolean certified, ActivityStatus status) {
         return new ActivityDetailResponse(
                 1L, type, ActivityField.ART, "수채화 모임", "설명", List.of("/files/a.jpg"),
                 "일반회원", certified, LocalDate.of(2026, 9, 12),
-                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 10_000,
-                ActivityStatus.DRAFT,
+                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 8, 10_000,
+                status, null,
                 new SpaceRequirementDto("천안시 서북구", 6, Set.of(FacilityType.WATER), false, true),
                 false, false);
     }
@@ -87,27 +92,25 @@ class ActivityControllerTest {
         return new ActivitySummaryResponse(
                 id, ActivityType.HOBBY, ActivityField.ART, "수채화 모임", List.of(),
                 "일반회원", false, LocalDate.of(2026, 9, 12),
-                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 3, 10_000,
-                ActivityStatus.PUBLISHED, joined, mine);
+                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 3, 5, 10_000,
+                ActivityStatus.PUBLISHED,
+                new ActivityDetailResponse.SpaceInfo(7L, "불당 카페", "천안시 서북구 불당동"),
+                joined, mine);
     }
 
     @Test
-    @DisplayName("U-06 MEMBER 가 활동을 개설하면 HOBBY 로 만들어진다")
-    void createByMember() throws Exception {
-        given(activityService.create(eq(TestUsers.MEMBER), any()))
-                .willReturn(detail(ActivityType.HOBBY, false));
-
+    @DisplayName("MEMBER 는 활동을 개설할 수 없다 — 403 (개설은 예술가로 한정, 기능명세 1.2)")
+    void memberCannotCreate() throws Exception {
         mockMvc.perform(post("/api/activities").with(TestUsers.member())
                         .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.type").value("HOBBY"))
-                .andExpect(jsonPath("$.data.hostCertified").value(false))
-                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+
+        verify(activityService, never()).create(any(), any());
     }
 
     @Test
-    @DisplayName("ARTIST 가 개설하면 CLASS · 인증 배지로 만들어진다 (F-01)")
+    @DisplayName("U-06 ARTIST 가 개설하면 CLASS · 인증 배지로 만들어진다 (F-01)")
     void createByArtist() throws Exception {
         given(activityService.create(eq(TestUsers.ARTIST), any()))
                 .willReturn(detail(ActivityType.CLASS, true));
@@ -122,10 +125,11 @@ class ActivityControllerTest {
     @Test
     @DisplayName("요청 본문의 type·hostCertified·hostNickname 은 무시된다 (배지·이름 위조 차단)")
     void ignoresForgedFields() throws Exception {
-        given(activityService.create(eq(TestUsers.MEMBER), any()))
+        // 서버가 정하는 값만 응답에 실린다 — 요청이 CLASS·배지·닉네임을 보내도 반영되지 않는다.
+        given(activityService.create(eq(TestUsers.ARTIST), any()))
                 .willReturn(detail(ActivityType.HOBBY, false));
 
-        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+        mockMvc.perform(post("/api/activities").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"field":"ART","title":"수채화","date":"2026-09-12",
@@ -159,7 +163,7 @@ class ActivityControllerTest {
     @Test
     @DisplayName("제목이 비면 400 INVALID_REQUEST")
     void titleRequired() throws Exception {
-        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+        mockMvc.perform(post("/api/activities").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"field":"ART","title":"","date":"2026-09-12",
@@ -172,7 +176,7 @@ class ActivityControllerTest {
     @Test
     @DisplayName("정원이 0 이하면 400 INVALID_REQUEST")
     void capacityMustBePositive() throws Exception {
-        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+        mockMvc.perform(post("/api/activities").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"field":"ART","title":"수채화","date":"2026-09-12",
@@ -188,7 +192,7 @@ class ActivityControllerTest {
         given(activityService.create(any(), any())).willThrow(
                 new BusinessException(ErrorCode.INVALID_REQUEST, "종료 시각은 시작 시각보다 늦어야 합니다."));
 
-        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+        mockMvc.perform(post("/api/activities").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON).content(CREATE_BODY))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.message").value("종료 시각은 시작 시각보다 늦어야 합니다."));
@@ -197,7 +201,7 @@ class ActivityControllerTest {
     @Test
     @DisplayName("U-01 목록은 비로그인으로 조회할 수 있고 참여 여부는 false 로 나간다")
     void listAnonymous() throws Exception {
-        given(activityService.search(isNull(), isNull(), isNull(), isNull()))
+        given(activityService.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
                 .willReturn(List.of(summary(1L, false, false)));
 
         mockMvc.perform(get("/api/activities"))
@@ -210,7 +214,7 @@ class ActivityControllerTest {
     @Test
     @DisplayName("U-02 type·field·keyword 필터가 서비스로 그대로 전달된다")
     void listWithFilters() throws Exception {
-        given(activityService.search(eq(TestUsers.MEMBER), eq(ActivityType.CLASS), eq(ActivityField.PHOTO), eq("출사")))
+        given(activityService.search(eq(TestUsers.MEMBER), eq(ActivityType.CLASS), eq(ActivityField.PHOTO), eq("출사"), isNull(), isNull(), isNull()))
                 .willReturn(List.of());
 
         mockMvc.perform(get("/api/activities")
@@ -218,13 +222,13 @@ class ActivityControllerTest {
                         .with(TestUsers.member()))
                 .andExpect(status().isOk());
 
-        verify(activityService).search(TestUsers.MEMBER, ActivityType.CLASS, ActivityField.PHOTO, "출사");
+        verify(activityService).search(TestUsers.MEMBER, ActivityType.CLASS, ActivityField.PHOTO, "출사", null, null, null);
     }
 
     @Test
     @DisplayName("로그인 상태로 목록을 보면 참여 여부·개설자 여부가 표시된다")
     void listAuthenticated() throws Exception {
-        given(activityService.search(eq(TestUsers.MEMBER), isNull(), isNull(), isNull()))
+        given(activityService.search(eq(TestUsers.MEMBER), isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
                 .willReturn(List.of(summary(1L, true, true)));
 
         mockMvc.perform(get("/api/activities").with(TestUsers.member()))
@@ -234,13 +238,116 @@ class ActivityControllerTest {
     }
 
     @Test
-    @DisplayName("⚠️ 알려진 제약: 알 수 없는 필터 값은 400이 아니라 500 INTERNAL_ERROR 로 나간다")
+    @DisplayName("기능명세 4.1 region·dateFrom·dateTo 가 서비스로 그대로 전달된다")
+    void listWithRegionAndDateFilters() throws Exception {
+        given(activityService.search(isNull(), isNull(), isNull(), isNull(), eq("불당동"),
+                eq(LocalDate.of(2026, 9, 1)), eq(LocalDate.of(2026, 9, 30))))
+                .willReturn(List.of(summary(1L, false, false)));
+
+        mockMvc.perform(get("/api/activities")
+                        .param("region", "불당동")
+                        .param("dateFrom", "2026-09-01")
+                        .param("dateTo", "2026-09-30"))
+                .andExpect(status().isOk());
+
+        verify(activityService).search(null, null, null, null, "불당동",
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30));
+    }
+
+    @Test
+    @DisplayName("기능명세 4.1 목록 응답에 잔여 인원과 확정 공간이 실린다")
+    void listCarriesRemainingCapacityAndSpace() throws Exception {
+        given(activityService.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
+                .willReturn(List.of(summary(1L, false, false)));
+
+        mockMvc.perform(get("/api/activities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].remainingCapacity").value(5))
+                .andExpect(jsonPath("$.data[0].space.id").value(7))
+                .andExpect(jsonPath("$.data[0].space.name").value("불당 카페"))
+                .andExpect(jsonPath("$.data[0].space.region").value("천안시 서북구 불당동"))
+                .andExpect(jsonPath("$.data[0].space.address").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("dateFrom 이 dateTo 보다 늦으면 400 INVALID_REQUEST")
+    void listWithInvertedDateRange() throws Exception {
+        given(activityService.search(isNull(), isNull(), isNull(), isNull(), isNull(),
+                eq(LocalDate.of(2026, 9, 30)), eq(LocalDate.of(2026, 9, 1))))
+                .willThrow(new BusinessException(ErrorCode.INVALID_REQUEST,
+                        "조회 시작일(dateFrom)은 종료일(dateTo)보다 늦을 수 없습니다."));
+
+        mockMvc.perform(get("/api/activities")
+                        .param("dateFrom", "2026-09-30")
+                        .param("dateTo", "2026-09-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("기능명세 4.1 상세 응답에도 잔여 인원·확정 공간이 실리고, 공간에 주소는 없다 (회귀)")
+    void detailCarriesRemainingCapacityAndSpaceWithoutAddress() throws Exception {
+        given(activityService.detail(isNull(), eq(1L))).willReturn(detail(ActivityType.HOBBY, false));
+
+        mockMvc.perform(get("/api/activities/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.remainingCapacity").value(8))
+                .andExpect(jsonPath("$.data.space").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("과거 날짜로는 개설할 수 없다 — 400 INVALID_REQUEST (#75)")
+    void createRejectsPastDate() throws Exception {
+        // 고정된 과거 날짜라 현재 시각과 무관하게 항상 과거다.
+        String pastDateBody = CREATE_BODY.replace("\"date\":\"2026-09-12\"", "\"date\":\"2020-01-01\"");
+
+        mockMvc.perform(post("/api/activities")
+                        .with(TestUsers.artist())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pastDateBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+
+        verify(activityService, never()).create(any(), any());
+    }
+
+    @Test
+    @DisplayName("원시 타입 필드(capacity)가 통째로 빠지면 400 INVALID_REQUEST (#77 회귀)")
+    void createRejectsMissingPrimitiveField() throws Exception {
+        // Jackson 3 는 record 의 원시 타입 컴포넌트가 빠지면 0 으로 채우지 않고 역직렬화를 실패시킨다
+        // → HttpMessageNotReadableException → 기존 핸들러가 400 INVALID_REQUEST 로 변환한다.
+        // 조용히 0 으로 저장되지 않는다는 것이 이 테스트가 지키는 계약이다.
+        String body = """
+                {"field":"ART","title":"수채화 모임","date":"2026-09-12",
+                 "startTime":"14:00:00","endTime":"16:00:00","entryFee":10000}
+                """;
+
+        mockMvc.perform(post("/api/activities")
+                        .with(TestUsers.artist())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+
+        verify(activityService, never()).create(any(), any());
+    }
+
+    @Test
+    @DisplayName("알 수 없는 필터 값은 400 INVALID_REQUEST 로 나간다 (#8·#30 회귀)")
     void invalidFilterValue() throws Exception {
-        // MethodArgumentTypeMismatchException 은 스프링이 400으로 처리하는 예외지만,
-        // GlobalExceptionHandler 의 @ExceptionHandler(Exception.class) 가 먼저 잡아 500으로 바꾼다.
+        // MethodArgumentTypeMismatchException 전용 핸들러가 없던 시절에는
+        // @ExceptionHandler(Exception.class) 가 먼저 잡아 500이 나갔다.
         mockMvc.perform(get("/api/activities").param("type", "UNKNOWN"))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error.code").value("INTERNAL_ERROR"));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("경로 변수 타입이 맞지 않아도 400 INVALID_REQUEST 다 (#8·#30 회귀)")
+    void invalidPathVariableType() throws Exception {
+        mockMvc.perform(get("/api/activities/not-a-number"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
     }
 
     @Test
@@ -294,8 +401,9 @@ class ActivityControllerTest {
         ActivityDetailResponse published = new ActivityDetailResponse(
                 1L, ActivityType.HOBBY, ActivityField.ART, "수채화 모임", "설명", List.of("/files/a.jpg"),
                 "일반회원", false, LocalDate.of(2026, 9, 12),
-                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 10_000,
+                LocalTime.of(14, 0), LocalTime.of(16, 0), 8, 0, 8, 10_000,
                 ActivityStatus.PUBLISHED,
+                new ActivityDetailResponse.SpaceInfo(7L, "불당 카페", "천안시 서북구 불당동"),
                 new SpaceRequirementDto("천안시 서북구", 6, Set.of(FacilityType.WATER), false, true),
                 false, false);
         given(activityService.detail(isNull(), eq(1L))).willReturn(published);
@@ -374,7 +482,7 @@ class ActivityControllerTest {
     @Test
     @DisplayName("⚠️ 프론트 주의: 개설 요청의 원시 타입 필드(capacity·entryFee)를 빼면 400")
     void primitiveFieldsMustBePresent() throws Exception {
-        mockMvc.perform(post("/api/activities").with(TestUsers.member())
+        mockMvc.perform(post("/api/activities").with(TestUsers.artist())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"field":"ART","title":"수채화 모임","date":"2026-09-12",
@@ -541,6 +649,61 @@ class ActivityControllerTest {
                 .given(activityService).delete(TestUsers.MEMBER, 99L);
 
         mockMvc.perform(delete("/api/activities/99").with(TestUsers.member()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ACTIVITY_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("기능명세 3.3 개설자 본인은 MATCHED 활동을 결제해 공개할 수 있다")
+    void payByOwner() throws Exception {
+        given(activityService.pay(TestUsers.MEMBER, 1L))
+                .willReturn(detail(ActivityType.HOBBY, false, ActivityStatus.PUBLISHED));
+
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.member()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PUBLISHED"));
+
+        verify(activityService).pay(TestUsers.MEMBER, 1L);
+    }
+
+    @Test
+    @DisplayName("승인 전(MATCHED 아님) 활동 결제는 400 INVALID_REQUEST")
+    void payBeforeApproval() throws Exception {
+        willThrow(new BusinessException(ErrorCode.INVALID_REQUEST, "공간 승인 후 매칭이 확정된 활동만 결제할 수 있습니다."))
+                .given(activityService).pay(TestUsers.MEMBER, 1L);
+
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.member()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("남의 활동 결제는 403 FORBIDDEN")
+    void payOthersActivity() throws Exception {
+        willThrow(new BusinessException(ErrorCode.FORBIDDEN))
+                .given(activityService).pay("other-member", 1L);
+
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.as("other-member")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("HOST 는 결제할 수 없다 — 403, 비로그인은 401")
+    void payRequiresMemberOrArtist() throws Exception {
+        mockMvc.perform(post("/api/activities/1/payment").with(TestUsers.host()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/activities/1/payment"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("없는 활동 결제는 404 ACTIVITY_NOT_FOUND")
+    void payNotFound() throws Exception {
+        willThrow(new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND))
+                .given(activityService).pay(TestUsers.MEMBER, 99L);
+
+        mockMvc.perform(post("/api/activities/99/payment").with(TestUsers.member()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("ACTIVITY_NOT_FOUND"));
     }

@@ -3,6 +3,7 @@ package kkmljh.borrow.support;
 import kkmljh.borrow.domain.Activity;
 import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.AppUser;
+import kkmljh.borrow.domain.ArtistVerification;
 import kkmljh.borrow.domain.FacilityType;
 import kkmljh.borrow.domain.HostingRequest;
 import kkmljh.borrow.domain.Participation;
@@ -30,6 +31,7 @@ public final class TestFixtures {
 
     public static final String HOST_LOGIN_ID = "owner1";
     public static final String MEMBER_LOGIN_ID = "member1";
+    public static final String ADMIN_LOGIN_ID = "admin1";
 
     private TestFixtures() {
     }
@@ -74,6 +76,25 @@ public final class TestFixtures {
 
     public static AppUser host() {
         return user(HOST_LOGIN_ID, "공간주인", Role.HOST);
+    }
+
+    public static AppUser admin() {
+        return user(ADMIN_LOGIN_ID, "관리자", Role.ADMIN);
+    }
+
+    // --- ArtistVerification (기능명세 1.2 · 7.1.4) ---
+
+    /** 심사 대기(PENDING) 상태의 예술가 인증 신청 */
+    public static ArtistVerification verification(Long id, String loginId) {
+        return withId(ArtistVerification.builder()
+                .loginId(loginId)
+                .portfolioUrl("https://portfolio.example.com/" + loginId)
+                .career("수채화 클래스 3년 진행")
+                .build(), id);
+    }
+
+    public static ArtistVerification verification() {
+        return verification(1L, "artist1");
     }
 
     // --- SpaceRequirement ---

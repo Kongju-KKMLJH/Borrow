@@ -4,13 +4,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("Space 엔티티")
 class SpaceTest {
@@ -193,20 +193,107 @@ class SpaceTest {
         }
 
         @Test
-        @DisplayName("⚠️ 알려진 제약: 불변 컬렉션으로 생성된 인스턴스는 그대로 수정할 수 없다")
-        void updateFailsOnImmutableCollections() {
-            // 생성자가 전달받은 컬렉션을 방어적 복사 없이 그대로 들고, update*는 clear()로 시작한다.
-            // 실사용에서는 수정 시점의 엔티티를 DB에서 다시 읽어오므로(가변 컬렉션) 드러나지 않지만,
-            // 등록 직후 같은 인스턴스를 이어서 수정하면 여기서 깨진다.
-            // 이 제약이 사라지면(방어적 복사 도입) 이 테스트가 실패하므로 그때 지우면 된다.
+        @DisplayName("불변 컬렉션으로 생성해도 이어서 수정할 수 있다 (#76 회귀)")
+        void updateWorksOnImmutableCollections() {
+            // 빌더가 방어적 복사 없이 그대로 들고 있던 시절에는, update*의 clear()에서
+            // UnsupportedOperationException 이 났다. 등록 직후 같은 인스턴스를 이어서 수정하는 경로다.
             Space space = base()
                     .imageUrls(List.of())
                     .facilities(Set.of())
                     .allowedFields(Set.of())
                     .build();
 
-            assertThatThrownBy(() -> space.updateFacilities(Set.of(FacilityType.WIFI)))
-                    .isInstanceOf(UnsupportedOperationException.class);
+            space.updateFacilities(Set.of(FacilityType.WIFI));
+            space.updateAllowedActivities(Set.of(ActivityField.PHOTO), true, true);
+            space.updateBasicInfo("새 이름", "천안시 동남구", "새 주소", List.of("/files/new.jpg"), 20);
+
+            assertThat(space.getFacilities()).containsExactly(FacilityType.WIFI);
+            assertThat(space.getAllowedFields()).containsExactly(ActivityField.PHOTO);
+            assertThat(space.getImageUrls()).containsExactly("/files/new.jpg");
+        }
+
+        @Test
+        @DisplayName("빌더에 넘긴 컬렉션을 나중에 바꿔도 엔티티 상태는 따라 바뀌지 않는다 (#76 회귀)")
+        void builderCopiesGivenCollections() {
+            List<String> images = mutableList("/files/a.jpg");
+            Set<FacilityType> facilities = mutableSet(FacilityType.TABLE);
+            Set<ActivityField> fields = mutableSet(ActivityField.ART);
+
+            Space space = base()
+                    .imageUrls(images)
+                    .facilities(facilities)
+                    .allowedFields(fields)
+                    .build();
+
+            images.add("/files/b.jpg");
+            facilities.add(FacilityType.WIFI);
+            fields.add(ActivityField.PHOTO);
+
+            assertThat(space.getImageUrls()).containsExactly("/files/a.jpg");
+            assertThat(space.getFacilities()).containsExactly(FacilityType.TABLE);
+            assertThat(space.getAllowedFields()).containsExactly(ActivityField.ART);
+        }
+
+        @Test
+        @DisplayName("수정에 넘긴 컬렉션도 복사해 담는다 — 원본을 바꿔도 엔티티는 그대로 (#76 회귀)")
+        void updateCopiesGivenCollections() {
+            Space space = base().build();
+            List<String> images = mutableList("/files/new.jpg");
+
+            space.updateBasicInfo("새 이름", "천안시 동남구", "새 주소", images, 20);
+            images.add("/files/extra.jpg");
+
+            assertThat(space.getImageUrls()).containsExactly("/files/new.jpg");
+        }
+    }
+
+    /**
+     * 기능명세 3.2 display — 파트너용 개최 요청 상세와 예술가용 매칭 확정 화면이 <b>같은 금액</b>을
+     * 보여야 해서 계산을 도메인 한 곳으로 모았다. 응답 DTO 에 계산식을 복사하면 이 테스트가
+     * 지키는 "한 곳" 규칙이 깨진다.
+     */
+    @Nested
+    @DisplayName("공간 이용료 계산 (기능명세 3.2 display · 5.1)")
+    class RentalFee {
+
+        private Space space(int hourlyFee) {
+            return base().hourlyFee(hourlyFee).build();
+        }
+
+        @Test
+        @DisplayName("시간당 단가 × 이용 시간")
+        void wholeHours() {
+            assertThat(space(10_000).rentalFeeFor(LocalTime.of(14, 0), LocalTime.of(16, 0)))
+                    .isEqualTo(20_000);
+        }
+
+        @Test
+        @DisplayName("한 시간이 안 되는 자투리도 분 단위로 계산한다")
+        void partialHour() {
+            assertThat(space(10_000).rentalFeeFor(LocalTime.of(14, 0), LocalTime.of(15, 30)))
+                    .isEqualTo(15_000);
+            assertThat(space(10_000).rentalFeeFor(LocalTime.of(14, 0), LocalTime.of(14, 30)))
+                    .isEqualTo(5_000);
+        }
+
+        @Test
+        @DisplayName("원 단위로 반올림한다 — 시간당 10,000원 × 20분 = 3,333원")
+        void roundsToWon() {
+            assertThat(space(10_000).rentalFeeFor(LocalTime.of(14, 0), LocalTime.of(14, 20)))
+                    .isEqualTo(3_333);
+        }
+
+        @Test
+        @DisplayName("경계 — 시작과 종료가 같으면 0원")
+        void zeroLength() {
+            assertThat(space(10_000).rentalFeeFor(LocalTime.of(14, 0), LocalTime.of(14, 0)))
+                    .isZero();
+        }
+
+        @Test
+        @DisplayName("무료 공간은 시간이 얼마든 0원")
+        void freeSpace() {
+            assertThat(space(0).rentalFeeFor(LocalTime.of(9, 0), LocalTime.of(18, 0))).isZero();
         }
     }
 }

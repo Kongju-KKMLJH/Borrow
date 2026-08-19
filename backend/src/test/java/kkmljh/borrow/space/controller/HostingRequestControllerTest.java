@@ -50,7 +50,7 @@ class HostingRequestControllerTest {
 
     private HostingRequestResponse response(Long id, RequestStatus status, String reason, boolean scheduleMismatch) {
         return new HostingRequestResponse(id, status, reason,
-                new HostingRequestResponse.SpaceInfo(5L, "불당동 스튜디오", "천안시 서북구"),
+                new HostingRequestResponse.SpaceInfo(5L, "불당동 스튜디오", "천안시 서북구", 10_000, 20_000),
                 new HostingRequestResponse.ActivityInfo(1L, "수채화 모임", "설명", ActivityField.ART,
                         LocalDate.of(2026, 9, 12), LocalTime.of(14, 0), LocalTime.of(16, 0),
                         8, 10_000, "일반회원",
@@ -107,7 +107,12 @@ class HostingRequestControllerTest {
         mockMvc.perform(get("/api/host/requests/1").with(TestUsers.host()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.activity.entryFee").value(10000))
-                .andExpect(jsonPath("$.data.scheduleMismatch").value(false));
+                .andExpect(jsonPath("$.data.scheduleMismatch").value(false))
+                // 기능명세 3.2 display — 파트너는 공간 이용료를 보고 승인/거절한다
+                .andExpect(jsonPath("$.data.space.hourlyFee").value(10000))
+                .andExpect(jsonPath("$.data.space.expectedRentalFee").value(20000))
+                // 기능명세 6.1 rules — 주소 전문은 여기로 새지 않는다 (이슈 #53)
+                .andExpect(jsonPath("$.data.space.address").doesNotExist());
     }
 
     @Test
@@ -152,6 +157,17 @@ class HostingRequestControllerTest {
         mockMvc.perform(post("/api/host/requests/1/approve").with(TestUsers.host()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("REQUEST_ALREADY_HANDLED"));
+    }
+
+    @Test
+    @DisplayName("모집 정원이 공간 수용 인원을 넘으면 승인은 400 CAPACITY_EXCEEDS_SPACE (이슈 #9)")
+    void approveCapacityExceedsSpace() throws Exception {
+        given(hostingRequestService.approve(any(), any()))
+                .willThrow(new BusinessException(ErrorCode.CAPACITY_EXCEEDS_SPACE));
+
+        mockMvc.perform(post("/api/host/requests/1/approve").with(TestUsers.host()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("CAPACITY_EXCEEDS_SPACE"));
     }
 
     @Test

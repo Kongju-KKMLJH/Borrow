@@ -22,16 +22,16 @@ const SORTS: Sort[] = ['추천순', '임박순', '남은자리순'];
 const sortComparators: Record<Sort, ((a: ActivitySummaryResponse, b: ActivitySummaryResponse) => number) | null> = {
   추천순: null, // 서버 응답 순서 유지
   임박순: (a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime), // 활동일이 가까운 순
-  남은자리순: (a, b) => b.capacity - b.currentHeadcount - (a.capacity - a.currentHeadcount),
+  남은자리순: (a, b) => b.remainingCapacity - a.remainingCapacity,
 };
 
 export default function Activities() {
   const theme = useTheme();
   const [filter, setFilter] = useState<Filter>('전체');
   const [query, setQuery] = useState('');
+  const [region, setRegion] = useState('');
   const [sort, setSort] = useState<Sort>('추천순');
   const [sortOpen, setSortOpen] = useState(false);
-  const [region, setRegion] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -58,7 +58,7 @@ export default function Activities() {
       }
       contentContainerStyle={{ gap: Spacing.lg, paddingBottom: Spacing.huge }}>
       {/* 검색 */}
-      <View style={{ paddingHorizontal: Spacing.xl }}>
+      <View style={{ paddingHorizontal: Spacing.xl, gap: Spacing.sm }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: theme.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12 }}>
           <Ionicons name="search" size={18} color={theme.textMuted} />
           <TextInput
@@ -68,6 +68,21 @@ export default function Activities() {
             placeholderTextColor={theme.textMuted}
             style={{ flex: 1, fontFamily: FontFamily.regular, fontSize: 15, color: theme.text, padding: 0 }}
           />
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: theme.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12 }}>
+          <Ionicons name="location-outline" size={18} color={theme.textMuted} />
+          <TextInput
+            value={region}
+            onChangeText={setRegion}
+            placeholder="지역으로 검색 (예: 불당동, 천안시)"
+            placeholderTextColor={theme.textMuted}
+            style={{ flex: 1, fontFamily: FontFamily.regular, fontSize: 15, color: theme.text, padding: 0 }}
+          />
+          {region.length > 0 && (
+            <Pressable hitSlop={8} onPress={() => setRegion('')}>
+              <Ionicons name="close-circle" size={18} color={theme.textMuted} />
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -79,10 +94,7 @@ export default function Activities() {
       </ScrollView>
 
       <View style={{ paddingHorizontal: Spacing.xl, gap: Spacing.sm }}>
-        <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-          <TextInput value={region} onChangeText={setRegion} placeholder="지역 (예: 천안)" placeholderTextColor={theme.textMuted} style={{ flex: 1, backgroundColor: theme.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, color: theme.text, fontFamily: FontFamily.regular }} />
-          <TextInput value={dateFrom} onChangeText={setDateFrom} placeholder="시작일 YYYY-MM-DD" placeholderTextColor={theme.textMuted} style={{ flex: 1, backgroundColor: theme.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, color: theme.text, fontFamily: FontFamily.regular }} />
-        </View>
+        <TextInput value={dateFrom} onChangeText={setDateFrom} placeholder="시작일 YYYY-MM-DD" placeholderTextColor={theme.textMuted} style={{ backgroundColor: theme.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, color: theme.text, fontFamily: FontFamily.regular }} />
         <TextInput value={dateTo} onChangeText={setDateTo} placeholder="종료일 YYYY-MM-DD (선택)" placeholderTextColor={theme.textMuted} style={{ backgroundColor: theme.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, color: theme.text, fontFamily: FontFamily.regular }} />
         {filterError && <AppText variant="caption" tint={theme.danger}>{filterError}</AppText>}
       </View>

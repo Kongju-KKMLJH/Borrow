@@ -6,6 +6,7 @@ import kkmljh.borrow.auth.repository.AppUserRepository;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
 import kkmljh.borrow.domain.AppUser;
+import kkmljh.borrow.domain.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,8 +21,16 @@ public class AuthService {
     private final AppUserRepository appUserRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * 회원가입. {@code /api/auth/signup} 은 <b>비로그인 허용</b>이므로 요청 DTO의 role을 그대로
+     * 신뢰하면 안 된다 — ADMIN을 보내면 누구나 관리자 콘솔에 들어온다 (기능명세 7 permissions).
+     * 관리자 계정은 {@code AdminAccountInitializer} 가 환경변수로만 만든다.
+     */
     @Transactional
     public MeResponse signup(SignupRequest req) {
+        if (req.role() == Role.ADMIN) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "선택할 수 없는 회원 유형입니다.");
+        }
         if (appUserRepository.existsByLoginId(req.loginId())) {
             throw new BusinessException(ErrorCode.DUPLICATE_LOGIN_ID);
         }

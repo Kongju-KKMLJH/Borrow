@@ -63,8 +63,10 @@ public class SpaceSlotService {
         spaceSlotRepository.delete(slot);
     }
 
+    /** 강제 삭제된 공간은 없는 것으로 취급한다 (기능명세 7.3.3). */
     private Space getSpace(Long spaceId) {
         return spaceRepository.findById(spaceId)
+                .filter(space -> !space.isForceDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.SPACE_NOT_FOUND));
     }
 
@@ -78,7 +80,7 @@ public class SpaceSlotService {
     }
 
     private void ensureSpaceExists(Long spaceId) {
-        if (!spaceRepository.existsById(spaceId)) {
+        if (!spaceRepository.existsByIdAndForceDeletedAtIsNull(spaceId)) {
             throw new BusinessException(ErrorCode.SPACE_NOT_FOUND);
         }
     }

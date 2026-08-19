@@ -9,6 +9,7 @@ import java.util.Set;
 /**
  * A-03 매칭 결과 1건. 적합도 점수(score, 0~100) 내림차순으로 정렬되어 반환된다.
  *
+ * @param cautions 개최 전 확인할 주의사항 (기능명세 3.1 {@code display}). 짚을 것이 없으면 빈 목록
  * @param aiScored true면 Claude 점수, false면 API 실패로 규칙 기반 폴백 점수
  */
 public record SpaceMatchResponse(
@@ -22,16 +23,14 @@ public record SpaceMatchResponse(
         Set<ActivityField> allowedFields,
         int score,
         String reason,
+        List<String> cautions,
         boolean aiScored
 ) {
-    public static SpaceMatchResponse of(kkmljh.borrow.domain.Space s, int score, String reason, boolean aiScored) {
+    public static SpaceMatchResponse of(kkmljh.borrow.domain.Space s, int score, String reason,
+                                        List<String> cautions, boolean aiScored) {
         return new SpaceMatchResponse(
                 s.getId(), s.getName(), s.getRegion(), s.getCapacity(), s.getHourlyFee(),
                 s.getImageUrls(), s.getFacilities(), s.getAllowedFields(),
-                score, reason, aiScored);
-    }
-
-    public static List<SpaceMatchResponse> emptyList() {
-        return List.of();
+                score, reason, cautions == null ? List.of() : cautions, aiScored);
     }
 }
