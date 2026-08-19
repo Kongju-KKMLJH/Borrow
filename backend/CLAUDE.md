@@ -106,6 +106,11 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 | 7.3.2 | 임시 공간 데이터 생성·수정·삭제 |
 | 7.3.3 | 공간 강제 삭제 처리 |
 
+> ⚠️ **위 표는 명세 원문의 제목이고, 구현은 super admin 으로 넓어졌다.** `7.1.2`·`7.2.2`·`7.3.2`의
+> "임시(mock) 데이터"는 **실제 회원·프로그램·공간 전체**를 대상으로 하는 CRUD 로 구현됐고,
+> `7.1.3`·`7.2.3`·`7.3.3`의 강제 탈퇴·강제 삭제는 **별도 엔드포인트 없이 삭제(DELETE)에 흡수**됐다
+> (소프트 삭제 → 연쇄 하드 삭제). 표의 번호를 고쳐 쓰지 말고 이 각주로 연결해 읽어라.
+
 > ⚠️ **번호는 유도값이다.** 요구사항 순서와 각 요구사항 아래 기능 배열 순서로 매겼고, **원문에 검증된 것은 `2.1`뿐**이다(이슈 #49 제목 "기능명세 2.1"). 명세에서 항목이 추가·삭제되면 **번호가 밀린다** — 그때는 **이 표를 먼저 고치고** 다른 문서를 맞춘다. 표에 없는 번호를 새로 지어내지 마라.
 
 ## API 표면 (구현 완료 기준)
@@ -118,11 +123,14 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 - AI: `/api/ai/**` — 로그인 전체
 - 업로드: `POST /api/uploads`(로그인), 서빙 `/files/**`(공개)
 - 관리자 콘솔: `/api/admin/**` — ADMIN 전용 (기능명세 7, 이슈 #86)
-  - 회원 `GET /api/admin/users`, 강제 탈퇴 `POST .../users/{userId}/withdraw`
+  - 회원 `GET /api/admin/users`
   - 인증 심사 `GET /api/admin/artist-verifications`(기본 PENDING), 승인 `POST .../{id}/approve`
-  - 프로그램 `GET /api/admin/activities`, 강제 삭제 `POST .../{activityId}/force-delete`
-  - 공간 `GET /api/admin/spaces`, 강제 삭제 `POST .../{spaceId}/force-delete`
-  - 임시(mock) 데이터 CRUD `POST`·`PUT`·`DELETE /api/admin/{users,activities,spaces}` (기능명세 7.1.2·7.2.2·7.3.2, 이슈 #88)
+  - 프로그램 `GET /api/admin/activities`
+  - 공간 `GET /api/admin/spaces`
+  - 실제 데이터 CRUD `POST`·`PUT`·`DELETE /api/admin/{users,activities,spaces}` (기능명세 7.1.2·7.2.2·7.3.2, 이슈 #88)
+  - ⚠️ `POST .../users/{userId}/withdraw`, `POST .../activities/{activityId}/force-delete`,
+    `POST .../spaces/{spaceId}/force-delete` 는 **제거됐다.** 강제 탈퇴·강제 삭제는 `DELETE` 로 통합됐다 —
+    프론트에 남은 호출을 지워라.
 
 활동 **수정·삭제 규칙** (설계 확정, 코드에 반영됨):
 
@@ -307,19 +315,41 @@ ADMIN_LOGIN_ID=admin ADMIN_PASSWORD='<직접 정한 값>' ./gradlew bootRun
 
 | 대상 | 규칙 | 어디에 |
 |---|---|---|
-| ADMIN 계정 생성 | 가입 API로 만들 수 없다. 환경변수 시드(`AdminAccountInitializer`)와 **관리자 콘솔의 임시 회원 생성도 ADMIN을 거부**한다 | `AuthService.signup`, `AdminUserService.create` |
-| 강제 탈퇴·강제 삭제 (7.1.3·7.2.3·7.3.3) | **소프트 삭제** — 행을 남기고 `withdrawnAt`/`forceDeletedAt`만 채운다 | `AppUser`·`Activity`·`Space` |
-| 임시 데이터 삭제 (7.1.2·7.2.2·7.3.2) | **하드 삭제** — 대신 `mock=true`인 것만, 자식 데이터가 남아 있으면 거절 | `Admin*Service.delete` |
+**콘솔은 super admin 이다** (2026-08-20 전환). `mock` 플래그와 소프트 삭제(`withdrawnAt`/`forceDeletedAt`)를
+전부 걷어내고, 수정·삭제가 **모든 실제 객체**에 동작한다.
+
+| 대상 | 규칙 | 어디에 |
+|---|---|---|
+| ADMIN 계정 생성 | 가입 API로 만들 수 없다. 환경변수 시드(`AdminAccountInitializer`)와 **관리자 콘솔의 회원 생성도 ADMIN을 거부**한다 | `AuthService.signup`, `AdminUserService.create` |
+| ADMIN 계정 보호 | 콘솔의 **수정·삭제 대상에서 ADMIN을 제외**한다(403). 되돌릴 API가 없어 콘솔 자체가 잠긴다 | `AdminUserService.getManagedUser` |
+| 관리자 삭제 (7.1.2·7.2.2·7.3.2) | **연쇄 하드 삭제** — 자식이 있어도 거절하지 않고 함께 지운다. 순서·flush는 `AdminCascadeDeleter` 한 곳에 | `AdminCascadeDeleter`, `Admin*Service.delete` |
+| 자기 데이터 삭제 | 반대로 **자식이 있으면 거절**한다(`SPACE_HAS_REQUESTS` 등). **관리자 정책에 맞춰 무르게 고치지 마라** | `SpaceService.delete`, `ActivityService.delete` |
 | 인가 | `/api/admin/**` 한 줄만 ADMIN. 기존 MEMBER/HOST/ARTIST 줄에 **ADMIN을 섞지 마라** | `SecurityConfig` |
 
-- **왜 섞으면 안 되나**: 관리자가 개설자 자격으로 남의 활동을 수정할 수 있게 되어, "관리자가 대신 편집하지 않는다"는 기능명세 7.2 범위 제외가 깨진다.
-- **임시 프로그램의 상태는 전이 메서드로만 밟는다.** `AdminActivityService.applyStatus`가 `markPending()`→`approve()`→`publish()` 순서를 그대로 탄다. status를 직접 대입하는 setter를 만들면 실제 프로그램의 상태 흐름까지 무너진다. 임시 데이터 전용 진입점은 `resetToDraftByAdmin()`·`forceStatus()`뿐이고 **이름에 `ByAdmin`/`force`를 붙여 실제 경로와 구분**한다.
-- **임시 공간에는 이용 가능 시간을 함께 만든다.** A-02가 슬롯 시간 겹침으로 후보를 거르므로, 슬롯 없는 공간은 AI 추천에 걸리지 않는다(기능명세 7.3.2 `outcome` 미충족).
+- **왜 섞으면 안 되나**: 관리자가 개설자 자격으로 남의 활동을 수정할 수 있게 되어, 관리 조치와 일반 사용자 경로의 구분이 사라진다. 관리자 조치는 `/api/admin/**` 로만 들어온다.
+- **연쇄 삭제 범위** (`AdminCascadeDeleter`):
+  - 프로그램 삭제 = 참여 신청 → 개최 요청 → 프로그램
+  - 공간 삭제 = (개최지를 잃는 프로그램을 `reject()` 로 되돌림) → 개최 요청 → 이용 시간 → 공간. **남의 참여 신청은 지우지 않는다** — 프로그램이 살아 있고 다른 공간에 재요청할 수 있다.
+  - 회원 삭제 = 인증 신청 → 본인 참여 신청 → 개설 프로그램 → 등록 공간 → 회원. **프로그램이 공간보다 먼저**여야 "내 프로그램 → 내 공간" 요청을 두 번 처리하지 않는다.
+- **Activity·Space 는 반드시 엔티티 단위 `delete`.** 둘 다 `@ElementCollection`(이미지·시설·허용분야)을 들고 있어 파생/JPQL 벌크 삭제로 지우면 자식 테이블 행이 고아로 남는다.
+- **`AdminCascadeDeleter` 에 `@Transactional` 을 붙이지 않는다.** 호출자 트랜잭션에 참여해야 중간 실패가 절반만 커밋되지 않는다. `deleteSpace` 는 개최 요청을 읽기 전에 `EntityManager.flush()` 로 앞 단계 삭제를 반영한다 — 안 하면 이미 지우기로 한 프로그램에 `reject()` 를 부른다.
+- **프로그램 상태는 전이 메서드로만 밟는다.** `AdminActivityService.applyStatus`가 `markPending()`→`approve()`→`publish()` 순서를 그대로 탄다. status를 직접 대입하는 setter를 만들면 실제 프로그램의 상태 흐름까지 무너진다. 관리자 전용 진입점은 `resetToDraftByAdmin()`·`updateHostByAdmin()`·`forceStatus()`·`updateOwner()` 뿐이고 **실제 개설·수정 경로에서는 호출 금지**다.
+- **`AdminActivityService.update` 는 개최 요청을 지우고 다시 만든다.** 실제 프로그램에도 적용되므로 파트너의 승인·거절 이력이 사라진다 — 의도된 super admin 동작이고 Swagger 설명에 명시돼 있다.
+- **콘솔로 만든 공간에는 이용 가능 시간을 함께 만든다.** A-02가 슬롯 시간 겹침으로 후보를 거르므로, 슬롯 없는 공간은 AI 추천에 걸리지 않는다(기능명세 7.3.2 `outcome` 미충족).
 
 ## 알려진 제약 / 같이 처리할 것
 
 - **활동 수정·삭제는 `DRAFT`/`REJECTED`에서만 가능하다 (설계 확정).** `PENDING`은 심사 중, `PUBLISHED`는 참여자가 있어 손대지 않는다. 공개된 활동의 수정·취소는 취소·환불 정책이 정해진 뒤 별도 이슈로 다룬다 `(미확정 — 결정 필요)`.
 - **공간 주소를 승인된 개최 요청의 예술가에게 공개할지 미정** `(미확정 — 결정 필요)`. 기능명세 6.1 `rules`는 "시민과 예술가에게 동 단위까지"라고만 쓴다. **결정 전까지는 소유 HOST 본인에게만** 주소 전문을 준다.
 - **`AppUser` 등 테이블 생성 방식은 로컬 `application.yml`의 `ddl-auto`에 달렸다.** 이 파일은 저장소에 없으므로(gitignore) 직접 확인해야 한다. **prod에는 `create` 절대 금지** (`DEPLOYMENT.md`).
+  - ⚠️ **super admin 전환 후 수동 ALTER 가 필요하다.** `ddl-auto: update` 는 컬럼을 **drop 하지 않는다.** 엔티티에서 필드가 사라졌는데 DB에 `mock` 컬럼이 `NOT NULL` 로 남아 있으면 **회원·프로그램·공간 INSERT 가 전부 실패**한다(기본값 없이 컬럼이 빠진 INSERT 문이 나간다). 기존 DB를 쓰는 사람은 아래를 한 번 실행한다.
+
+    ```sql
+    ALTER TABLE app_user DROP COLUMN mock, DROP COLUMN withdrawn_at;
+    ALTER TABLE activity DROP COLUMN mock, DROP COLUMN force_deleted_at;
+    ALTER TABLE space    DROP COLUMN mock, DROP COLUMN force_deleted_at;
+    ```
+
+    고지: 기존 `mock=true` 행은 그대로 실제 객체가 되고, 강제 탈퇴 처리됐던 회원은 **다시 로그인할 수 있게 된다**(소프트 삭제를 없앤 결과, 의도된 동작). DB를 새로 만들면 ALTER는 필요 없다.
 - actuator 의존성이 없어 `/actuator/health`가 없다 — 배포 헬스체크는 공개 `GET /api/activities`로 대체한다.
 - 미해결 버그 이슈: #9(모집 정원이 승인 공간 수용인원과 무관), #8·#30(잘못된 enum·파라미터가 400 대신 500), #11(과거 날짜로 활동 개설 가능 — 개설 DTO에 `@FutureOrPresent` 누락, 수정 DTO에는 있음). 데모를 막지는 않는다.

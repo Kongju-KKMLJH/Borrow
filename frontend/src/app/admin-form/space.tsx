@@ -13,10 +13,10 @@ import type { ActivityField, DayOfWeek, FacilityType } from '@/lib/api/types';
 import { ActivityFieldLabel, DayOfWeekLabel, FacilityTypeLabel } from '@/lib/format';
 
 /**
- * 임시(mock) 공간 생성·수정 (기능명세 7.3.2).
+ * 관리자 공간 생성·수정 (기능명세 7.3.2).
  *
  * 이용 가능 시간을 함께 받는다 — AI 매칭이 슬롯 시간 겹침으로 후보를 거르므로,
- * 슬롯 없는 임시 공간은 추천에 걸리지 않는다.
+ * 슬롯 없는 공간은 추천에 걸리지 않는다.
  */
 
 const FACILITY_OPTIONS: { label: string; value: FacilityType }[] =
@@ -103,7 +103,7 @@ export default function AdminSpaceForm() {
 
   return (
     <Screen
-      header={<ScreenHeader title={editingId !== null ? '임시 공간 수정' : '임시 공간 생성'} />}
+      header={<ScreenHeader title={editingId !== null ? '공간 수정' : '공간 생성'} />}
       contentContainerStyle={{ gap: Spacing.lg, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.huge }}>
       {error ? <AppText variant="caption" tint={theme.danger}>{error}</AppText> : null}
 

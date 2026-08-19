@@ -500,20 +500,22 @@ ADMIN이 아닌 계정을 `(user)`로 되돌린다.
 |---------|--------|-----|
 | 인증 심사 섹션 | 신청자 닉네임·아이디·포트폴리오 + "인증 승인" | `GET /api/admin/artist-verifications` → `POST .../{id}/approve` |
 | 역할 필터 | "전체" / "시민" / "예술가" / "공간 파트너" | (클라이언트 필터 — 목록 API는 전체를 준다) |
-| 회원 카드 | 닉네임 · 아이디 · 가입일 + 역할/인증/임시/탈퇴 배지 | `GET /api/admin/users` |
-| 강제 탈퇴 | 확인 모달 → "강제 탈퇴" | `POST /api/admin/users/{userId}/withdraw` |
+| 회원 카드 | 닉네임 · 아이디 · 가입일 + 역할/인증 배지 | `GET /api/admin/users` |
+| 수정·삭제 | 행마다 "수정" / "삭제"(확인 모달) | `PUT /api/admin/users/{userId}` · `DELETE .../{userId}` |
 
-- 탈퇴 회원과 관리자 계정에는 강제 탈퇴 버튼을 노출하지 않는다.
+- **관리자(ADMIN) 계정 행에는 수정·삭제 버튼을 노출하지 않는다.** 서버도 403으로 막는다(콘솔 잠금 방지).
+- 회원 삭제는 **연쇄 하드 삭제**다 — 그 회원의 인증 신청·참여 신청·개설 프로그램·등록 공간까지 함께 지워진다. 모달이 이를 경고한다.
 - 인증 상태 `NONE`은 "신청한 적 없음" — 백엔드 enum에는 없고 응답 문자열로만 온다.
 
 ### 19. 프로그램 관리 (7.2) — `/(admin)/activities`
 
 | UI 영역 | 텍스트 | API |
 |---------|--------|-----|
-| 상태 필터 | "전체" / "모집 중" / "승인 대기" / "삭제됨" | (클라이언트 필터) |
-| 프로그램 카드 | 프로그램명 · 담당 예술가 · 공간 · 일정 · 정원 + 상태/유형/임시/삭제 배지 | `GET /api/admin/activities` |
-| 강제 삭제 | 확인 모달 → "강제 삭제" | `POST /api/admin/activities/{id}/force-delete` |
+| 상태 필터 | "전체" / "모집 중" / "승인 대기" | (클라이언트 필터) |
+| 프로그램 카드 | 프로그램명 · 담당 예술가 · 공간 · 일정 · 정원 + 상태/유형 배지 | `GET /api/admin/activities` |
+| 수정·삭제 | 행마다 "수정" / "삭제"(확인 모달) | `PUT /api/admin/activities/{id}` · `DELETE .../{id}` |
 
+- 프로그램 삭제는 **연쇄 하드 삭제**다 — 참여 신청과 개최 요청이 함께 지워진다.
 - 상태 라벨은 `src/lib/admin-format.ts`의 `activityStatusLabel`이 매핑한다. 백엔드에 이미 있는
   `MATCHED`가 프론트 `ActivityStatus` 타입에는 아직 없어, 매핑에 없는 값은 원문을 그대로 보여준다.
 
@@ -521,25 +523,24 @@ ADMIN이 아닌 계정을 `(user)`로 되돌린다.
 
 | UI 영역 | 텍스트 | API |
 |---------|--------|-----|
-| 상태 필터 | "전체" / "운영 중" / "삭제됨" | (클라이언트 필터) |
 | 공간 카드 | 공간명 · 등록자 · 등록일 · **주소 전문** · 수용 인원 · 시간당 이용료 | `GET /api/admin/spaces` |
-| 강제 삭제 | 확인 모달 → "강제 삭제" | `POST /api/admin/spaces/{id}/force-delete` |
+| 수정·삭제 | 행마다 "수정" / "삭제"(확인 모달) | `PUT /api/admin/spaces/{id}` · `DELETE .../{id}` |
 
 - **주소 전문은 관리자 응답에만 있다.** 공개 공간 응답(`GET /api/spaces`)은 여전히 동 단위(`region`)까지다.
-- 공간을 강제 삭제하면 진행 중인 개최 요청이 모두 자동 거절되고, 해당 활동은 `REJECTED`로 돌아간다.
+- 공간 삭제는 **연쇄 하드 삭제**다 — 이용 가능 시간과 개최 요청이 함께 지워지고, 이 공간에서 승인됐던 프로그램은 `REJECTED`로 되돌아간다(재요청 가능).
 
-### 21~23. 임시(mock) 데이터 폼 (7.1.2 · 7.2.2 · 7.3.2) — `/admin-form/*`
+### 21~23. 관리자 데이터 폼 (7.1.2 · 7.2.2 · 7.3.2) — `/admin-form/*`
 
-목록 화면 3개의 "임시 생성" 버튼과 각 임시 데이터 행의 "수정" 버튼이 여기로 온다.
+목록 화면 3개의 생성 버튼("회원 생성" · "프로그램 생성" · "공간 생성")과 각 행의 "수정" 버튼이 여기로 온다.
 `(admin)` 탭 밖의 스택 화면이라 `admin-form/_layout.tsx`가 ADMIN 가드를 한 번 더 건다.
 
 | 화면 | 경로 | API |
 |---|---|---|
-| 임시 회원 폼 | `/admin-form/user`(+`?userId=`) | `POST /api/admin/users` · `PUT .../{userId}` |
-| 임시 프로그램 폼 | `/admin-form/activity`(+`?activityId=`) | `POST /api/admin/activities` · `PUT .../{activityId}` |
-| 임시 공간 폼 | `/admin-form/space`(+`?spaceId=`) | `POST /api/admin/spaces` · `PUT .../{spaceId}` |
+| 회원 폼 | `/admin-form/user`(+`?userId=`) | `POST /api/admin/users` · `PUT .../{userId}` |
+| 프로그램 폼 | `/admin-form/activity`(+`?activityId=`) | `POST /api/admin/activities` · `PUT .../{activityId}` |
+| 공간 폼 | `/admin-form/space`(+`?spaceId=`) | `POST /api/admin/spaces` · `PUT .../{spaceId}` |
 
-삭제는 목록 화면에서 `ConfirmModal` → `DELETE /api/admin/{...}/{id}`.
+생성·수정 대상은 **실제 객체**다(별도의 임시 데이터 개념은 없다). 삭제는 목록 화면에서 `ConfirmModal` → `DELETE /api/admin/{...}/{id}`.
 
 **폼이 받지 않는 것과 그 이유**
 
@@ -550,5 +551,5 @@ ADMIN이 아닌 계정을 `(user)`로 되돌린다.
 **주의**
 
 - 프로그램 상태를 `MATCHED`·`PUBLISHED`로 두려면 **공간 id가 필수**다(개최지는 승인된 개최 요청으로만 표현된다). 폼이 저장 버튼을 막고 안내한다.
-- 임시 공간의 **이용 가능 요일·시간**은 선택한 요일마다 같은 시간대로 깔린다. 이게 없으면 AI 추천 후보에 걸리지 않는다.
+- 공간의 **이용 가능 요일·시간**은 선택한 요일마다 같은 시간대로 깔린다. 이게 없으면 AI 추천 후보에 걸리지 않는다.
 - 수정 시 대상은 **목록 API에서 찾는다** — 관리자용 단건 조회 API는 만들지 않았다.
