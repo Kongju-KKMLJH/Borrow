@@ -117,6 +117,10 @@ export const activityApi = {
     apiClient.get<ActivityHostingRequestResponse>(
       `/api/activities/${activityId}/hosting-request`
     ),
+
+  /** 매칭 이용료 Mock 결제 — MATCHED 상태인 활동만 결제 가능, 성공 시 PUBLISHED 전환 (개설자 본인) */
+  confirmPayment: (activityId: number) =>
+    apiClient.post<ActivityDetailResponse>(`/api/activities/${activityId}/payment`),
 };
 
 // ── Me (내 활동) ────────────────────────────────────────────────────────
@@ -161,6 +165,10 @@ export const spaceApi = {
   /** 유휴시간 슬롯 추가 (소유자) */
   addSlot: (spaceId: number, body: SpaceSlotRequest) =>
     apiClient.post<SpaceSlotResponse>(`/api/spaces/${spaceId}/slots`, body),
+
+  /** 유휴시간 슬롯 수정 (소유자) — 요청 body는 등록(POST)과 동일 */
+  updateSlot: (spaceId: number, slotId: number, body: SpaceSlotRequest) =>
+    apiClient.put<SpaceSlotResponse>(`/api/spaces/${spaceId}/slots/${slotId}`, body),
 
   /** 유휴시간 슬롯 삭제 (소유자) */
   deleteSlot: (spaceId: number, slotId: number) =>

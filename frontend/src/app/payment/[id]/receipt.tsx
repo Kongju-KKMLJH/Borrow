@@ -1,4 +1,5 @@
 import { useLocalSearchParams, router } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,8 +10,6 @@ import { Spacing } from '@/constants/theme';
 import { formatCurrency } from '@/lib/format';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
-
-const MATCHING_FEE = 5000;
 
 export default function PaymentReceipt() {
   const theme = useTheme();
@@ -32,6 +31,18 @@ export default function PaymentReceipt() {
     return await spaceApi.detail(hostingRequest.spaceId);
   }, [hostingRequest?.spaceId]);
 
+  const [paying, setPaying] = useState(false);
+
+  const pay = async () => {
+    setPaying(true);
+    try {
+      await activityApi.confirmPayment(activityId);
+      router.push(`/payment/${activityId}/done`);
+    } finally {
+      setPaying(false);
+    }
+  };
+
   if (!activity || !space) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top']}>
@@ -43,9 +54,11 @@ export default function PaymentReceipt() {
     );
   }
 
-  const spaceFee = space.hourlyFee;
-  const expectedRevenue = activity.entryFee * activity.capacity;
-  const netRevenue = expectedRevenue - spaceFee - MATCHING_FEE;
+  const price = hostingRequest?.price;
+  const expectedRevenue = price?.expectedParticipantRevenue ?? 0;
+  const spaceRentalFee = price?.spaceRentalFee ?? 0;
+  const matchingFee = price?.platformMatchingFee ?? 0;
+  const netRevenue = price?.expectedOperatingProfit ?? 0;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top']}>
@@ -56,7 +69,7 @@ export default function PaymentReceipt() {
           <Card tone="flat" padding="lg" radius="lg" style={{ gap: Spacing.md }}>
             <Row label="공간명" value={space.name} />
             {space.address && <Row label="주소" value={space.address} />}
-            <Row label="공간 이용료" value={formatCurrency(spaceFee)} tint={theme.primary} last />
+            <Row label="시간당 이용료" value={formatCurrency(space.hourlyFee)} tint={theme.primary} last />
           </Card>
         </View>
 
@@ -71,8 +84,8 @@ export default function PaymentReceipt() {
           <AppText variant="h3">예상 운영 정산</AppText>
           <Card tone="flat" padding="lg" radius="lg" style={{ gap: Spacing.md }}>
             <Row label="예상 참가비 수익" value={formatCurrency(expectedRevenue)} />
-            <Row label="공간 이용료" value={`-${formatCurrency(spaceFee)}`} tint={theme.danger} />
-            <Row label="아트민 매칭 이용료" value={`-${formatCurrency(MATCHING_FEE)}`} tint={theme.danger} />
+            <Row label="공간 이용료" value={`-${formatCurrency(spaceRentalFee)}`} tint={theme.danger} />
+            <Row label="아트민 매칭 이용료" value={`-${formatCurrency(matchingFee)}`} tint={theme.danger} />
             <View style={{ height: 1, backgroundColor: theme.border }} />
             <Row label="예상 운영 수익" value={formatCurrency(netRevenue)} tint={theme.primary} last />
           </Card>
@@ -81,7 +94,7 @@ export default function PaymentReceipt() {
       </ScrollView>
 
       <View style={{ padding: Spacing.xl, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: theme.border }}>
-        <Button label="결제 및 프로그램 공개" fullWidth size="lg" onPress={() => router.push(`/payment/${activityId}/done`)} />
+        <Button label={paying ? '' : '결제 및 프로그램 공개'} loading={paying} fullWidth size="lg" onPress={pay} />
       </View>
     </SafeAreaView>
   );

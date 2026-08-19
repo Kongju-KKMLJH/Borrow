@@ -60,6 +60,13 @@ export default function RequestDetail() {
           <Row label="활동 시간" value={formatTimeRange(activity.startTime, activity.endTime)} last />
         </Section>
 
+        {req.scheduleMismatch && (
+          <View style={{ backgroundColor: theme.accentSoft, borderRadius: 16, padding: Spacing.lg, gap: Spacing.sm, flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="warning-outline" size={20} color={theme.accentPressed} />
+            <AppText variant="body" tint={theme.accentPressed}>등록된 유휴시간과 일정이 다릅니다</AppText>
+          </View>
+        )}
+
         <Section title="참여">
           <Row label="모집 인원" value={`${activity.capacity}명`} />
           <Row label="참가비" value={formatCurrency(activity.entryFee)} last />

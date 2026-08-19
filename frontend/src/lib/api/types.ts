@@ -12,7 +12,7 @@ export type ActivityType = 'HOBBY' | 'CLASS';
 
 export type ActivityField = 'ART' | 'PHOTO';
 
-export type ActivityStatus = 'DRAFT' | 'PENDING' | 'PUBLISHED' | 'REJECTED';
+export type ActivityStatus = 'DRAFT' | 'PENDING' | 'MATCHED' | 'PUBLISHED' | 'REJECTED';
 
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -160,6 +160,19 @@ export interface HostingRequestCreateRequest {
   spaceId: number;
 }
 
+/**
+ * 개최 요청 가격 구성 (U-11/U-12 응답의 price 객체).
+ * 백엔드 activity.dto.HostingRequestResponse.PriceBreakdown 매핑.
+ * 매칭 이용료(platformMatchingFee)는 서버 설정값이라 하드코딩 금지 — 응답값 그대로 표시.
+ */
+export interface PriceBreakdown {
+  participantPrice: number;
+  expectedParticipantRevenue: number;
+  spaceRentalFee: number;
+  platformMatchingFee: number;
+  expectedOperatingProfit: number;
+}
+
 export interface ActivityHostingRequestResponse {
   id: number;
   activityId: number;
@@ -167,6 +180,7 @@ export interface ActivityHostingRequestResponse {
   spaceName: string;
   status: RequestStatus;
   rejectReason: string | null;
+  price: PriceBreakdown;
 }
 
 // ── Space ──────────────────────────────────────────────────────────────
@@ -246,6 +260,8 @@ export interface HostingRequestResponse {
   rejectReason: string | null;
   space: HostingRequestSpaceInfo;
   activity: HostingRequestActivityInfo;
+  /** 활동 일정이 공간 유휴시간 슬롯에 완전히 들어맞지 않으면 true — 승인·거절을 막지는 않는 판단 보조 정보 */
+  scheduleMismatch: boolean;
 }
 
 export interface HostHomeResponse {
