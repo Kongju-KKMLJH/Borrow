@@ -1,4 +1,4 @@
-import type { ActivityField, ActivityStatus, ActivityType, DayOfWeek, FacilityType, RequestStatus } from '@/lib/api/types';
+import type { ActivityField, ActivityStatus, ActivitySummaryResponse, ActivityType, DayOfWeek, FacilityType, RequestStatus } from '@/lib/api/types';
 
 /** 백엔드가 내려주는 raw 값(LocalDate "2026-08-01", LocalTime "14:00" 또는 "14:00:00")을 한글 표시 문자열로 변환. */
 
@@ -31,10 +31,21 @@ export function formatCurrency(amount: number): string {
   return `${amount.toLocaleString()}원`;
 }
 
+export type DisplayActivityStatus = ActivityStatus | 'CLOSED' | 'ENDED';
+
+/** 서버 상태는 유지하고, 공개 화면에서만 일정/정원에 따른 표시 상태를 파생한다. */
+export function getDisplayActivityStatus(activity: Pick<ActivitySummaryResponse, 'status' | 'date' | 'endTime' | 'capacity' | 'currentHeadcount'>): DisplayActivityStatus {
+  if (activity.status !== 'PUBLISHED') return activity.status;
+  const end = new Date(`${activity.date}T${activity.endTime}`).getTime();
+  if (Number.isFinite(end) && end <= Date.now()) return 'ENDED';
+  if (activity.currentHeadcount >= activity.capacity) return 'CLOSED';
+  return 'PUBLISHED';
+}
+
 export const ActivityTypeLabel: Record<ActivityType, string> = { HOBBY: '취미 모임', CLASS: '전문 클래스' };
 export const ActivityFieldLabel: Record<ActivityField, string> = { ART: '그림', PHOTO: '촬영' };
-export const ActivityStatusLabel: Record<ActivityStatus, string> = {
-  DRAFT: '작성 중', PENDING: '공간 승인 대기', MATCHED: '결제 대기', PUBLISHED: '모집 중', REJECTED: '거절',
+export const ActivityStatusLabel: Record<DisplayActivityStatus, string> = {
+  DRAFT: '작성 중', PENDING: '공간 승인 대기', MATCHED: '결제 대기', PUBLISHED: '모집 중', REJECTED: '거절', CLOSED: '마감', ENDED: '종료',
 };
 export const RequestStatusLabel: Record<RequestStatus, string> = { PENDING: '승인 대기', APPROVED: '승인', REJECTED: '거절' };
 export const FacilityTypeLabel: Record<FacilityType, string> = {

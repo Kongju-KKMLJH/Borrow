@@ -4,7 +4,7 @@ import { ScrollView, View } from 'react-native';
 import { activityApi } from '@/lib/api';
 import { ActivityCard } from '@/components/activity-card';
 import { SelectChip } from '@/components/form';
-import { BrandHeader, ModeSwitch } from '@/components/nav';
+import { BrandHeader, LogoutButton, ModeSwitch } from '@/components/nav';
 import { AppText, Button, Card, Screen, SectionHeader } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useAsync } from '@/hooks/use-async';
@@ -16,7 +16,7 @@ export default function UserHome() {
   const list = activities ?? [];
 
   return (
-    <Screen header={<BrandHeader right={<ModeSwitch current="user" />} />} contentContainerStyle={{ gap: Spacing.xxxl, paddingBottom: Spacing.huge }}>
+      <Screen header={<BrandHeader right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}><ModeSwitch current="user" /><LogoutButton /></View>} />} contentContainerStyle={{ gap: Spacing.xxxl, paddingBottom: Spacing.huge }}>
       {/* 히어로 */}
       <View style={{ paddingHorizontal: Spacing.xl, gap: Spacing.lg }}>
         <View style={{ gap: Spacing.sm }}>
@@ -64,6 +64,10 @@ export default function UserHome() {
           <AppText variant="body" color="textSecondary">직접 취미 모임을 만들어보세요</AppText>
           <Button label="활동 만들기" fullWidth onPress={() => router.push('/(user)/create')} />
         </Card>
+      </View>
+
+      <View style={{ paddingHorizontal: Spacing.xl }}>
+        <Button label="예술가 인증 신청" variant="outline" fullWidth onPress={() => router.push('/artist-verification')} />
       </View>
     </Screen>
   );

@@ -32,10 +32,16 @@ export default function Activities() {
   const [region, setRegion] = useState('');
   const [sort, setSort] = useState<Sort>('추천순');
   const [sortOpen, setSortOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  const invalidDate = (dateFrom && !datePattern.test(dateFrom)) || (dateTo && !datePattern.test(dateTo));
+  const reversedDateRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+  const filterError = invalidDate ? '날짜는 YYYY-MM-DD 형식으로 입력해주세요.' : reversedDateRange ? '시작일은 종료일보다 빠르거나 같아야 해요.' : null;
 
   const { data: activities, loading } = useAsync(
-    () => activityApi.list({ type: TYPE[filter], field: FIELD[filter], keyword: query || undefined, region: region || undefined }),
-    [filter, query, region],
+    () => filterError ? Promise.resolve([]) : activityApi.list({ type: TYPE[filter], field: FIELD[filter], keyword: query || undefined, region: region || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }),
+    [filter, query, region, dateFrom, dateTo],
   );
   const list = useMemo(() => {
     const base = activities ?? [];
@@ -86,6 +92,12 @@ export default function Activities() {
           <SelectChip key={f} label={f} active={filter === f} onPress={() => setFilter(f)} />
         ))}
       </ScrollView>
+
+      <View style={{ paddingHorizontal: Spacing.xl, gap: Spacing.sm }}>
+        <TextInput value={dateFrom} onChangeText={setDateFrom} placeholder="시작일 YYYY-MM-DD" placeholderTextColor={theme.textMuted} style={{ backgroundColor: theme.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, color: theme.text, fontFamily: FontFamily.regular }} />
+        <TextInput value={dateTo} onChangeText={setDateTo} placeholder="종료일 YYYY-MM-DD (선택)" placeholderTextColor={theme.textMuted} style={{ backgroundColor: theme.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, color: theme.text, fontFamily: FontFamily.regular }} />
+        {filterError && <AppText variant="caption" tint={theme.danger}>{filterError}</AppText>}
+      </View>
 
       {/* 결과 */}
       <View style={{ paddingHorizontal: Spacing.xl, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>

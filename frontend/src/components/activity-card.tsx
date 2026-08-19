@@ -9,7 +9,7 @@ import { ActivityStatusBadge } from '@/components/status-badge';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { Radius, Spacing } from '@/constants/theme';
 import type { ActivitySummaryResponse } from '@/lib/api/types';
-import { ActivityFieldLabel, ActivityTypeLabel, formatCurrency, formatDate, formatTime } from '@/lib/format';
+import { ActivityFieldLabel, ActivityTypeLabel, formatCurrency, formatDate, formatTime, getDisplayActivityStatus } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 
 export function ActivityCard({
@@ -25,6 +25,7 @@ export function ActivityCard({
   const rail = variant === 'rail';
   const coverHeight = rail ? 130 : 150;
   const cover = activity.imageUrls?.[0];
+  const displayStatus = getDisplayActivityStatus(activity);
   return (
     <Pressable
       onPress={onPress}
@@ -48,7 +49,7 @@ export function ActivityCard({
           <Badge label={ActivityTypeLabel[activity.type]} tone="solid" />
         </View>
         <View style={{ position: 'absolute', top: Spacing.sm, right: Spacing.sm }}>
-          <ActivityStatusBadge status={activity.status} />
+          <ActivityStatusBadge status={displayStatus} />
         </View>
       </View>
 

@@ -61,6 +61,22 @@ export interface MeResponse {
   role: Role;
 }
 
+export type ArtistVerificationStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ArtistVerificationRequest {
+  portfolioUrl: string;
+  career: string | null;
+}
+
+export interface ArtistVerificationResponse {
+  status: ArtistVerificationStatus;
+  portfolioUrl: string | null;
+  career: string | null;
+  reason: string | null;
+  appliedAt: string | null;
+  updatedAt: string | null;
+}
+
 // ── Activity ───────────────────────────────────────────────────────────
 
 export interface SpaceRequirementDto {
@@ -82,6 +98,18 @@ export interface ActivityCreateRequest {
   capacity: number;
   entryFee: number;
   requirement: SpaceRequirementDto | null;
+}
+
+export interface ActivityUpdateRequest {
+  field: ActivityField;
+  title: string;
+  description: string | null;
+  imageUrls: string[] | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  entryFee: number;
 }
 
 export interface ActivityDetailResponse {
@@ -348,8 +376,7 @@ export interface UploadResponse {
 // ── Admin (관리자 콘솔, 기능명세 7) ────────────────────────────────────
 
 /** 예술가 인증 신청 상태. 신청 행이 없는 회원은 'NONE' 으로 내려온다. */
-export type ArtistVerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-export type AdminVerificationLabel = ArtistVerificationStatus | 'NONE';
+export type AdminVerificationLabel = ArtistVerificationStatus;
 
 /** 7.1.1 관리자 회원 목록의 한 줄 */
 export interface AdminUserResponse {
