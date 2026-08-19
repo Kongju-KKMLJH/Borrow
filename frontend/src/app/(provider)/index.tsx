@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { hostApi, imageUri, spaceApi } from '@/lib/api';
 import { ImagePlaceholder } from '@/components/placeholder';
-import { BrandHeader, ModeSwitch } from '@/components/nav';
+import { BrandHeader, LogoutButton, ModeSwitch } from '@/components/nav';
 import { RequestCard } from '@/components/request-card';
 import { AppText, Button, Card, Screen, SectionHeader } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
@@ -20,7 +20,7 @@ export default function ProviderHome() {
 
   return (
     <Screen
-      header={<BrandHeader right={<ModeSwitch current="provider" />} subtitle="사장님, 안녕하세요 👋" />}
+      header={<BrandHeader right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}><ModeSwitch current="provider" /><LogoutButton /></View>} subtitle="사장님, 안녕하세요 👋" />}
       contentContainerStyle={{ gap: Spacing.xxl, paddingBottom: Spacing.huge }}>
       {/* 요약 히어로 (화이트 + 코랄 아웃라인) */}
       <View style={{ paddingHorizontal: Spacing.xl }}>

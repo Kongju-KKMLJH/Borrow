@@ -8,6 +8,7 @@ import type {
   SignupRequest,
   MeResponse,
   ActivityCreateRequest,
+  ActivityUpdateRequest,
   ActivityDetailResponse,
   ActivitySummaryResponse,
   RequirementUpdateRequest,
@@ -41,6 +42,8 @@ import type {
   SpaceMatchResponse,
   SpaceMatchResult,
   UploadResponse,
+  ArtistVerificationRequest,
+  ArtistVerificationResponse,
 } from './types';
 
 // ── Auth ───────────────────────────────────────────────────────────────
@@ -86,6 +89,11 @@ export const activityApi = {
   /** 활동 개설 (MEMBER/ARTIST) */
   create: (body: ActivityCreateRequest) =>
     apiClient.post<ActivityDetailResponse>('/api/activities', body),
+
+  update: (id: number, body: ActivityUpdateRequest) =>
+    apiClient.put<ActivityDetailResponse>(`/api/activities/${id}`, body),
+
+  delete: (id: number) => apiClient.delete<void>(`/api/activities/${id}`),
 
   /** 공간 요구조건 수정 (개설자 본인) */
   updateRequirement: (id: number, body: RequirementUpdateRequest) =>
@@ -133,6 +141,12 @@ export const meApi = {
   /** 내가 참여한 활동 */
   myParticipations: () =>
     apiClient.get<MyParticipationResponse[]>('/api/me/participations'),
+
+  artistVerificationStatus: () =>
+    apiClient.get<ArtistVerificationResponse>('/api/me/artist-verification'),
+
+  applyArtistVerification: (body: ArtistVerificationRequest) =>
+    apiClient.post<ArtistVerificationResponse>('/api/me/artist-verification', body),
 };
 
 // ── Space ──────────────────────────────────────────────────────────────

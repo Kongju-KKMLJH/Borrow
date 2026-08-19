@@ -12,7 +12,7 @@ import { ActivityStatusBadge } from '@/components/status-badge';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { AppText, Avatar, Badge, Button, Card } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
-import { ActivityTypeLabel, ActivityFieldLabel, FacilityTypeLabel, formatCurrency, formatDate, formatTimeRange } from '@/lib/format';
+import { ActivityTypeLabel, ActivityFieldLabel, ActivityStatusLabel, FacilityTypeLabel, formatCurrency, formatDate, formatTimeRange, getDisplayActivityStatus } from '@/lib/format';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -45,7 +45,8 @@ export default function ActivityDetail() {
   }
 
   const alreadyJoined = activity.alreadyJoined || justJoined;
-  const canJoin = activity.status === 'PUBLISHED' && !activity.mine && !alreadyJoined;
+  const displayStatus = getDisplayActivityStatus(activity);
+  const canJoin = displayStatus === 'PUBLISHED' && !activity.mine && !alreadyJoined;
 
   const submitJoin = async () => {
     setJoining(true);
@@ -74,7 +75,7 @@ export default function ActivityDetail() {
             <Badge label={ActivityFieldLabel[activity.field]} tone="primary" />
           </View>
           <View style={{ position: 'absolute', top: Spacing.lg, right: Spacing.lg }}>
-            <ActivityStatusBadge status={activity.status} />
+            <ActivityStatusBadge status={displayStatus} />
           </View>
         </View>
 
@@ -131,6 +132,12 @@ export default function ActivityDetail() {
               <Row label="지역" value={activity.space.region} last />
             </Section>
           )}
+          {!activity.mine && activity.space && (
+            <Section title="확정된 공간">
+              <Row label="공간" value={activity.space.name} />
+              <Row label="지역" value={activity.space.region} last />
+            </Section>
+          )}
 
           {/* 참가비 */}
           <Section title="참가비">
@@ -166,7 +173,7 @@ export default function ActivityDetail() {
           ) : alreadyJoined ? (
             <Button label="참여 신청 완료" disabled style={{ flex: 1 }} />
           ) : (
-            <Button label="참여 신청하기" disabled={!canJoin} onPress={() => setJoinOpen(true)} style={{ flex: 1 }} />
+            <Button label={canJoin ? '참여 신청하기' : ActivityStatusLabel[displayStatus]} disabled={!canJoin} onPress={() => setJoinOpen(true)} style={{ flex: 1 }} />
           )}
         </View>
       )}

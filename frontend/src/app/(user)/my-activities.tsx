@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 
-import { meApi } from '@/lib/api';
+import { activityApi, meApi } from '@/lib/api';
 import { ActivityCard } from '@/components/activity-card';
 import { ActivityStatusBadge } from '@/components/status-badge';
 import { AppText, Button, Card, Screen } from '@/components/ui';
@@ -12,6 +12,7 @@ import { Spacing } from '@/constants/theme';
 import type { ActivitySummaryResponse } from '@/lib/api/types';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
+import { getDisplayActivityStatus } from '@/lib/format';
 
 export default function MyActivities() {
   const [tab, setTab] = useState<'joined' | 'created'>('created');
@@ -58,12 +59,17 @@ export default function MyActivities() {
         ) : (
           (created ?? []).map((a) =>
             a.status === 'REJECTED' ? (
-              <RejectedCard key={a.id} activity={a} />
+              <RejectedCard key={a.id} activity={a} onEdit={() => router.push(`/activity/edit/${a.id}`)} onDelete={() => Alert.alert('활동 삭제', '이 활동을 삭제할까요?', [{ text: '취소', style: 'cancel' }, { text: '삭제', style: 'destructive', onPress: () => activityApi.delete(a.id).then(() => router.replace('/(user)/my-activities')) }])} />
             ) : (
               <CreatedRow
                 key={a.id}
                 activity={a}
                 onPress={() => router.push(a.status === 'MATCHED' ? `/payment/${a.id}` : `/activity/${a.id}`)}
+                onEdit={() => router.push(`/activity/edit/${a.id}`)}
+                onDelete={() => Alert.alert('활동 삭제', '이 활동을 삭제할까요?', [
+                  { text: '취소', style: 'cancel' },
+                  { text: '삭제', style: 'destructive', onPress: () => activityApi.delete(a.id).then(() => router.replace('/(user)/my-activities')) },
+                ])}
               />
             ),
           )
@@ -109,22 +115,28 @@ function Tab({ label, active, onPress }: { label: string; active: boolean; onPre
   );
 }
 
-function CreatedRow({ activity, onPress }: { activity: ActivitySummaryResponse; onPress?: () => void }) {
+function CreatedRow({ activity, onPress, onEdit, onDelete }: { activity: ActivitySummaryResponse; onPress?: () => void; onEdit: () => void; onDelete: () => void }) {
   const theme = useTheme();
   return (
     <Card onPress={onPress} tone="flat" padding="md" radius="lg" style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
       <ImagePlaceholder field={activity.field} height={56} radius="md" style={{ width: 56 }} iconSize={22} />
-      <View style={{ flex: 1, gap: 6 }}>
-        <ActivityStatusBadge status={activity.status} />
+        <View style={{ flex: 1, gap: 6 }}>
+          <ActivityStatusBadge status={getDisplayActivityStatus(activity)} />
         <AppText variant="title" numberOfLines={1}>{activity.title}</AppText>
-        <AppText variant="caption" color="textMuted">모집 {activity.currentHeadcount}/{activity.capacity}명</AppText>
+        <AppText variant="caption" color="textMuted">모집 {activity.currentHeadcount}/{activity.capacity}명 · {getDisplayActivityStatus(activity) === 'ENDED' ? '종료' : getDisplayActivityStatus(activity) === 'CLOSED' ? '마감' : ''}</AppText>
       </View>
+      {(activity.status === 'DRAFT' || activity.status === 'REJECTED') && (
+        <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+          <Pressable onPress={onEdit} hitSlop={8}><Ionicons name="create-outline" size={20} color={theme.textSecondary} /></Pressable>
+          <Pressable onPress={onDelete} hitSlop={8}><Ionicons name="trash-outline" size={20} color={theme.danger} /></Pressable>
+        </View>
+      )}
       <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
     </Card>
   );
 }
 
-function RejectedCard({ activity }: { activity: ActivitySummaryResponse }) {
+function RejectedCard({ activity, onEdit, onDelete }: { activity: ActivitySummaryResponse; onEdit: () => void; onDelete: () => void }) {
   const theme = useTheme();
   return (
     <Card padding="lg" radius="lg" style={{ gap: Spacing.md, backgroundColor: theme.dangerSoft, borderWidth: 1, borderColor: theme.danger + '40' }} shadow="none">
@@ -133,7 +145,11 @@ function RejectedCard({ activity }: { activity: ActivitySummaryResponse }) {
         <AppText variant="title" style={{ flex: 1 }} numberOfLines={1}>{activity.title}</AppText>
       </View>
       <AppText variant="caption" tint={theme.danger}>공간 제공자가 개최 요청을 거절했어요. 다른 공간을 다시 추천받아보세요.</AppText>
-      <Button label="대체 공간 추천받기" variant="outline" fullWidth onPress={() => router.push('/(user)/create')} />
+      <View style={{ flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' }}>
+        <Button label="수정하기" variant="outline" onPress={onEdit} style={{ flex: 1 }} />
+        <Button label="삭제" variant="outline" onPress={onDelete} style={{ flex: 1 }} />
+        <Button label="다른 공간 추천받기" variant="outline" onPress={() => router.push('/(user)/create')} fullWidth />
+      </View>
     </Card>
   );
 }
