@@ -41,8 +41,8 @@ export default function Create() {
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  const [capacity, setCapacity] = useState('8');
-  const [entryFee, setEntryFee] = useState('15000');
+  const [capacity, setCapacity] = useState('');
+  const [entryFee, setEntryFee] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('초보 환영');
   const [preparation, setPreparation] = useState('');
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -71,7 +71,9 @@ export default function Create() {
 
   const capacityNum = Number(capacity) || 0;
   const entryFeeNum = Number(entryFee) || 0;
-  const step2Valid = title.trim() && /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(startTime) && /^\d{2}:\d{2}$/.test(endTime) && capacityNum > 0;
+  const today = new Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const step2Valid = title.trim() && /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= todayIso && /^\d{2}:\d{2}$/.test(startTime) && /^\d{2}:\d{2}$/.test(endTime) && capacityNum > 0 && entryFee.trim() !== '' && entryFeeNum >= 0;
 
   const runAnalyze = async () => {
     setError(null);
@@ -196,7 +198,7 @@ export default function Create() {
             <Title title="활동 정보를 입력해주세요" />
             <TextField label="활동 제목" value={title} onChangeText={setTitle} placeholder="예) 수채화로 그리는 주말 오후 드로잉" />
             <TextField label="활동 설명" value={description} onChangeText={setDescription} placeholder="어떤 활동인지 자유롭게 소개해주세요" multiline />
-            <DialField label="활동 날짜" mode="date" value={date} onChange={setDate} />
+            <DialField label="활동 날짜" mode="date" value={date} onChange={setDate} minimumDate={new Date()} />
             <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
               <View style={{ flex: 1 }}><DialField label="시작 시간" mode="time" value={startTime} onChange={setStartTime} /></View>
               <View style={{ flex: 1 }}><DialField label="종료 시간" mode="time" value={endTime} onChange={setEndTime} /></View>
