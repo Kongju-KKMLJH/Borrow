@@ -12,12 +12,15 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OrderColumn;
+import kkmljh.borrow.common.exception.BusinessException;
+import kkmljh.borrow.common.exception.ErrorCode;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -84,11 +87,23 @@ public class Space {
     /** 오염(물감 등) 발생 활동 허용 여부 (B-04 제한 조건) */
     private boolean messAllowed;
 
+    /** 등록일 — 관리자 공간 목록의 표시 항목 (기능명세 7.3.1 display) */
+    private LocalDateTime createdAt;
+
+    /** 관리자가 만든 임시(mock) 공간인지 (기능명세 7.3.2) */
+    @Column(nullable = false)
+    private boolean mock;
+
+    /** 관리자의 강제 삭제 처리 일시 — null 이면 정상 (기능명세 7.3.3 dataSpec) */
+    private LocalDateTime forceDeletedAt;
+
     @Builder
     private Space(String ownerId, String name, String region, String address, List<String> imageUrls,
                   int capacity, int hourlyFee, String conditions,
                   Set<FacilityType> facilities, Set<ActivityField> allowedFields,
-                  boolean noiseAllowed, boolean messAllowed) {
+                  boolean noiseAllowed, boolean messAllowed, boolean mock) {
+        this.mock = mock;
+        this.createdAt = LocalDateTime.now();
         this.ownerId = ownerId;
         this.name = name;
         this.region = region;
@@ -148,5 +163,21 @@ public class Space {
     public void updateFeeAndConditions(int hourlyFee, String conditions) {
         this.hourlyFee = hourlyFee;
         this.conditions = conditions;
+    }
+
+    /**
+     * 관리자의 강제 삭제 (기능명세 7.3.3). 행을 지우지 않고 삭제 상태로만 표시한다 —
+     * 승인된 개최 요청이 이 공간을 참조하고 있어 실제 삭제는 FK를 깨뜨린다.
+     * 진행 중인 개최 요청 자동 거절은 서비스가 이어서 처리한다(확정 정책).
+     */
+    public void forceDelete() {
+        if (isForceDeleted()) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "이미 삭제 처리된 공간입니다.");
+        }
+        this.forceDeletedAt = LocalDateTime.now();
+    }
+
+    public boolean isForceDeleted() {
+        return this.forceDeletedAt != null;
     }
 }

@@ -226,9 +226,18 @@ public class ActivityService {
 
     // --- 내부 헬퍼 ---
 
+    /**
+     * 관리자가 강제 삭제한 활동은 <b>개설자 본인에게도</b> 없는 것으로 취급한다 (기능명세 7.2.3).
+     * 상세·수정·삭제·결제·개최요청이 전부 이 조회를 거치므로 여기 한 곳에서 막으면 된다.
+     * 관리자 콘솔은 자체 리포지토리로 읽으므로 영향받지 않는다.
+     */
     private Activity findActivity(Long activityId) {
-        return activityRepository.findById(activityId)
+        Activity activity = activityRepository.findById(activityId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND));
+        if (activity.isForceDeleted()) {
+            throw new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND);
+        }
+        return activity;
     }
 
     private Activity findOwned(String guestId, Long activityId) {

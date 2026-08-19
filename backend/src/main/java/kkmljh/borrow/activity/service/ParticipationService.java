@@ -33,6 +33,11 @@ public class ParticipationService {
         Activity activity = activityRepository.findById(activityId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND));
 
+        // 강제 삭제된 활동은 상태가 PUBLISHED 로 남아 있어도 신청 대상이 아니다 (기능명세 7.2.3).
+        // 존재 자체를 감춰야 하므로 ACTIVITY_NOT_PUBLISHED 가 아니라 NOT_FOUND 다.
+        if (activity.isForceDeleted()) {
+            throw new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND);
+        }
         if (!activity.isPublished()) {
             throw new BusinessException(ErrorCode.ACTIVITY_NOT_PUBLISHED);
         }
