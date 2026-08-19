@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/ui';
 import { Radius, Shadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/lib/auth';
 
 export type TabItem = { name: string; label: string; icon: keyof typeof Ionicons.glyphMap; active: keyof typeof Ionicons.glyphMap };
 
@@ -75,6 +76,21 @@ export function ModeSwitch({ current }: { current: 'user' | 'provider' }) {
       style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: bg, paddingHorizontal: Spacing.md, paddingVertical: 7, borderRadius: Radius.full }}>
       <Ionicons name="swap-horizontal" size={14} color={fg} />
       <AppText variant="small" tint={fg}>{label}</AppText>
+    </Pressable>
+  );
+}
+
+/** Figma 일반 홈 헤더의 로그아웃 액션. */
+export function LogoutButton() {
+  const theme = useTheme();
+  const { logout } = useAuth();
+  return (
+    <Pressable
+      onPress={() => { void logout().then(() => router.replace('/(auth)/login')); }}
+      hitSlop={8}
+      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+      <AppText variant="tiny" tint={theme.textMuted}>로그아웃</AppText>
+      <Ionicons name="log-out-outline" size={11} color={theme.textMuted} />
     </Pressable>
   );
 }

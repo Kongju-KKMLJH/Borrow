@@ -32,12 +32,18 @@ export default function PaymentReceipt() {
   }, [hostingRequest?.spaceId]);
 
   const [paying, setPaying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const pay = async () => {
     setPaying(true);
+    setError(null);
     try {
       await activityApi.confirmPayment(activityId);
-      router.push(`/payment/${activityId}/done`);
+      const updated = await activityApi.detail(activityId);
+      if (updated.status === 'PUBLISHED') router.push(`/payment/${activityId}/done`);
+      else setError('결제는 처리됐지만 프로그램 공개 상태를 확인하지 못했어요. 내 활동에서 다시 확인해주세요.');
+    } catch {
+      setError('결제 처리에 실패했어요. 잠시 후 다시 시도해주세요.');
     } finally {
       setPaying(false);
     }
@@ -92,6 +98,8 @@ export default function PaymentReceipt() {
           <AppText variant="caption" color="textMuted">예상 수익은 모집 정원 기준이며, 실제 수익은 참여 인원에 따라 달라집니다.</AppText>
         </View>
       </ScrollView>
+
+      {error && <AppText variant="caption" tint={theme.danger} style={{ paddingHorizontal: Spacing.xl }}>{error}</AppText>}
 
       <View style={{ padding: Spacing.xl, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: theme.border }}>
         <Button label={paying ? '' : '결제 및 프로그램 공개'} loading={paying} fullWidth size="lg" onPress={pay} />

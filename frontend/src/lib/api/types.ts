@@ -60,6 +60,22 @@ export interface MeResponse {
   role: Role;
 }
 
+export type ArtistVerificationStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ArtistVerificationRequest {
+  portfolioUrl: string;
+  career: string | null;
+}
+
+export interface ArtistVerificationResponse {
+  status: ArtistVerificationStatus;
+  portfolioUrl: string | null;
+  career: string | null;
+  reason: string | null;
+  appliedAt: string | null;
+  updatedAt: string | null;
+}
+
 // ── Activity ───────────────────────────────────────────────────────────
 
 export interface SpaceRequirementDto {
@@ -81,6 +97,18 @@ export interface ActivityCreateRequest {
   capacity: number;
   entryFee: number;
   requirement: SpaceRequirementDto | null;
+}
+
+export interface ActivityUpdateRequest {
+  field: ActivityField;
+  title: string;
+  description: string | null;
+  imageUrls: string[] | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  entryFee: number;
 }
 
 export interface ActivityDetailResponse {
