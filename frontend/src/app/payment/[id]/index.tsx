@@ -11,8 +11,6 @@ import { formatCurrency, formatDate, formatTimeRange } from '@/lib/format';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
 
-const MATCHING_FEE = 5000;
-
 export default function PaymentIndex() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,8 +42,10 @@ export default function PaymentIndex() {
     );
   }
 
-  const spaceFee = space?.hourlyFee ?? 0;
-  const total = spaceFee + MATCHING_FEE;
+  const price = hostingRequest?.price;
+  const spaceRentalFee = price?.spaceRentalFee ?? 0;
+  const matchingFee = price?.platformMatchingFee ?? 0;
+  const total = spaceRentalFee + matchingFee;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top']}>
@@ -73,7 +73,7 @@ export default function PaymentIndex() {
               <Row label="공간명" value={space.name} />
               <Row label="지역" value={space.region} />
               {space.address && <Row label="주소" value={space.address} />}
-              <Row label="공간 이용료" value={formatCurrency(space.hourlyFee)} tint={theme.primary} last />
+              <Row label="시간당 이용료" value={formatCurrency(space.hourlyFee)} tint={theme.primary} last />
             </Card>
           ) : (
             <Card tone="muted" padding="lg" radius="lg">
@@ -85,8 +85,8 @@ export default function PaymentIndex() {
         <View style={{ gap: Spacing.sm }}>
           <AppText variant="h3">결제 금액</AppText>
           <Card tone="flat" padding="lg" radius="lg" style={{ gap: Spacing.md }}>
-            <Row label="공간 이용료" value={formatCurrency(spaceFee)} />
-            <Row label="아트민 매칭 이용료" value={formatCurrency(MATCHING_FEE)} />
+            <Row label="공간 이용료" value={formatCurrency(spaceRentalFee)} />
+            <Row label="아트민 매칭 이용료" value={formatCurrency(matchingFee)} />
             <View style={{ height: 1, backgroundColor: theme.border }} />
             <Row label="총 결제 금액" value={formatCurrency(total)} tint={theme.primary} last />
           </Card>

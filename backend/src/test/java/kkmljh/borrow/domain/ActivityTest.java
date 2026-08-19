@@ -157,9 +157,45 @@ class ActivityTest {
         }
 
         @Test
+        @DisplayName("PENDING → confirmMatch() → MATCHED, 아직 공개되지 않는다 (B-09, 기능명세 3.3.1)")
+        void confirmMatch() {
+            Activity activity = base().build();
+            activity.markPending();
+
+            activity.confirmMatch();
+
+            assertThat(activity.getStatus()).isEqualTo(ActivityStatus.MATCHED);
+            assertThat(activity.isPublished()).isFalse();
+        }
+
+        @Test
+        @DisplayName("PENDING 이 아니면 confirmMatch() 는 REQUEST_ALREADY_HANDLED")
+        void confirmMatchRequiresPending() {
+            Activity activity = base().build();
+
+            assertThatThrownBy(activity::confirmMatch)
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.REQUEST_ALREADY_HANDLED);
+        }
+
+        @Test
         @DisplayName("publish() 하면 PUBLISHED 가 되고 isPublished() 가 true (S-01)")
         void publish() {
             Activity activity = base().build();
+
+            activity.publish();
+
+            assertThat(activity.getStatus()).isEqualTo(ActivityStatus.PUBLISHED);
+            assertThat(activity.isPublished()).isTrue();
+        }
+
+        @Test
+        @DisplayName("MATCHED → publish() → PUBLISHED (기능명세 3.3 Mock 결제 완료 흐름)")
+        void matchedToPublished() {
+            Activity activity = base().build();
+            activity.markPending();
+            activity.confirmMatch();
 
             activity.publish();
 

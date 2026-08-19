@@ -117,7 +117,7 @@ class SpaceServiceTest {
         @Test
         @DisplayName("목록은 소유자로 거르지 않는다 (비로그인 열람)")
         void findAllReturnsEveryone() {
-            given(spaceRepository.findAll()).willReturn(List.of(
+            given(spaceRepository.findByForceDeletedAtIsNull()).willReturn(List.of(
                     TestFixtures.space(1L, OWNER), TestFixtures.space(2L, OTHER)));
 
             assertThat(spaceService.findAll()).hasSize(2);
@@ -155,7 +155,7 @@ class SpaceServiceTest {
         @Test
         @DisplayName("공개 목록에는 주소 전문이 없고 동 단위(region)만 나간다 (기능명세 6.1 rules)")
         void findAllHidesAddress() {
-            given(spaceRepository.findAll()).willReturn(List.of(TestFixtures.space(1L, OWNER)));
+            given(spaceRepository.findByForceDeletedAtIsNull()).willReturn(List.of(TestFixtures.space(1L, OWNER)));
 
             assertThat(spaceService.findAll()).singleElement()
                     .satisfies(space -> {
@@ -294,6 +294,83 @@ class SpaceServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.SPACE_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("중복 등록 차단 (기능명세 6.1 exceptions)")
+    class DuplicateGuard {
+
+        @Test
+        @DisplayName("같은 소유자·이름·주소가 이미 있으면 DUPLICATE_SPACE — 저장하지 않는다")
+        void createDuplicate() {
+            given(spaceRepository.existsByOwnerIdAndNameAndAddress(OWNER, "불당동 스튜디오", "불당대로 1"))
+                    .willReturn(true);
+
+            assertThatThrownBy(() -> spaceService.create(OWNER, request()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.DUPLICATE_SPACE);
+
+            verify(spaceRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("앞뒤 공백은 trim 후 판정하고, 저장도 trim 된 값으로 한다")
+        void trimsBeforeComparing() {
+            given(spaceRepository.save(any(Space.class))).willAnswer(inv -> inv.getArgument(0));
+            SpaceRequest padded = new SpaceRequest("  불당동 스튜디오 ", "천안시 서북구 불당동", " 불당대로 1  ",
+                    null, 10, 10_000, null, null, null, false, false);
+
+            spaceService.create(OWNER, padded);
+
+            verify(spaceRepository).existsByOwnerIdAndNameAndAddress(OWNER, "불당동 스튜디오", "불당대로 1");
+            ArgumentCaptor<Space> captor = ArgumentCaptor.forClass(Space.class);
+            verify(spaceRepository).save(captor.capture());
+            assertThat(captor.getValue().getName()).isEqualTo("불당동 스튜디오");
+            assertThat(captor.getValue().getAddress()).isEqualTo("불당대로 1");
+        }
+
+        @Test
+        @DisplayName("수정도 검사한다 — 내 다른 공간과 겹치면 DUPLICATE_SPACE, 값은 그대로 둔다")
+        void updateDuplicate() {
+            Space space = TestFixtures.space(1L, OWNER);
+            String originalName = space.getName();
+            given(spaceRepository.findById(1L)).willReturn(Optional.of(space));
+            given(spaceRepository.existsByOwnerIdAndNameAndAddressAndIdNot(
+                    OWNER, "불당동 스튜디오", "불당대로 1", 1L)).willReturn(true);
+
+            assertThatThrownBy(() -> spaceService.update(OWNER, 1L, request()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.DUPLICATE_SPACE);
+
+            assertThat(space.getName()).isEqualTo(originalName);
+        }
+
+        @Test
+        @DisplayName("수정 판정에는 자기 자신의 id 를 제외 조건으로 넘긴다")
+        void updateExcludesItself() {
+            given(spaceRepository.findById(1L)).willReturn(Optional.of(TestFixtures.space(1L, OWNER)));
+
+            spaceService.update(OWNER, 1L, request());
+
+            verify(spaceRepository).existsByOwnerIdAndNameAndAddressAndIdNot(
+                    OWNER, "불당동 스튜디오", "불당대로 1", 1L);
+        }
+
+        @Test
+        @DisplayName("남의 공간이면 중복 검사 전에 FORBIDDEN 으로 막는다")
+        void othersSpaceBlockedFirst() {
+            given(spaceRepository.findById(1L)).willReturn(Optional.of(TestFixtures.space(1L, OTHER)));
+
+            assertThatThrownBy(() -> spaceService.update(OWNER, 1L, request()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+
+            verify(spaceRepository, never())
+                    .existsByOwnerIdAndNameAndAddressAndIdNot(any(), any(), any(), anyLong());
         }
     }
 }

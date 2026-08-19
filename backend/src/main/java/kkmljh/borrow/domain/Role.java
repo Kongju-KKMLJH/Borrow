@@ -14,7 +14,16 @@ public enum Role {
     HOST,
 
     /** 예술가 — MEMBER가 하는 일 전부 + 원데이클래스(CLASS) 개설 */
-    ARTIST;
+    ARTIST,
+
+    /**
+     * 관리자 — 관리자 콘솔에서 회원·프로그램·공간 조회와 통제 조치 (기능명세 7).
+     *
+     * <p><b>회원가입으로는 만들 수 없다.</b> {@code POST /api/auth/signup} 은 비로그인 허용이라
+     * 이 값을 그대로 받으면 누구나 관리자가 된다 — {@code AuthService.signup} 이 거부하고,
+     * 계정은 {@code AdminAccountInitializer} 가 환경변수를 읽어 만든다.
+     */
+    ADMIN;
 
     /** Spring Security 권한 문자열 (hasRole("MEMBER") 은 ROLE_MEMBER 를 찾는다) */
     public String authority() {

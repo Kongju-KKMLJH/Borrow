@@ -27,11 +27,14 @@ public class SpaceService {
     /** B-02 공간 등록 — 로그인한 공간 제공자가 소유자가 된다. */
     @Transactional
     public SpaceResponse create(String ownerId, SpaceRequest req) {
+        if (spaceRepository.existsByOwnerIdAndNameAndAddress(ownerId, req.trimmedName(), req.trimmedAddress())) {
+            throw new BusinessException(ErrorCode.DUPLICATE_SPACE);
+        }
         Space space = Space.builder()
                 .ownerId(ownerId)
-                .name(req.name())
+                .name(req.trimmedName())
                 .region(req.region())
-                .address(req.address())
+                .address(req.trimmedAddress())
                 .imageUrls(req.imageUrlsOrEmpty())
                 .capacity(req.capacity())
                 .hourlyFee(req.hourlyFee())
@@ -47,9 +50,11 @@ public class SpaceService {
     /**
      * 목록·상세는 비로그인 열람이므로 소유자로 거르지 않는다.
      * 그래서 주소 전문 없이 동 단위(region)까지만 내려준다 (기능명세 6.1 rules).
+     *
+     * <p>관리자가 강제 삭제한 공간은 빠진다 (기능명세 7.3.3).
      */
     public List<SpaceResponse> findAll() {
-        return spaceRepository.findAll().stream()
+        return spaceRepository.findByForceDeletedAtIsNull().stream()
                 .map(SpaceResponse::from)
                 .toList();
     }
@@ -68,7 +73,12 @@ public class SpaceService {
     @Transactional
     public SpaceResponse update(String ownerId, Long id, SpaceRequest req) {
         Space space = getOwnedSpace(ownerId, id);
-        space.updateBasicInfo(req.name(), req.region(), req.address(), req.imageUrlsOrEmpty(), req.capacity());
+        // 자기 자신은 제외한다 — 아니면 이름을 그대로 두고 이용료만 고치는 정상 수정이 막힌다.
+        if (spaceRepository.existsByOwnerIdAndNameAndAddressAndIdNot(
+                ownerId, req.trimmedName(), req.trimmedAddress(), id)) {
+            throw new BusinessException(ErrorCode.DUPLICATE_SPACE);
+        }
+        space.updateBasicInfo(req.trimmedName(), req.region(), req.trimmedAddress(), req.imageUrlsOrEmpty(), req.capacity());
         space.updateFacilities(req.facilitiesOrEmpty());
         space.updateAllowedActivities(req.allowedFieldsOrEmpty(), req.noiseAllowed(), req.messAllowed());
         space.updateFeeAndConditions(req.hourlyFee(), req.conditions());
@@ -85,8 +95,10 @@ public class SpaceService {
         spaceRepository.delete(space);
     }
 
+    /** 강제 삭제된 공간은 소유 HOST 에게도 없는 것으로 취급한다 (기능명세 7.3.3). */
     private Space getSpace(Long id) {
         return spaceRepository.findById(id)
+                .filter(space -> !space.isForceDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.SPACE_NOT_FOUND));
     }
 

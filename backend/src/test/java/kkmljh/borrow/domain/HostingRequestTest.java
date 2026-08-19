@@ -20,6 +20,7 @@ class HostingRequestTest {
     @BeforeEach
     void setUp() {
         activity = TestFixtures.activity();
+        activity.markPending();   // approve() 는 PENDING 상태에서만 매칭을 확정한다
         space = TestFixtures.space();
         request = HostingRequest.builder()
                 .activity(activity)
@@ -37,22 +38,18 @@ class HostingRequestTest {
     }
 
     @Test
-    @DisplayName("승인하면 요청은 APPROVED, 활동은 자동으로 PUBLISHED 가 된다 (B-09 → S-01)")
-    void approvePublishesActivity() {
-        activity.markPending();
-
+    @DisplayName("승인하면 요청은 APPROVED, 활동은 매칭 확정(MATCHED) 상태가 된다 (B-09, 시민 공개는 결제 후)")
+    void approveConfirmsMatch() {
         request.approve();
 
         assertThat(request.getStatus()).isEqualTo(RequestStatus.APPROVED);
-        assertThat(activity.getStatus()).isEqualTo(ActivityStatus.PUBLISHED);
-        assertThat(activity.isPublished()).isTrue();
+        assertThat(activity.getStatus()).isEqualTo(ActivityStatus.MATCHED);
+        assertThat(activity.isPublished()).isFalse();
     }
 
     @Test
     @DisplayName("거절하면 요청은 REJECTED, 활동도 REJECTED 로 바뀌고 사유가 남는다 (B-10)")
     void rejectWithReason() {
-        activity.markPending();
-
         request.reject("그 시간에 이미 예약이 있습니다.");
 
         assertThat(request.getStatus()).isEqualTo(RequestStatus.REJECTED);
@@ -104,5 +101,47 @@ class HostingRequestTest {
                 .isEqualTo(ErrorCode.REQUEST_ALREADY_HANDLED);
 
         assertThat(request.getStatus()).isEqualTo(RequestStatus.REJECTED);
+    }
+
+    @Test
+    @DisplayName("모집 정원이 공간 수용 인원을 넘으면 승인할 수 없다 — CAPACITY_EXCEEDS_SPACE (이슈 #9)")
+    void cannotApproveWhenCapacityExceedsSpace() {
+        // TestFixtures.space() 는 capacity=10 — 그보다 큰 정원(20명)의 활동으로 요청을 만든다.
+        Activity oversized = Activity.builder()
+                .guestId("member1").hostNickname("일반회원").hostCertified(false)
+                .type(ActivityType.HOBBY).field(ActivityField.ART)
+                .title("대형 모임").capacity(20).entryFee(0)
+                .date(java.time.LocalDate.of(2026, 9, 12))
+                .startTime(java.time.LocalTime.of(14, 0)).endTime(java.time.LocalTime.of(16, 0))
+                .build();
+        oversized.markPending();
+        HostingRequest oversizedRequest = HostingRequest.builder().activity(oversized).space(space).build();
+
+        assertThatThrownBy(oversizedRequest::approve)
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CAPACITY_EXCEEDS_SPACE);
+
+        assertThat(oversizedRequest.getStatus()).isEqualTo(RequestStatus.PENDING);
+        assertThat(oversized.getStatus()).isEqualTo(ActivityStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("모집 정원이 공간 수용 인원과 같으면 승인할 수 있다 (경계값)")
+    void canApproveWhenCapacityEqualsSpace() {
+        Activity exact = Activity.builder()
+                .guestId("member1").hostNickname("일반회원").hostCertified(false)
+                .type(ActivityType.HOBBY).field(ActivityField.ART)
+                .title("딱 맞는 모임").capacity(space.getCapacity()).entryFee(0)
+                .date(java.time.LocalDate.of(2026, 9, 12))
+                .startTime(java.time.LocalTime.of(14, 0)).endTime(java.time.LocalTime.of(16, 0))
+                .build();
+        exact.markPending();
+        HostingRequest exactRequest = HostingRequest.builder().activity(exact).space(space).build();
+
+        exactRequest.approve();
+
+        assertThat(exactRequest.getStatus()).isEqualTo(RequestStatus.APPROVED);
+        assertThat(exact.getStatus()).isEqualTo(ActivityStatus.MATCHED);
     }
 }

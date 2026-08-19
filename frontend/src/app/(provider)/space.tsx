@@ -130,30 +130,63 @@ function SlotManager({ spaceId }: { spaceId: number }) {
   const [days, setDays] = useState<DayOfWeek[]>(['MONDAY']);
   const [start, setStart] = useState('14:00');
   const [end, setEnd] = useState('17:00');
-  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editTarget, setEditTarget] = useState<SpaceSlotResponse | null>(null);
 
   useEffect(() => { if (data) setSlots(sortSlots(data)); }, [data]);
+
+  const isEditing = editTarget !== null;
 
   const toggleDay = (d: DayOfWeek) =>
     setDays((arr) => (arr.includes(d) ? arr.filter((x) => x !== d) : [...arr, d]));
 
-  const add = async () => {
+  const startEdit = (slot: SpaceSlotResponse) => {
+    setEditTarget(slot);
+    setDays([slot.dayOfWeek]);
+    setStart(slot.startTime.slice(0, 5));
+    setEnd(slot.endTime.slice(0, 5));
+  };
+
+  const cancelEdit = () => {
+    setEditTarget(null);
+    setDays(['MONDAY']);
+    setStart('14:00');
+    setEnd('17:00');
+  };
+
+  const save = async () => {
+    if (isEditing && editTarget) {
+      setSaving(true);
+      try {
+        const updated = await spaceApi.updateSlot(spaceId, editTarget.id, {
+          dayOfWeek: editTarget.dayOfWeek,
+          startTime: start,
+          endTime: end,
+        });
+        setSlots((s) => sortSlots(s.map((x) => (x.id === editTarget.id ? updated : x))));
+        cancelEdit();
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     if (days.length === 0) return;
     // 선택한 요일 중 같은 시간대가 이미 등록된 요일은 건너뛴다.
     const targets = days.filter((d) => !slots.some((s) => s.dayOfWeek === d && s.startTime.slice(0, 5) === start && s.endTime.slice(0, 5) === end));
     if (targets.length === 0) return;
-    setAdding(true);
+    setSaving(true);
     try {
       const created = await Promise.all(
         targets.map((d) => spaceApi.addSlot(spaceId, { dayOfWeek: d, startTime: start, endTime: end })),
       );
       setSlots((s) => sortSlots([...s, ...created]));
     } finally {
-      setAdding(false);
+      setSaving(false);
     }
   };
 
   const remove = async (slotId: number) => {
+    if (editTarget?.id === slotId) cancelEdit();
     setSlots((s) => s.filter((x) => x.id !== slotId));
     await spaceApi.deleteSlot(spaceId, slotId);
   };
@@ -168,16 +201,17 @@ function SlotManager({ spaceId }: { spaceId: number }) {
                 <AppText variant="small" tint={theme.primary}>{DayOfWeekLabel[s.dayOfWeek]}</AppText>
               </View>
               <AppText variant="body" style={{ flex: 1 }}>{s.startTime.slice(0, 5)} ~ {s.endTime.slice(0, 5)}</AppText>
+              <Ionicons name="create-outline" size={18} color={theme.textSecondary} onPress={() => startEdit(s)} />
               <Ionicons name="trash-outline" size={18} color={theme.danger} onPress={() => remove(s.id)} />
             </View>
           ))}
         </Card>
       )}
 
-      <Field label="요일 (복수 선택 가능)">
+      <Field label={isEditing ? '수정할 슬롯 (요일 고정)' : '요일 (복수 선택 가능)'}>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {DAYS.map((d) => (
-            <View key={d} style={{ flex: 1 }}>
+            <View key={d} style={{ flex: 1 }} pointerEvents={isEditing ? 'none' : 'auto'}>
               <DayChip label={DayOfWeekLabel[d]} active={days.includes(d)} onPress={() => toggleDay(d)} />
             </View>
           ))}
@@ -187,14 +221,20 @@ function SlotManager({ spaceId }: { spaceId: number }) {
         <View style={{ flex: 1 }}><DialField label="시작 시간" mode="time" value={start} onChange={setStart} /></View>
         <View style={{ flex: 1 }}><DialField label="종료 시간" mode="time" value={end} onChange={setEnd} /></View>
       </View>
-      <Button
-        label={adding ? '' : days.length > 1 ? `${days.length}개 요일에 시간대 추가` : '시간대 추가'}
-        loading={adding}
-        disabled={days.length === 0}
-        variant="outline"
-        fullWidth
-        onPress={add}
-      />
+      <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+        {isEditing && (
+          <Button label="취소" variant="outline" fullWidth onPress={cancelEdit} style={{ flex: 1 }} />
+        )}
+        <Button
+          label={saving ? '' : isEditing ? '수정 저장' : days.length > 1 ? `${days.length}개 요일에 시간대 추가` : '시간대 추가'}
+          loading={saving}
+          disabled={!isEditing && days.length === 0}
+          variant="outline"
+          fullWidth
+          onPress={save}
+          style={{ flex: 1 }}
+        />
+      </View>
     </Group>
   );
 }

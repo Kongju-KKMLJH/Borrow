@@ -2,6 +2,7 @@ package kkmljh.borrow.ai.service;
 
 import kkmljh.borrow.ai.dto.MatchRequest;
 import kkmljh.borrow.ai.dto.SpaceMatchResponse;
+import kkmljh.borrow.ai.dto.SpaceMatchResult;
 import kkmljh.borrow.ai.dto.SpaceScores;
 import kkmljh.borrow.ai.llm.LlmClient;
 import kkmljh.borrow.ai.repository.SpaceMatchRepository;
@@ -96,7 +97,7 @@ class SpaceMatchingServiceTest {
         void noCandidates() {
             given(spaceRepo.findCandidates(anyInt(), anyString(), any())).willReturn(List.of());
 
-            assertThat(matchingService.match(request())).isEmpty();
+            assertThat(matchingService.match(request()).matched()).isEmpty();
             verify(llm, never()).complete(anyString(), any(), anyLong());
         }
 
@@ -120,7 +121,7 @@ class SpaceMatchingServiceTest {
                     .willReturn(List.of(coveringSlot(covered), narrowSlot(narrow)));
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
 
-            assertThat(matchingService.match(request()))
+            assertThat(matchingService.match(request()).matched())
                     .extracting(SpaceMatchResponse::spaceId)
                     .containsExactly(1L);
         }
@@ -132,7 +133,7 @@ class SpaceMatchingServiceTest {
             given(spaceRepo.findCandidates(anyInt(), anyString(), any())).willReturn(List.of(space));
             given(slotRepo.findBySpaceIdsAndDay(any(), eq(DayOfWeek.SATURDAY))).willReturn(List.of());
 
-            assertThat(matchingService.match(request())).isEmpty();
+            assertThat(matchingService.match(request()).matched()).isEmpty();
         }
 
         @Test
@@ -145,7 +146,7 @@ class SpaceMatchingServiceTest {
                     .willReturn(List.of(coveringSlot(loud)));
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
 
-            assertThat(matchingService.match(request(null, true, false)))
+            assertThat(matchingService.match(request(null, true, false)).matched())
                     .extracting(SpaceMatchResponse::spaceId)
                     .containsExactly(2L);
         }
@@ -160,7 +161,7 @@ class SpaceMatchingServiceTest {
                     .willReturn(List.of(coveringSlot(messy)));
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
 
-            assertThat(matchingService.match(request(null, false, true)))
+            assertThat(matchingService.match(request(null, false, true)).matched())
                     .extracting(SpaceMatchResponse::spaceId)
                     .containsExactly(2L);
         }
@@ -174,7 +175,7 @@ class SpaceMatchingServiceTest {
                     .willReturn(List.of(coveringSlot(quiet)));
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
 
-            assertThat(matchingService.match(request(null, null, null))).hasSize(1);
+            assertThat(matchingService.match(request(null, null, null)).matched()).hasSize(1);
         }
 
         @Test
@@ -188,7 +189,7 @@ class SpaceMatchingServiceTest {
                     .willReturn(List.of(coveringSlot(alternative)));
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
 
-            assertThat(matchingService.match(request(List.of(1L), false, false)))
+            assertThat(matchingService.match(request(List.of(1L), false, false)).matched())
                     .extracting(SpaceMatchResponse::spaceId)
                     .containsExactly(2L);
         }
@@ -199,7 +200,7 @@ class SpaceMatchingServiceTest {
             Space rejected = space(1L, true, true);
             given(spaceRepo.findCandidates(anyInt(), anyString(), any())).willReturn(List.of(rejected));
 
-            assertThat(matchingService.match(request(List.of(1L), false, false))).isEmpty();
+            assertThat(matchingService.match(request(List.of(1L), false, false)).matched()).isEmpty();
         }
     }
 
@@ -221,10 +222,10 @@ class SpaceMatchingServiceTest {
             twoCandidates();
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(
                     new SpaceScores(List.of(
-                            new SpaceScores.SpaceScore(1L, 70, "무난함"),
-                            new SpaceScores.SpaceScore(2L, 95, "시설이 완벽함"))));
+                            new SpaceScores.SpaceScore(1L, 70, "무난함", List.of()),
+                            new SpaceScores.SpaceScore(2L, 95, "시설이 완벽함", List.of()))));
 
-            List<SpaceMatchResponse> result = matchingService.match(request());
+            List<SpaceMatchResponse> result = matchingService.match(request()).matched();
 
             assertThat(result).extracting(SpaceMatchResponse::spaceId).containsExactly(2L, 1L);
             assertThat(result.get(0).score()).isEqualTo(95);
@@ -238,10 +239,10 @@ class SpaceMatchingServiceTest {
             twoCandidates();
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(
                     new SpaceScores(List.of(
-                            new SpaceScores.SpaceScore(1L, 150, "과한 점수"),
-                            new SpaceScores.SpaceScore(2L, -20, "음수 점수"))));
+                            new SpaceScores.SpaceScore(1L, 150, "과한 점수", List.of()),
+                            new SpaceScores.SpaceScore(2L, -20, "음수 점수", List.of()))));
 
-            List<SpaceMatchResponse> result = matchingService.match(request());
+            List<SpaceMatchResponse> result = matchingService.match(request()).matched();
 
             assertThat(result).extracting(SpaceMatchResponse::score).containsExactly(100, 0);
         }
@@ -253,7 +254,7 @@ class SpaceMatchingServiceTest {
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong()))
                     .willThrow(new RuntimeException("API down"));
 
-            List<SpaceMatchResponse> result = matchingService.match(request());
+            List<SpaceMatchResponse> result = matchingService.match(request()).matched();
 
             assertThat(result).hasSize(2);
             assertThat(result).allSatisfy(r -> {
@@ -269,7 +270,7 @@ class SpaceMatchingServiceTest {
             twoCandidates();
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
 
-            assertThat(matchingService.match(request()))
+            assertThat(matchingService.match(request()).matched())
                     .allSatisfy(r -> assertThat(r.aiScored()).isFalse());
         }
 
@@ -280,7 +281,7 @@ class SpaceMatchingServiceTest {
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong()))
                     .willReturn(new SpaceScores(null));
 
-            assertThat(matchingService.match(request()))
+            assertThat(matchingService.match(request()).matched())
                     .allSatisfy(r -> assertThat(r.aiScored()).isFalse());
         }
 
@@ -289,9 +290,9 @@ class SpaceMatchingServiceTest {
         void partialAiScores() {
             twoCandidates();
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(
-                    new SpaceScores(List.of(new SpaceScores.SpaceScore(1L, 90, "LLM 평가"))));
+                    new SpaceScores(List.of(new SpaceScores.SpaceScore(1L, 90, "LLM 평가", List.of()))));
 
-            List<SpaceMatchResponse> result = matchingService.match(request());
+            List<SpaceMatchResponse> result = matchingService.match(request()).matched();
 
             assertThat(result).filteredOn(r -> r.spaceId().equals(1L))
                     .singleElement()
@@ -307,11 +308,11 @@ class SpaceMatchingServiceTest {
             twoCandidates();
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(
                     new SpaceScores(List.of(
-                            new SpaceScores.SpaceScore(1L, 90, "첫 평가"),
-                            new SpaceScores.SpaceScore(1L, 10, "중복 평가"),
-                            new SpaceScores.SpaceScore(2L, 50, "평가"))));
+                            new SpaceScores.SpaceScore(1L, 90, "첫 평가", List.of()),
+                            new SpaceScores.SpaceScore(1L, 10, "중복 평가", List.of()),
+                            new SpaceScores.SpaceScore(2L, 50, "평가", List.of()))));
 
-            assertThat(matchingService.match(request()))
+            assertThat(matchingService.match(request()).matched())
                     .filteredOn(r -> r.spaceId().equals(1L))
                     .singleElement()
                     .satisfies(r -> {
@@ -326,7 +327,7 @@ class SpaceMatchingServiceTest {
             twoCandidates();
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
 
-            SpaceMatchResponse response = matchingService.match(request()).get(0);
+            SpaceMatchResponse response = matchingService.match(request()).matched().get(0);
 
             assertThat(response.name()).startsWith("공간 ");
             assertThat(response.region()).isEqualTo("천안시 서북구 불당동");
@@ -363,7 +364,7 @@ class SpaceMatchingServiceTest {
             given(slotRepo.findBySpaceIdsAndDay(any(), eq(DayOfWeek.SATURDAY)))
                     .willReturn(List.of(coveringSlot(space)));
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
-            return matchingService.match(request);
+            return matchingService.match(request).matched();
         }
 
         @Test
@@ -386,7 +387,7 @@ class SpaceMatchingServiceTest {
                     .willReturn(List.of(coveringSlot(equipped), coveringSlot(bare)));
             given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
 
-            List<SpaceMatchResponse> result = matchingService.match(request());
+            List<SpaceMatchResponse> result = matchingService.match(request()).matched();
 
             assertThat(result.get(0).spaceId()).isEqualTo(1L);
             assertThat(result.get(0).score()).isGreaterThan(result.get(1).score());
@@ -423,6 +424,188 @@ class SpaceMatchingServiceTest {
                     ActivityField.ART, SATURDAY, LocalTime.of(14, 0), LocalTime.of(16, 0), null);
 
             assertThat(matchWithFallback(space, noFacilities).get(0).score()).isPositive();
+        }
+    }
+
+    @Nested
+    @DisplayName("기능명세 3.1 display — 추천 주의사항")
+    class Cautions {
+
+        private Space pricey(Long id, boolean noiseAllowed, boolean messAllowed,
+                             int capacity, int hourlyFee, String conditions) {
+            return TestFixtures.withId(Space.builder()
+                    .ownerId("host1").name("공간 " + id).region("천안시 서북구 불당동")
+                    .capacity(capacity).hourlyFee(hourlyFee).conditions(conditions)
+                    .facilities(Set.of(FacilityType.TABLE))          // 요청 시설 WATER 는 없음
+                    .allowedFields(Set.of(ActivityField.ART))
+                    .noiseAllowed(noiseAllowed).messAllowed(messAllowed)
+                    .build(), id);
+        }
+
+        private List<String> cautionsFor(Space space) {
+            given(spaceRepo.findCandidates(anyInt(), anyString(), any())).willReturn(List.of(space));
+            given(slotRepo.findBySpaceIdsAndDay(any(), eq(DayOfWeek.SATURDAY)))
+                    .willReturn(List.of(coveringSlot(space)));
+            given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
+
+            return matchingService.match(request()).matched().get(0).cautions();
+        }
+
+        @Test
+        @DisplayName("LLM 주의사항을 그대로 내려준다")
+        void usesAiCautions() {
+            Space space = space(1L, true, true);
+            given(spaceRepo.findCandidates(anyInt(), anyString(), any())).willReturn(List.of(space));
+            given(slotRepo.findBySpaceIdsAndDay(any(), eq(DayOfWeek.SATURDAY)))
+                    .willReturn(List.of(coveringSlot(space)));
+            given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(
+                    new SpaceScores(List.of(new SpaceScores.SpaceScore(
+                            1L, 90, "좋음", List.of("주말 오후는 매장이 붐빕니다.")))));
+
+            assertThat(matchingService.match(request()).matched().get(0).cautions())
+                    .containsExactly("주말 오후는 매장이 붐빕니다.");
+        }
+
+        @Test
+        @DisplayName("LLM이 주의사항을 빠뜨리면 null 대신 빈 목록을 내려준다")
+        void aiCautionsMayBeNull() {
+            Space space = space(1L, true, true);
+            given(spaceRepo.findCandidates(anyInt(), anyString(), any())).willReturn(List.of(space));
+            given(slotRepo.findBySpaceIdsAndDay(any(), eq(DayOfWeek.SATURDAY)))
+                    .willReturn(List.of(coveringSlot(space)));
+            given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(
+                    new SpaceScores(List.of(new SpaceScores.SpaceScore(1L, 90, "좋음", null))));
+
+            assertThat(matchingService.match(request()).matched().get(0).cautions()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("LLM 실패로 폴백해도 주의사항은 사라지지 않는다")
+        void fallbackStillHasCautions() {
+            Space space = pricey(1L, false, false, 7, 30_000, "음료 1잔 주문 필수");
+
+            assertThat(cautionsFor(space)).isNotEmpty();
+        }
+
+        @Test
+        @DisplayName("요청한 시설이 없으면 짚어 준다")
+        void missingFacility() {
+            assertThat(cautionsFor(pricey(1L, true, true, 20, 10_000, null)))
+                    .anyMatch(c -> c.contains("WATER"));
+        }
+
+        @Test
+        @DisplayName("수용 인원 여유가 빠듯하면 짚어 준다")
+        void tightCapacity() {
+            // 요청 인원 6명, 수용 7명 → 여유 1명
+            assertThat(cautionsFor(pricey(1L, true, true, 7, 10_000, null)))
+                    .anyMatch(c -> c.contains("수용 인원 여유가 1명"));
+        }
+
+        @Test
+        @DisplayName("여유가 넉넉하면 인원 주의사항을 달지 않는다")
+        void roomyCapacityHasNoCaution() {
+            assertThat(cautionsFor(pricey(1L, true, true, 20, 10_000, null)))
+                    .noneMatch(c -> c.contains("수용 인원 여유"));
+        }
+
+        @Test
+        @DisplayName("소음·오염 불가 공간은 그 사실을 짚어 준다")
+        void noiseAndMessRestrictions() {
+            assertThat(cautionsFor(pricey(1L, false, false, 20, 10_000, null)))
+                    .anyMatch(c -> c.contains("소음"))
+                    .anyMatch(c -> c.contains("오염"));
+        }
+
+        @Test
+        @DisplayName("이용료가 높으면 짚어 주고, 저렴하면 짚지 않는다")
+        void expensiveFee() {
+            assertThat(cautionsFor(pricey(1L, true, true, 20, 30_000, null)))
+                    .anyMatch(c -> c.contains("이용료"));
+        }
+
+        @Test
+        @DisplayName("이용 조건이 있으면 확인하라고 알려 준다")
+        void conditionsAreSurfaced() {
+            assertThat(cautionsFor(pricey(1L, true, true, 20, 10_000, "음료 1잔 주문 필수")))
+                    .anyMatch(c -> c.contains("음료 1잔 주문 필수"));
+        }
+
+        @Test
+        @DisplayName("빈 이용 조건은 주의사항으로 만들지 않는다")
+        void blankConditionsIgnored() {
+            assertThat(cautionsFor(pricey(1L, true, true, 20, 10_000, "   ")))
+                    .noneMatch(c -> c.contains("이용 조건"));
+        }
+    }
+
+    @Nested
+    @DisplayName("기능명세 3.1.1 exceptions — 추천 불가 안내")
+    class NoMatchSuggestions {
+
+        private SpaceMatchResult noCandidates(MatchRequest request) {
+            given(spaceRepo.findCandidates(anyInt(), anyString(), any())).willReturn(List.of());
+            return matchingService.match(request);
+        }
+
+        @Test
+        @DisplayName("후보가 없어도 오류가 아니라 빈 matched + 조건 수정 안내로 돌려준다")
+        void suggestionsInsteadOfError() {
+            SpaceMatchResult result = noCandidates(request());
+
+            assertThat(result.matched()).isEmpty();
+            assertThat(result.suggestions()).isNotEmpty();
+        }
+
+        @Test
+        @DisplayName("걸린 조건만 짚는다 — 지역·인원·시설·시간대")
+        void suggestsOnlyAppliedConditions() {
+            SpaceMatchResult result = noCandidates(request());
+
+            assertThat(result.suggestions())
+                    .anyMatch(sug -> sug.contains("지역"))
+                    .anyMatch(sug -> sug.contains("모집 인원(6명)"))
+                    .anyMatch(sug -> sug.contains("WATER"))
+                    .anyMatch(sug -> sug.contains("시간대"));
+        }
+
+        @Test
+        @DisplayName("지역을 걸지 않았으면 지역을 넓히라고 하지 않는다")
+        void noRegionSuggestionWhenRegionBlank() {
+            MatchRequest noRegion = new MatchRequest("  ", 6, List.of(), false, false,
+                    ActivityField.ART, SATURDAY, LocalTime.of(14, 0), LocalTime.of(16, 0), null);
+
+            assertThat(noCandidates(noRegion).suggestions())
+                    .noneMatch(sug -> sug.contains("희망 지역"));
+        }
+
+        @Test
+        @DisplayName("소음·오염 제한을 걸었을 때만 그 안내를 붙인다")
+        void noiseSuggestionOnlyWhenRestricted() {
+            assertThat(noCandidates(request(null, true, false)).suggestions())
+                    .anyMatch(sug -> sug.contains("소음·오염"));
+        }
+
+        @Test
+        @DisplayName("A-04 대체 추천에서 모두 제외되면 제외를 풀라고 안내한다")
+        void suggestsUnexcluding() {
+            assertThat(noCandidates(request(List.of(1L, 2L), false, false)).suggestions())
+                    .anyMatch(sug -> sug.contains("제외한 공간"));
+        }
+
+        @Test
+        @DisplayName("추천이 있으면 조건 수정 안내는 비운다")
+        void noSuggestionsWhenMatched() {
+            Space space = space(1L, true, true);
+            given(spaceRepo.findCandidates(anyInt(), anyString(), any())).willReturn(List.of(space));
+            given(slotRepo.findBySpaceIdsAndDay(any(), eq(DayOfWeek.SATURDAY)))
+                    .willReturn(List.of(coveringSlot(space)));
+            given(llm.complete(anyString(), eq(SpaceScores.class), anyLong())).willReturn(null);
+
+            SpaceMatchResult result = matchingService.match(request());
+
+            assertThat(result.matched()).hasSize(1);
+            assertThat(result.suggestions()).isEmpty();
         }
     }
 }

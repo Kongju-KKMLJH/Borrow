@@ -5,8 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 @Slf4j
 @RestControllerAdvice
@@ -33,6 +36,35 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException e) {
         return ResponseEntity.badRequest()
                 .body(ApiResponse.error(ErrorCode.INVALID_REQUEST.name(), "요청 본문을 해석할 수 없습니다. 필수 값을 확인하세요."));
+    }
+
+    /**
+     * 잘못된 enum·숫자 등 경로·쿼리 파라미터 타입 불일치 (이슈 #8·#30).
+     *
+     * <p>스프링이 400으로 처리하는 예외지만 {@code @ExceptionHandler(Exception.class)} 가
+     * 먼저 잡아 500으로 나가던 것을 400으로 되돌린다. 사용자가 보낸 값은 메시지에 담지 않는다.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(ErrorCode.INVALID_REQUEST.name(),
+                        "'" + e.getName() + "' 파라미터의 값이 올바르지 않습니다."));
+    }
+
+    /** 필수 쿼리 파라미터 누락 (이슈 #8·#30 — 같은 이유로 500이 되던 표준 MVC 예외) */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingParameter(MissingServletRequestParameterException e) {
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(ErrorCode.INVALID_REQUEST.name(),
+                        "'" + e.getParameterName() + "' 파라미터는 필수입니다."));
+    }
+
+    /** multipart 요청에서 필수 파트 누락 (이슈 #8·#30 — 업로드 API의 files 파트) */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingPart(MissingServletRequestPartException e) {
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(ErrorCode.INVALID_REQUEST.name(),
+                        "'" + e.getRequestPartName() + "' 파트는 필수입니다."));
     }
 
     @ExceptionHandler(Exception.class)

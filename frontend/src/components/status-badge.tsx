@@ -9,7 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
 type Tone = 'primary' | 'secondary' | 'accent' | 'neutral' | 'danger';
 
 const ACTIVITY_TONE: Record<ActivityStatus, Tone> = {
-  DRAFT: 'neutral', PENDING: 'accent', PUBLISHED: 'secondary', REJECTED: 'danger',
+  DRAFT: 'neutral', PENDING: 'accent', MATCHED: 'primary', PUBLISHED: 'secondary', REJECTED: 'danger',
 };
 const REQUEST_TONE: Record<RequestStatus, Tone> = { PENDING: 'accent', APPROVED: 'secondary', REJECTED: 'danger' };
 

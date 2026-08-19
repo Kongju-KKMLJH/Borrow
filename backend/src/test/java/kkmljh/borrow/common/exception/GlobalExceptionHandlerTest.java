@@ -11,6 +11,9 @@ import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.lang.reflect.Method;
 
@@ -20,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+    /** 타입 불일치 예외의 "요구된 타입" 자리에 쓰는 더미 */
+    private enum ActivityFieldLike { ART }
 
     /** MethodArgumentNotValidException 을 만들려면 실제 MethodParameter 가 필요하다. */
     @SuppressWarnings("unused")
@@ -91,6 +97,42 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().error().code()).isEqualTo("INVALID_REQUEST");
         assertThat(response.getBody().error().message()).contains("요청 본문");
+    }
+
+    @Test
+    @DisplayName("파라미터 타입 불일치는 400 INVALID_REQUEST 이고 사용자가 보낸 값을 노출하지 않는다 (#8·#30)")
+    void handleTypeMismatch() throws Exception {
+        ResponseEntity<ApiResponse<Void>> response = handler.handleTypeMismatch(
+                new MethodArgumentTypeMismatchException(
+                        "UNKNOWN", ActivityFieldLike.class, "type", dummyParameter(), null));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().error().code()).isEqualTo("INVALID_REQUEST");
+        assertThat(response.getBody().error().message())
+                .contains("type")
+                .doesNotContain("UNKNOWN");
+    }
+
+    @Test
+    @DisplayName("필수 쿼리 파라미터 누락은 400 INVALID_REQUEST (#8·#30)")
+    void handleMissingParameter() {
+        ResponseEntity<ApiResponse<Void>> response = handler.handleMissingParameter(
+                new MissingServletRequestParameterException("region", "String"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().error().code()).isEqualTo("INVALID_REQUEST");
+        assertThat(response.getBody().error().message()).contains("region");
+    }
+
+    @Test
+    @DisplayName("필수 multipart 파트 누락은 400 INVALID_REQUEST (#8·#30)")
+    void handleMissingPart() {
+        ResponseEntity<ApiResponse<Void>> response =
+                handler.handleMissingPart(new MissingServletRequestPartException("files"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().error().code()).isEqualTo("INVALID_REQUEST");
+        assertThat(response.getBody().error().message()).contains("files");
     }
 
     @Test

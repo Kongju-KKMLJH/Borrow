@@ -4,6 +4,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
+import kkmljh.borrow.activity.repository.ConfirmedSpace;
 import kkmljh.borrow.domain.Activity;
 import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.FacilityType;
@@ -179,6 +180,81 @@ class ActivityDtoTest {
 
             assertThat(response.alreadyJoined()).isFalse();
             assertThat(response.mine()).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("기능명세 4.1 잔여 인원 · 확정 공간 요약")
+    class RemainingCapacityAndSpace {
+
+        @Test
+        @DisplayName("잔여 인원 = 정원 - 현재 인원 (상세·요약 모두)")
+        void remainingCapacity() {
+            Activity activity = TestFixtures.publishedActivity(1L, "member1");   // capacity 8
+
+            assertThat(ActivityDetailResponse.of(activity, 5, false, false).remainingCapacity()).isEqualTo(3);
+            assertThat(ActivitySummaryResponse.of(activity, 5, false, false).remainingCapacity()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("아무도 신청하지 않았으면 잔여 인원 = 정원")
+        void remainingCapacityWhenEmpty() {
+            Activity activity = TestFixtures.publishedActivity(1L, "member1");   // capacity 8
+
+            assertThat(ActivityDetailResponse.of(activity, 0).remainingCapacity()).isEqualTo(8);
+        }
+
+        @Test
+        @DisplayName("현재 인원이 정원을 넘어도 잔여 인원은 0 하한 — 음수를 내려보내지 않는다")
+        void remainingCapacityFloorsAtZero() {
+            Activity activity = TestFixtures.publishedActivity(1L, "member1");   // capacity 8
+
+            assertThat(ActivityDetailResponse.of(activity, 12, false, false).remainingCapacity()).isZero();
+            assertThat(ActivitySummaryResponse.of(activity, 12, false, false).remainingCapacity()).isZero();
+        }
+
+        @Test
+        @DisplayName("정원과 현재 인원이 같으면 잔여 인원 0 (경계)")
+        void remainingCapacityExactlyFull() {
+            Activity activity = TestFixtures.publishedActivity(1L, "member1");   // capacity 8
+
+            assertThat(ActivityDetailResponse.of(activity, 8, false, false).remainingCapacity()).isZero();
+        }
+
+        @Test
+        @DisplayName("확정 공간 요약은 리포지토리 투영에서 그대로 옮겨 담는다")
+        void spaceInfoFromProjection() {
+            ActivityDetailResponse.SpaceInfo info = ActivityDetailResponse.SpaceInfo.from(
+                    new ConfirmedSpace(1L, 7L, "불당 카페", "천안시 서북구 불당동"));
+
+            assertThat(info).isEqualTo(new ActivityDetailResponse.SpaceInfo(7L, "불당 카페", "천안시 서북구 불당동"));
+        }
+
+        @Test
+        @DisplayName("확정 공간이 없으면 SpaceInfo 도 null")
+        void spaceInfoFromNull() {
+            assertThat(ActivityDetailResponse.SpaceInfo.from(null)).isNull();
+        }
+
+        @Test
+        @DisplayName("개최지가 확정되기 전 응답의 space 는 null")
+        void spaceIsNullBeforeApproval() {
+            Activity activity = TestFixtures.activity();
+
+            assertThat(ActivityDetailResponse.of(activity, 0).space()).isNull();
+            assertThat(ActivitySummaryResponse.of(activity, 0).space()).isNull();
+        }
+
+        @Test
+        @DisplayName("회귀 — SpaceInfo·ConfirmedSpace 에 주소 필드가 없다 (기능명세 6.1 공개 주소는 동 단위까지)")
+        void noAddressFieldAnywhere() {
+            assertThat(ActivityDetailResponse.SpaceInfo.class.getRecordComponents())
+                    .extracting(java.lang.reflect.RecordComponent::getName)
+                    .containsExactly("id", "name", "region");
+
+            assertThat(ConfirmedSpace.class.getRecordComponents())
+                    .extracting(java.lang.reflect.RecordComponent::getName)
+                    .doesNotContain("address");
         }
     }
 

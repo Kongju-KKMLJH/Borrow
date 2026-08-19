@@ -76,9 +76,16 @@ public class SecurityConfig {
                         .requestMatchers("/api/me/**", "/api/ai/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/uploads").authenticated()
 
-                        // --- 활동 개설·관리: MEMBER, ARTIST ---
-                        // ARTIST 전용 엔드포인트는 없다. 같은 API를 쓰고 서버가 역할을 보고 CLASS로 분기한다.
-                        .requestMatchers(HttpMethod.POST, "/api/activities").hasAnyRole("MEMBER", "ARTIST")
+                        // --- 활동 개설: ARTIST 전용 (기능명세 1.2) ---
+                        // 프로그램 개설은 예술가로 한정한다 (팀 결정, 이슈 #69).
+                        // 인증 승인 여부는 개설 가부가 아니라 배지(hostCertified)만 좌우한다 —
+                        // 미인증 ARTIST도 개설할 수 있고 배지만 붙지 않는다.
+                        .requestMatchers(HttpMethod.POST, "/api/activities").hasRole("ARTIST")
+
+                        // --- 개설된 활동의 관리: MEMBER, ARTIST ---
+                        // 개설은 막았지만 관리까지 좁히지는 않는다 — 규칙 변경 이전에 MEMBER가 개설해 둔
+                        // 활동이 수정·삭제·개최요청조차 못 하는 상태로 남으면 안 된다.
+                        // "내 것인지"는 어차피 서비스가 소유자로 다시 판정한다.
                         .requestMatchers(HttpMethod.PATCH, "/api/activities/{activityId}/requirement")
                         .hasAnyRole("MEMBER", "ARTIST")
                         // 기능명세 2.1 수정·삭제. HttpMethod 를 반드시 명시한다 —
@@ -89,10 +96,19 @@ public class SecurityConfig {
                         .hasAnyRole("MEMBER", "ARTIST")
                         .requestMatchers("/api/activities/{activityId}/hosting-request")
                         .hasAnyRole("MEMBER", "ARTIST")
+                        // 기능명세 3.3 매칭 이용료 Mock 결제. 개설된 활동의 관리로 취급 — 위 규칙들과 동일 정책.
+                        .requestMatchers(HttpMethod.POST, "/api/activities/{activityId}/payment")
+                        .hasAnyRole("MEMBER", "ARTIST")
 
                         // --- 공간 운영: HOST ---
                         .requestMatchers("/api/spaces/**").hasRole("HOST")
                         .requestMatchers("/api/host/**").hasRole("HOST")
+
+                        // --- 관리자 콘솔: ADMIN 전용 (기능명세 7) ---
+                        // 관리자는 자기 경로만 쓴다 — 위의 MEMBER/HOST/ARTIST 줄에 ADMIN을 섞지 않는다.
+                        // 섞으면 관리자가 남의 활동을 개설자 자격으로 고칠 수 있게 되고,
+                        // "관리자는 대신 편집하지 않는다"는 기능명세 7.2 범위 제외가 깨진다.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
                         .anyRequest().authenticated())
                 .httpBasic(basic -> basic.authenticationEntryPoint(authenticationEntryPoint()))

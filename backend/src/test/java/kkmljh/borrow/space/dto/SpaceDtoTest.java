@@ -130,6 +130,7 @@ class SpaceDtoTest {
             assertThat(response.space().id()).isEqualTo(5L);
             assertThat(response.space().name()).isEqualTo("불당동 스튜디오");
             assertThat(response.space().region()).isEqualTo("천안시 서북구 불당동");
+            assertThat(response.space().hourlyFee()).isEqualTo(10_000);
             assertThat(response.activity().id()).isEqualTo(1L);
             assertThat(response.activity().title()).isEqualTo("수채화 모임");
             assertThat(response.activity().field()).isEqualTo(ActivityField.ART);
@@ -193,6 +194,37 @@ class SpaceDtoTest {
             assertThat(response.status()).isEqualTo(RequestStatus.REJECTED);
             assertThat(response.rejectReason()).isEqualTo("예약이 있습니다.");
         }
+
+        /**
+         * 기능명세 3.2 display · 요구사항 3 인수조건 3 — 파트너는 "일정, 인원, 시설, 이용시간,
+         * <b>공간 이용료</b>를 확인하고 승인 또는 거절"한다. 금액이 빠지면 승인 판단 정보가 모자란다.
+         */
+        @Test
+        @DisplayName("공간 이용료: 시간당 단가와 활동 시간 기준 예상 이용료를 함께 담는다 (기능명세 3.2 display)")
+        void spaceFee() {
+            // 공간 시간당 10,000원 · 활동 14:00~16:00(2시간) → 예상 이용료 20,000원
+            HostingRequest request = TestFixtures.hostingRequest(
+                    7L, TestFixtures.activity(1L, "member1"), TestFixtures.space(5L, "host1"));
+
+            HostingRequestResponse.SpaceInfo space = HostingRequestResponse.from(request, false).space();
+
+            assertThat(space.hourlyFee()).isEqualTo(10_000);
+            // 예술가가 매칭 확정 화면에서 보는 PriceBreakdown.spaceRentalFee 와 같은 값이어야 한다
+            assertThat(space.expectedRentalFee()).isEqualTo(20_000);
+        }
+
+        /**
+         * 회귀 — 이용료를 실으면서 주소까지 딸려 들어가기 쉬운 자리다.
+         * 공개 응답의 주소는 동 단위({@code region})까지다 (기능명세 6.1 rules · 이슈 #53).
+         */
+        @Test
+        @DisplayName("회귀 — SpaceInfo 에 주소 필드가 없다 (기능명세 6.1 rules)")
+        void spaceInfoHasNoAddress() {
+            assertThat(HostingRequestResponse.SpaceInfo.class.getRecordComponents())
+                    .extracting(java.lang.reflect.RecordComponent::getName)
+                    .containsExactly("id", "name", "region", "hourlyFee", "expectedRentalFee")
+                    .doesNotContain("address");
+        }
     }
 
     @Test
@@ -212,5 +244,33 @@ class SpaceDtoTest {
         assertThat(response.capacity()).isEqualTo(8);
         assertThat(response.spaceId()).isEqualTo(5L);
         assertThat(response.spaceName()).isEqualTo("불당동 스튜디오");
+    }
+
+    @Nested
+    @DisplayName("SpaceRequest 중복 판정용 정규화 (기능명세 6.1 exceptions)")
+    class TrimmedValues {
+
+        private SpaceRequest request(String name, String address) {
+            return new SpaceRequest(name, "천안", address, null, 10, 10_000, "조건",
+                    null, null, false, false);
+        }
+
+        @Test
+        @DisplayName("앞뒤 공백만 제거한다 — 가운데 공백은 접지 않는다")
+        void trimsOnly() {
+            SpaceRequest request = request("  불당동  스튜디오 ", " 불당대로 1  ");
+
+            assertThat(request.trimmedName()).isEqualTo("불당동  스튜디오");
+            assertThat(request.trimmedAddress()).isEqualTo("불당대로 1");
+        }
+
+        @Test
+        @DisplayName("주소는 선택 입력이라 null 이면 null 그대로 둔다")
+        void keepsNullAddress() {
+            SpaceRequest request = request("스튜디오", null);
+
+            assertThat(request.trimmedAddress()).isNull();
+            assertThat(request.trimmedName()).isEqualTo("스튜디오");
+        }
     }
 }

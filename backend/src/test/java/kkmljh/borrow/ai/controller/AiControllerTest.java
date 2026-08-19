@@ -2,6 +2,7 @@ package kkmljh.borrow.ai.controller;
 
 import kkmljh.borrow.ai.dto.RequirementResponse;
 import kkmljh.borrow.ai.dto.SpaceMatchResponse;
+import kkmljh.borrow.ai.dto.SpaceMatchResult;
 import kkmljh.borrow.ai.service.ActivityAnalysisService;
 import kkmljh.borrow.ai.service.SpaceMatchingService;
 import kkmljh.borrow.common.config.SecurityConfig;
@@ -52,7 +53,8 @@ class AiControllerTest {
     @DisplayName("A-01 활동 설명을 구조화된 요구조건으로 돌려준다")
     void analyze() throws Exception {
         given(analysisService.analyze(any())).willReturn(new RequirementResponse(
-                "천안시 서북구", 6, List.of(FacilityType.WATER), false, true, ActivityField.ART));
+                "천안시 서북구", 6, List.of(FacilityType.WATER), false, true, ActivityField.ART,
+                List.of(), List.of()));
 
         mockMvc.perform(post("/api/ai/analyze").with(TestUsers.member())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -90,31 +92,37 @@ class AiControllerTest {
     @Test
     @DisplayName("A-02/A-03 매칭 결과를 점수와 함께 돌려준다")
     void match() throws Exception {
-        given(matchingService.match(any())).willReturn(List.of(new SpaceMatchResponse(
+        given(matchingService.match(any())).willReturn(SpaceMatchResult.matched(List.of(new SpaceMatchResponse(
                 1L, "불당동 스튜디오", "천안시 서북구 불당동", 10, 10_000,
                 List.of("/files/s.jpg"), Set.of(FacilityType.WATER), Set.of(ActivityField.ART),
-                92, "물 사용이 가능하고 인원도 여유롭습니다.", true)));
+                92, "물 사용이 가능하고 인원도 여유롭습니다.",
+                List.of("이용 조건을 확인하세요 — 음료 1잔 주문 필수"), true))));
 
         mockMvc.perform(post("/api/ai/match").with(TestUsers.member())
                         .contentType(MediaType.APPLICATION_JSON).content(MATCH_BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].spaceId").value(1))
-                .andExpect(jsonPath("$.data[0].score").value(92))
-                .andExpect(jsonPath("$.data[0].aiScored").value(true))
-                .andExpect(jsonPath("$.data[0].reason").value("물 사용이 가능하고 인원도 여유롭습니다."));
+                .andExpect(jsonPath("$.data.matched[0].spaceId").value(1))
+                .andExpect(jsonPath("$.data.matched[0].score").value(92))
+                .andExpect(jsonPath("$.data.matched[0].aiScored").value(true))
+                .andExpect(jsonPath("$.data.matched[0].reason").value("물 사용이 가능하고 인원도 여유롭습니다."))
+                .andExpect(jsonPath("$.data.matched[0].cautions[0]").value("이용 조건을 확인하세요 — 음료 1잔 주문 필수"))
+                .andExpect(jsonPath("$.data.suggestions").isEmpty());
     }
 
     @Test
-    @DisplayName("조건에 맞는 공간이 없으면 빈 배열 (에러 아님)")
+    @DisplayName("기능명세 3.1.1 — 조건에 맞는 공간이 없으면 에러가 아니라 200 + 조건 수정 안내")
     void matchEmpty() throws Exception {
-        given(matchingService.match(any())).willReturn(List.of());
+        given(matchingService.match(any())).willReturn(
+                SpaceMatchResult.noMatch(List.of("희망 지역을 넓혀 보세요 — 동 단위 대신 구·시 단위로 검색하면 후보가 늘어납니다.")));
 
         mockMvc.perform(post("/api/ai/match").with(TestUsers.member())
                         .contentType(MediaType.APPLICATION_JSON).content(MATCH_BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data").isEmpty());
+                .andExpect(jsonPath("$.data.matched").isArray())
+                .andExpect(jsonPath("$.data.matched").isEmpty())
+                .andExpect(jsonPath("$.data.suggestions[0]")
+                        .value("희망 지역을 넓혀 보세요 — 동 단위 대신 구·시 단위로 검색하면 후보가 늘어납니다."));
     }
 
     @Test
@@ -143,7 +151,7 @@ class AiControllerTest {
     @Test
     @DisplayName("AI 호출은 역할과 무관하게 로그인만 하면 된다")
     void anyRoleCanCall() throws Exception {
-        given(matchingService.match(any())).willReturn(List.of());
+        given(matchingService.match(any())).willReturn(SpaceMatchResult.matched(List.of()));
 
         mockMvc.perform(post("/api/ai/match").with(TestUsers.host())
                         .contentType(MediaType.APPLICATION_JSON).content(MATCH_BODY))
