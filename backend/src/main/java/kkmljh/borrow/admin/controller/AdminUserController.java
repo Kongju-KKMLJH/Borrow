@@ -2,6 +2,8 @@ package kkmljh.borrow.admin.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import kkmljh.borrow.admin.dto.AdminUserRequest;
 import kkmljh.borrow.admin.dto.AdminUserResponse;
 import kkmljh.borrow.admin.dto.AdminVerificationResponse;
 import kkmljh.borrow.admin.service.AdminUserService;
@@ -10,7 +12,10 @@ import kkmljh.borrow.domain.ArtistVerificationStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,6 +40,29 @@ public class AdminUserController {
     @GetMapping("/users")
     public ApiResponse<List<AdminUserResponse>> users() {
         return ApiResponse.ok(adminUserService.findAll());
+    }
+
+    @Operation(summary = "7.1.2 임시(mock) 회원 생성",
+            description = "시범 운영·화면 검증용 회원을 만든다. 실제로 로그인할 수 있고 목록에서 임시 회원으로 구분된다.")
+    @PostMapping("/users")
+    public ApiResponse<AdminUserResponse> createUser(@Valid @RequestBody AdminUserRequest req) {
+        return ApiResponse.ok(adminUserService.create(req));
+    }
+
+    @Operation(summary = "7.1.2 임시 회원 수정",
+            description = "임시 회원만 수정할 수 있다. 비밀번호를 비우면 기존 값을 유지한다. 아이디는 바꾸지 않는다.")
+    @PutMapping("/users/{userId}")
+    public ApiResponse<AdminUserResponse> updateUser(@PathVariable Long userId,
+                                                     @Valid @RequestBody AdminUserRequest req) {
+        return ApiResponse.ok(adminUserService.update(userId, req));
+    }
+
+    @Operation(summary = "7.1.2 임시 회원 삭제",
+            description = "임시 회원만 삭제할 수 있다. 이 회원이 남긴 프로그램·공간·참여가 있으면 거절한다.")
+    @DeleteMapping("/users/{userId}")
+    public ApiResponse<Void> deleteUser(@PathVariable Long userId) {
+        adminUserService.delete(userId);
+        return ApiResponse.ok();
     }
 
     @Operation(summary = "7.1.3 회원 강제 탈퇴",

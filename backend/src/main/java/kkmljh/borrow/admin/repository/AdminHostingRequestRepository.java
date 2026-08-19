@@ -22,6 +22,12 @@ public interface AdminHostingRequestRepository extends JpaRepository<HostingRequ
      */
     List<HostingRequest> findBySpaceIdAndStatus(Long spaceId, RequestStatus status);
 
+    /** 임시 공간 삭제 전 확인 (기능명세 7.3.2) — SpaceService.delete 와 같은 판정이다. */
+    boolean existsBySpaceId(Long spaceId);
+
+    /** 임시 프로그램 삭제 시 함께 정리한다 (기능명세 7.2.2) — FK 위반을 피하려면 자식이 먼저다. */
+    long deleteByActivityId(Long activityId);
+
     /**
      * 관리자 프로그램 목록의 개최지 표시용 배치 조회 (기능명세 7.2.1 display).
      * 투영은 공개 목록과 같은 {@code ConfirmedSpace} 를 쓴다 — 개최지 요약의 모양을 두 벌로 만들지 않는다.

@@ -122,6 +122,7 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
   - 인증 심사 `GET /api/admin/artist-verifications`(기본 PENDING), 승인 `POST .../{id}/approve`
   - 프로그램 `GET /api/admin/activities`, 강제 삭제 `POST .../{activityId}/force-delete`
   - 공간 `GET /api/admin/spaces`, 강제 삭제 `POST .../{spaceId}/force-delete`
+  - 임시(mock) 데이터 CRUD `POST`·`PUT`·`DELETE /api/admin/{users,activities,spaces}` (기능명세 7.1.2·7.2.2·7.3.2, 이슈 #88)
 
 활동 **수정·삭제 규칙** (설계 확정, 코드에 반영됨):
 
@@ -151,6 +152,7 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 - **주소 문자열을 파싱해 동을 잘라내지 마라.** `Space.region`이 이미 동 단위 값이다(예: `"천안시 서북구 불당동"`). 공개 응답에서 `address`를 빼면 명세가 그대로 충족된다.
 - `SpaceResponse.forOwner`를 쓰는 곳은 `findMySpaces`·`create`·`update` **뿐이다.** 비로그인 열람인 `findAll`·`findById`에 쓰지 마라.
 - 다른 응답 경로는 애초에 주소를 담지 않는다 — `ai/dto/SpaceMatchResponse`(`region`만), `space/dto/HostingRequestResponse.SpaceInfo`(`id`·`name`·`region`), `ScheduleResponse`·`HostHomeResponse`(위치 필드 없음). **주소를 다시 흘리지 않게 이 목록을 유지하라.**
+- **예외 하나: `admin/dto/AdminSpaceResponse`는 주소 전문을 담는다** (팀 확정, 2026-08-19). 감추는 대상은 시민·예술가이고 관리자는 통제 대상을 특정해야 하는 주체다. 이 DTO는 `/api/admin/**`(ADMIN 전용)에서만 쓴다 — **다른 경로로 재사용하지 마라.** 규칙 위반으로 보고 필드를 걷어내지도 마라.
 
 ### `SecurityConfig` — **건드리지 마라**
 
@@ -300,6 +302,19 @@ ADMIN_LOGIN_ID=admin ADMIN_PASSWORD='<직접 정한 값>' ./gradlew bootRun
 - **배포 준비 중.** 서버는 제공받았고, `DEPLOYMENT.md` Part 1 산출물(Dockerfile·`.dockerignore`·`application-prod.yml`·`deploy/`·CD 워크플로)은 아직 만들지 않았다. 프론트·API를 **단일 오리진**(Caddy 리버스 프록시)으로 배포한다.
   - 배포 전 처리 목록: 웹 이미지 업로드 FormData 플랫폼 분기, `app.json` `web.output` → `single`, 웹 같은 오리진 base URL, `platform.fee.matching` 설정, OpenAI 키 로테이션.
 - 다음 기능 착수 후보는 **시민 탐색**(지역·일정 필터 + 확정 공간 + 잔여 인원, 기능명세 4.1)이다.
+
+## 관리자 콘솔 (기능명세 7) — 되돌리지 말아야 할 규칙
+
+| 대상 | 규칙 | 어디에 |
+|---|---|---|
+| ADMIN 계정 생성 | 가입 API로 만들 수 없다. 환경변수 시드(`AdminAccountInitializer`)와 **관리자 콘솔의 임시 회원 생성도 ADMIN을 거부**한다 | `AuthService.signup`, `AdminUserService.create` |
+| 강제 탈퇴·강제 삭제 (7.1.3·7.2.3·7.3.3) | **소프트 삭제** — 행을 남기고 `withdrawnAt`/`forceDeletedAt`만 채운다 | `AppUser`·`Activity`·`Space` |
+| 임시 데이터 삭제 (7.1.2·7.2.2·7.3.2) | **하드 삭제** — 대신 `mock=true`인 것만, 자식 데이터가 남아 있으면 거절 | `Admin*Service.delete` |
+| 인가 | `/api/admin/**` 한 줄만 ADMIN. 기존 MEMBER/HOST/ARTIST 줄에 **ADMIN을 섞지 마라** | `SecurityConfig` |
+
+- **왜 섞으면 안 되나**: 관리자가 개설자 자격으로 남의 활동을 수정할 수 있게 되어, "관리자가 대신 편집하지 않는다"는 기능명세 7.2 범위 제외가 깨진다.
+- **임시 프로그램의 상태는 전이 메서드로만 밟는다.** `AdminActivityService.applyStatus`가 `markPending()`→`approve()`→`publish()` 순서를 그대로 탄다. status를 직접 대입하는 setter를 만들면 실제 프로그램의 상태 흐름까지 무너진다. 임시 데이터 전용 진입점은 `resetToDraftByAdmin()`·`forceStatus()`뿐이고 **이름에 `ByAdmin`/`force`를 붙여 실제 경로와 구분**한다.
+- **임시 공간에는 이용 가능 시간을 함께 만든다.** A-02가 슬롯 시간 겹침으로 후보를 거르므로, 슬롯 없는 공간은 AI 추천에 걸리지 않는다(기능명세 7.3.2 `outcome` 미충족).
 
 ## 알려진 제약 / 같이 처리할 것
 

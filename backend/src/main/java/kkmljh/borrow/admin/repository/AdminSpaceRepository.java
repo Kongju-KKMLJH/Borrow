@@ -15,4 +15,7 @@ import java.util.List;
 public interface AdminSpaceRepository extends JpaRepository<Space, Long> {
 
     List<Space> findAllByOrderByIdDesc();
+
+    /** 임시 회원 삭제 전 확인 — 이 회원이 등록한 공간이 남아 있는지 (기능명세 7.1.2). */
+    boolean existsByOwnerId(String ownerId);
 }

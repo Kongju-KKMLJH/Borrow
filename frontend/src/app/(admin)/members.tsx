@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
@@ -25,6 +26,7 @@ export default function AdminMembers() {
   const theme = useTheme();
   const [idx, setIdx] = useState(0);
   const [target, setTarget] = useState<AdminUserResponse | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUserResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,8 +57,22 @@ export default function AdminMembers() {
     <>
       <Screen
         header={
-          <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.sm }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: Spacing.xl,
+              paddingTop: Spacing.md,
+              paddingBottom: Spacing.sm,
+            }}>
             <AppText variant="h2">회원 관리</AppText>
+            <Button
+              label="임시 회원 생성"
+              size="sm"
+              icon="add"
+              onPress={() => router.push('/admin-form/user')}
+            />
           </View>
         }
         contentContainerStyle={{ gap: Spacing.lg, paddingBottom: Spacing.huge }}>
@@ -98,7 +114,13 @@ export default function AdminMembers() {
 
         <View style={{ paddingHorizontal: Spacing.xl, gap: Spacing.md }}>
           {list.map((u) => (
-            <MemberRow key={u.id} user={u} onWithdraw={() => setTarget(u)} />
+            <MemberRow
+              key={u.id}
+              user={u}
+              onWithdraw={() => setTarget(u)}
+              onEdit={() => router.push({ pathname: '/admin-form/user', params: { userId: String(u.id) } })}
+              onDelete={() => setDeleteTarget(u)}
+            />
           ))}
           {list.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: Spacing.huge, gap: Spacing.sm }}>
@@ -108,6 +130,24 @@ export default function AdminMembers() {
           ) : null}
         </View>
       </Screen>
+
+      <ConfirmModal
+        visible={deleteTarget !== null}
+        title="임시 회원을 삭제할까요?"
+        target={deleteTarget ? `${deleteTarget.nickname} (${deleteTarget.loginId})` : undefined}
+        message="임시 회원 데이터가 목록에서 완전히 지워집니다. 이 회원이 남긴 프로그램·공간·참여가 있으면 삭제되지 않습니다."
+        confirmLabel="삭제"
+        loading={busy}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          const user = deleteTarget;
+          if (!user) return;
+          run(() => adminApi.deleteUser(user.id), () => {
+            setDeleteTarget(null);
+            refetch();
+          });
+        }}
+      />
 
       <ConfirmModal
         visible={target !== null}
@@ -130,18 +170,36 @@ export default function AdminMembers() {
   );
 }
 
-function MemberRow({ user, onWithdraw }: { user: AdminUserResponse; onWithdraw: () => void }) {
+function MemberRow({
+  user,
+  onWithdraw,
+  onEdit,
+  onDelete,
+}: {
+  user: AdminUserResponse;
+  onWithdraw: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   return (
     <Card tone="flat" padding="md" radius="lg" style={{ gap: Spacing.sm }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
-        <View style={{ flex: 1, gap: 3 }}>
+      <View style={{ gap: Spacing.sm }}>
+        <View style={{ gap: 3 }}>
           <AppText variant="title">{user.nickname}</AppText>
           <AppText variant="caption" color="textMuted">{userSubtitle(user)}</AppText>
         </View>
-        {/* 탈퇴 회원과 관리자 계정은 조치 대상이 아니다 */}
-        {user.withdrawn || user.role === 'ADMIN' ? null : (
-          <Button label="강제 탈퇴" variant="outline" size="sm" onPress={onWithdraw} />
-        )}
+        <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+          {/* 임시 회원은 수정·삭제, 실제 회원은 강제 탈퇴 — 대상이 다르다 (7.1.2 vs 7.1.3) */}
+          {user.mock ? (
+            <>
+              <Button label="수정" variant="outline" size="sm" onPress={onEdit} />
+              <Button label="삭제" variant="outline" size="sm" onPress={onDelete} />
+            </>
+          ) : null}
+          {user.withdrawn || user.role === 'ADMIN' ? null : (
+            <Button label="강제 탈퇴" variant="outline" size="sm" onPress={onWithdraw} />
+          )}
+        </View>
       </View>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs }}>
