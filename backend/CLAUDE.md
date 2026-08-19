@@ -248,7 +248,14 @@ ADMIN_LOGIN_ID=admin ADMIN_PASSWORD='<직접 정한 값>' ./gradlew bootRun
 
 ## CI (GitHub Actions)
 
-`.github/workflows/ci.yml` (이슈 #36, PR #37) — `main`/`dev`/`backend`/`yonggyu/backend` 대상 PR과 push마다 `compileJava` + `test`를 자동 실행하고 테스트 리포트를 아티팩트로 올린다. **CI가 빨간 PR은 머지하지 않는다.** 프론트엔드 job과 배포(CD) 워크플로는 `DEPLOYMENT.md` Part 1에 계획만 있고 아직 없다.
+`.github/workflows/ci.yml` (이슈 #36, PR #37) — **job 2개**를 돌린다. **CI가 빨간 PR은 머지하지 않는다.**
+
+- `backend (compile + test)` — `./gradlew compileJava` + `./gradlew test`, 테스트 리포트를 아티팩트로 업로드
+- `frontend (typecheck + lint + web build)` — `npx tsc --noEmit` + `npx expo lint` + `npx expo export --platform web`
+
+대상: PR은 `main`/`dev`/`backend`, push는 `main`/`dev`/`backend`/`yonggyu/backend`/`kang/backend`/`front`.
+프론트 job은 **웹 번들 빌드까지 검증**하므로 라우트를 추가하면 여기서 함께 걸린다.
+배포(CD) 워크플로는 `DEPLOYMENT.md` Part 1에 계획만 있고 아직 없다.
 
 ## Git 규칙 (이슈 기반 워크플로우)
 

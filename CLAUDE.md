@@ -61,7 +61,13 @@ Figma 16화면 구현 + 백엔드 REST API 매핑이 코드베이스 기준이�
 
 ## CI
 
-`.github/workflows/ci.yml` — `main`/`dev`/`backend`/`yonggyu/backend` 대상 PR·push마다 백엔드 `compileJava` + `test`를 자동 실행한다. **CI가 빨간 PR은 머지하지 않는다.** 프론트 job·배포(CD)는 `DEPLOYMENT.md` Part 1에 계획만 있고 아직 없다.
+`.github/workflows/ci.yml` — job 2개가 돈다. **CI가 빨간 PR은 머지하지 않는다.**
+
+- `backend (compile + test)` — `compileJava` + `test`
+- `frontend (typecheck + lint + web build)` — `tsc --noEmit` + `expo lint` + `expo export --platform web`
+
+대상: PR은 `main`/`dev`/`backend`, push는 여기에 `yonggyu/backend`·`kang/backend`·`front`가 더해진다.
+배포(CD)는 `DEPLOYMENT.md` Part 1에 계획만 있고 아직 없다.
 
 ## 명령어
 
