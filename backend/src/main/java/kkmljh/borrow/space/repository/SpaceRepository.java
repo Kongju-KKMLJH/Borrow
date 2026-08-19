@@ -9,12 +9,6 @@ public interface SpaceRepository extends JpaRepository<Space, Long> {
 
     List<Space> findByOwnerIdOrderByIdDesc(String ownerId);
 
-    /** 공개 목록용 — 관리자가 강제 삭제한 공간을 제외한다 (기능명세 7.3.3). */
-    List<Space> findByForceDeletedAtIsNull();
-
-    /** 슬롯 조회의 공간 존재 확인 — 강제 삭제된 공간은 없는 것으로 본다 (기능명세 7.3.3). */
-    boolean existsByIdAndForceDeletedAtIsNull(Long id);
-
     long countByOwnerId(String ownerId);
 
     /**

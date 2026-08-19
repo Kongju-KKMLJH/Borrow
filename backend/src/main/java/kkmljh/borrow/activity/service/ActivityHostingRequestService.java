@@ -41,9 +41,8 @@ public class ActivityHostingRequestService {
         //   Space 엔티티/리포지토리는 B 소유다. C가 별도로 SpaceRepository 를 만들면
         //   B의 것과 빈 이름이 충돌하므로, 여기서는 EntityManager.find 로 직접 조회한다.
         //   B가 space/repository 에 SpaceRepository 를 확정하면 그것으로 교체 검토(합의 후).
-        // 강제 삭제된 공간은 개최 요청 대상에서 제외한다 (기능명세 7.3.3).
         Space space = entityManager.find(Space.class, spaceId);
-        if (space == null || space.isForceDeleted()) {
+        if (space == null) {
             throw new BusinessException(ErrorCode.SPACE_NOT_FOUND);
         }
 
@@ -67,13 +66,9 @@ public class ActivityHostingRequestService {
         return HostingRequestResponse.from(request, feeProperties.getMatching());
     }
 
-    /**
-     * 개설자 본인의 활동만 돌려준다. 관리자가 강제 삭제한 활동은 없는 것으로 취급한다
-     * (기능명세 7.2.3) — {@code ActivityService.findActivity} 와 같은 판정이다.
-     */
+    /** 개설자 본인의 활동만 돌려준다 — {@code ActivityService.findOwned} 와 같은 판정이다. */
     private Activity findOwnedActivity(String guestId, Long activityId) {
         Activity activity = activityRepository.findById(activityId)
-                .filter(a -> !a.isForceDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND));
         if (!activity.getGuestId().equals(guestId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
