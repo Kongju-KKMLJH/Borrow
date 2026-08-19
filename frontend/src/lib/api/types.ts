@@ -5,7 +5,8 @@
 
 // ── Enums ──────────────────────────────────────────────────────────────
 
-export type Role = 'MEMBER' | 'HOST' | 'ARTIST';
+/** ADMIN 은 가입 화면에 노출하지 않는다 — 백엔드가 signup 으로는 만들지 못하게 막는다 (기능명세 7). */
+export type Role = 'MEMBER' | 'HOST' | 'ARTIST' | 'ADMIN';
 
 export type ActivityType = 'HOBBY' | 'CLASS';
 
@@ -326,4 +327,70 @@ export interface SpaceMatchResult {
 
 export interface UploadResponse {
   urls: string[];
+}
+
+// ── Admin (관리자 콘솔, 기능명세 7) ────────────────────────────────────
+
+/** 예술가 인증 신청 상태. 신청 행이 없는 회원은 'NONE' 으로 내려온다. */
+export type ArtistVerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type AdminVerificationLabel = ArtistVerificationStatus | 'NONE';
+
+/** 7.1.1 관리자 회원 목록의 한 줄 */
+export interface AdminUserResponse {
+  id: number;
+  loginId: string;
+  nickname: string;
+  role: Role;
+  createdAt: string | null;
+  verificationStatus: AdminVerificationLabel;
+  mock: boolean;
+  withdrawn: boolean;
+  withdrawnAt: string | null;
+}
+
+/** 7.1.4 예술가 인증 신청 */
+export interface AdminVerificationResponse {
+  id: number;
+  loginId: string;
+  nickname: string | null;
+  portfolioUrl: string;
+  career: string | null;
+  status: ArtistVerificationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 7.2.1 관리자 프로그램 목록의 한 줄 */
+export interface AdminActivityResponse {
+  id: number;
+  title: string;
+  type: ActivityType;
+  hostLoginId: string;
+  hostNickname: string | null;
+  spaceId: number | null;
+  spaceName: string | null;
+  spaceRegion: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  status: ActivityStatus;
+  mock: boolean;
+  forceDeleted: boolean;
+  forceDeletedAt: string | null;
+}
+
+/** 7.3.1 관리자 공간 목록의 한 줄. 관리 목적이므로 주소 전문을 포함한다. */
+export interface AdminSpaceResponse {
+  id: number;
+  name: string;
+  ownerId: string;
+  region: string;
+  address: string | null;
+  capacity: number;
+  hourlyFee: number;
+  createdAt: string | null;
+  mock: boolean;
+  forceDeleted: boolean;
+  forceDeletedAt: string | null;
 }

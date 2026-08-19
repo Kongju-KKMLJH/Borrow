@@ -11,9 +11,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RoleTest {
 
     @Test
-    @DisplayName("회원 유형은 MEMBER · HOST · ARTIST 셋뿐이다")
+    @DisplayName("회원 유형은 MEMBER · HOST · ARTIST · ADMIN 넷이다")
     void values() {
-        assertThat(Role.values()).containsExactly(Role.MEMBER, Role.HOST, Role.ARTIST);
+        assertThat(Role.values()).containsExactly(Role.MEMBER, Role.HOST, Role.ARTIST, Role.ADMIN);
     }
 
     @ParameterizedTest
@@ -29,5 +29,6 @@ class RoleTest {
         assertThat(Role.MEMBER.authority()).isEqualTo("ROLE_MEMBER");
         assertThat(Role.HOST.authority()).isEqualTo("ROLE_HOST");
         assertThat(Role.ARTIST.authority()).isEqualTo("ROLE_ARTIST");
+        assertThat(Role.ADMIN.authority()).isEqualTo("ROLE_ADMIN");
     }
 }

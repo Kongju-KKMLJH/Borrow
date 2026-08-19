@@ -25,8 +25,11 @@
 | 일반 회원 | `Role.MEMBER` | 취미 모임(HOBBY) 개설, 공개된 활동에 참여 |
 | 공간 제공자 | `Role.HOST` | 유휴공간·유휴 시간대 등록, 개최 요청 승인/거절 |
 | 예술가 | `Role.ARTIST` | MEMBER가 하는 일 전부 + 원데이클래스(CLASS) 개설 |
+| 관리자 | `Role.ADMIN` | 관리자 콘솔에서 회원·프로그램·공간 조회와 통제 조치 (기능명세 7) |
 
 역할은 **회원가입 시 하나만 선택**하고 변경 API는 만들지 않는다. 한 계정이 두 역할을 겸하지 않는다.
+
+> ⚠️ **ADMIN은 가입으로 만들 수 없다.** `POST /api/auth/signup`은 비로그인 허용이라 요청의 role을 그대로 믿으면 누구나 관리자가 된다 — `AuthService.signup`이 ADMIN을 400으로 거부하고, 계정은 `AdminAccountInitializer`가 `ADMIN_LOGIN_ID`·`ADMIN_PASSWORD` 환경변수를 읽어 만든다(값이 없으면 아무 것도 하지 않는다). **이 거부를 지우지 마라.**
 
 **역할이 가르는 것은 "무엇을 개설·관리할 수 있는가"뿐이다.** 활동 목록·상세 열람과 참여·취소, `/api/me/**`는 **역할과 무관하게 로그인한 모두에게** 허용한다. 그러지 않으면 HOST 계정이 자기 서비스의 활동에 참여조차 못 하고, 시연 중 계정을 갈아끼워야 한다.
 
@@ -88,6 +91,20 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 | **6** | 공간 파트너 공간 관리 |
 | 6.1 | 공간 등록 및 수정 |
 | 6.2 | 이용 가능 시간 관리 |
+| **7** | 관리자 콘솔 운영 |
+| 7.1 | 회원 관리 |
+| 7.1.1 | 전체 회원 목록 조회 |
+| 7.1.2 | 임시 회원 데이터 생성·수정·삭제 |
+| 7.1.3 | 회원 강제 탈퇴 처리 |
+| 7.1.4 | 예술가 인증 승인 처리 |
+| 7.2 | 프로그램 관리 |
+| 7.2.1 | 전체 프로그램 목록 조회 |
+| 7.2.2 | 임시 프로그램 데이터 생성·수정·삭제 |
+| 7.2.3 | 프로그램 강제 삭제 처리 |
+| 7.3 | 공간 관리 |
+| 7.3.1 | 전체 공간 목록 조회 |
+| 7.3.2 | 임시 공간 데이터 생성·수정·삭제 |
+| 7.3.3 | 공간 강제 삭제 처리 |
 
 > ⚠️ **번호는 유도값이다.** 요구사항 순서와 각 요구사항 아래 기능 배열 순서로 매겼고, **원문에 검증된 것은 `2.1`뿐**이다(이슈 #49 제목 "기능명세 2.1"). 명세에서 항목이 추가·삭제되면 **번호가 밀린다** — 그때는 **이 표를 먼저 고치고** 다른 문서를 맞춘다. 표에 없는 번호를 새로 지어내지 마라.
 
@@ -100,6 +117,11 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 - 유휴시간 슬롯: `GET`·`POST /api/spaces/{spaceId}/slots`, 수정 `PUT`·삭제 `DELETE .../slots/{slotId}` (기능명세 6.2, 이슈 #47)
 - AI: `/api/ai/**` — 로그인 전체
 - 업로드: `POST /api/uploads`(로그인), 서빙 `/files/**`(공개)
+- 관리자 콘솔: `/api/admin/**` — ADMIN 전용 (기능명세 7, 이슈 #86)
+  - 회원 `GET /api/admin/users`, 강제 탈퇴 `POST .../users/{userId}/withdraw`
+  - 인증 심사 `GET /api/admin/artist-verifications`(기본 PENDING), 승인 `POST .../{id}/approve`
+  - 프로그램 `GET /api/admin/activities`, 강제 삭제 `POST .../{activityId}/force-delete`
+  - 공간 `GET /api/admin/spaces`, 강제 삭제 `POST .../{spaceId}/force-delete`
 
 활동 **수정·삭제 규칙** (설계 확정, 코드에 반영됨):
 
@@ -160,7 +182,7 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 - **인증 주체 식별**: 컨트롤러 파라미터에 `@GuestId String guestId` (값 = 로그인 아이디). 비로그인 열람 허용 API만 `@GuestId(required = false)`.
 - **소유권 검증**: 역할 검사와 소유자 검사는 별개다. 역할은 `SecurityConfig`가, "내 것인지"는 서비스에서 `entity.getGuestId().equals(guestId)` 비교로 계속 확인한다.
 - **DTO**: Java record. 요청은 `XxxRequest`, 응답은 `XxxResponse`. 컨트롤러 밖으로 엔티티 노출 금지.
-- **패키지 구조**: `{도메인}/controller`, `{도메인}/service`, `{도메인}/repository`, `{도메인}/dto` — 현재 도메인: `auth`, `activity`, `space`, `ai`, `common`, `domain`(엔티티).
+- **패키지 구조**: `{도메인}/controller`, `{도메인}/service`, `{도메인}/repository`, `{도메인}/dto` — 현재 도메인: `auth`, `activity`, `space`, `ai`, `admin`, `common`, `domain`(엔티티).
 - **엔티티**: setter 금지, 의미 있는 도메인 메서드로 상태 변경 (예: `request.approve()`). 검증 로직은 복사하지 말고 한 곳으로 뽑아 공유한다 (예: 시간 순서 검증은 개설·수정이 함께 쓴다).
 - **Swagger**: `@SecurityScheme(type = HTTP, scheme = "basic")`으로 Authorize 버튼 사용.
 - 기술 스택 주의: Spring Boot 4.1 / Spring Security 7(람다 DSL만, `.and()` 체이닝 불가) / Jackson 3(`tools.jackson` 패키지).
@@ -175,6 +197,7 @@ MEMBER가 개설하면 `type=HOBBY`, `hostCertified=false`. ARTIST가 개설하�
 - 일반 사용자·예술가: `/api/activities/...`, `/api/me/...`
 - 공간 제공자: `/api/spaces/...`, `/api/host/...`
 - AI: `/api/ai/...`
+- 관리자: `/api/admin/...`
 
 ## 테스트 도구
 
@@ -214,11 +237,25 @@ docker compose up -d          # MySQL 기동 (최초 1회)
 ./gradlew test                # PR 전 필수 테스트 (compileJava와 함께 품질 게이트, DB 불필요)
 
 curl -u myid:mypw http://localhost:8080/api/auth/me   # 인증 확인
+
+# 관리자 콘솔(기능명세 7)을 확인하려면 관리자 계정을 환경변수로 만들어 띄운다.
+# 두 값이 모두 있고 해당 아이디가 없을 때만 1회 생성된다. 비밀번호를 소스·문서에 적지 마라.
+ADMIN_LOGIN_ID=admin ADMIN_PASSWORD='<직접 정한 값>' ./gradlew bootRun
 ```
+
+> 로컬 `application.yml`에 넣고 싶다면 `admin.login-id` / `admin.password` / `admin.nickname` 키다.
+> **`${ADMIN_PASSWORD:실제값}` 형태로 기본값을 박지 마라** (팀 보안 규칙).
 
 ## CI (GitHub Actions)
 
-`.github/workflows/ci.yml` (이슈 #36, PR #37) — `main`/`dev`/`backend`/`yonggyu/backend` 대상 PR과 push마다 `compileJava` + `test`를 자동 실행하고 테스트 리포트를 아티팩트로 올린다. **CI가 빨간 PR은 머지하지 않는다.** 프론트엔드 job과 배포(CD) 워크플로는 `DEPLOYMENT.md` Part 1에 계획만 있고 아직 없다.
+`.github/workflows/ci.yml` (이슈 #36, PR #37) — **job 2개**를 돌린다. **CI가 빨간 PR은 머지하지 않는다.**
+
+- `backend (compile + test)` — `./gradlew compileJava` + `./gradlew test`, 테스트 리포트를 아티팩트로 업로드
+- `frontend (typecheck + lint + web build)` — `npx tsc --noEmit` + `npx expo lint` + `npx expo export --platform web`
+
+대상: PR은 `main`/`dev`/`backend`, push는 `main`/`dev`/`backend`/`yonggyu/backend`/`kang/backend`/`front`.
+프론트 job은 **웹 번들 빌드까지 검증**하므로 라우트를 추가하면 여기서 함께 걸린다.
+배포(CD) 워크플로는 `DEPLOYMENT.md` Part 1에 계획만 있고 아직 없다.
 
 ## Git 규칙 (이슈 기반 워크플로우)
 

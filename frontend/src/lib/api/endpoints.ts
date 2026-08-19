@@ -28,6 +28,11 @@ import type {
   RequestStatus,
   RejectRequest,
   AnalyzeRequest,
+  AdminUserResponse,
+  AdminVerificationResponse,
+  AdminActivityResponse,
+  AdminSpaceResponse,
+  ArtistVerificationStatus,
   RequirementResponse,
   MatchRequest,
   SpaceMatchResponse,
@@ -225,4 +230,41 @@ export const uploadApi = {
     }
     return apiClient.upload<UploadResponse>('/api/uploads', formData);
   },
+};
+
+// ── Admin (관리자 콘솔, 기능명세 7) ────────────────────────────────────
+
+export const adminApi = {
+  /** 7.1.1 전체 회원 목록 (ADMIN) — 탈퇴 회원까지 포함한 관리용 목록 */
+  users: () => apiClient.get<AdminUserResponse[]>('/api/admin/users'),
+
+  /** 7.1.3 회원 강제 탈퇴 (ADMIN) — 로그인·서비스 이용이 차단된다 */
+  withdrawUser: (userId: number) =>
+    apiClient.post<AdminUserResponse>(`/api/admin/users/${userId}/withdraw`),
+
+  /** 7.1.4 예술가 인증 신청 목록 (ADMIN) — status 생략 시 심사 대기(PENDING)만 */
+  verifications: (status?: ArtistVerificationStatus) => {
+    const qs = status ? `?${new URLSearchParams({ status }).toString()}` : '';
+    return apiClient.get<AdminVerificationResponse[]>(`/api/admin/artist-verifications${qs}`);
+  },
+
+  /** 7.1.4 예술가 인증 승인 (ADMIN) */
+  approveVerification: (verificationId: number) =>
+    apiClient.post<AdminVerificationResponse>(
+      `/api/admin/artist-verifications/${verificationId}/approve`
+    ),
+
+  /** 7.2.1 전체 프로그램 목록 (ADMIN) — 상태·삭제 여부를 가리지 않는다 */
+  activities: () => apiClient.get<AdminActivityResponse[]>('/api/admin/activities'),
+
+  /** 7.2.3 프로그램 강제 삭제 (ADMIN) — 시민 탐색·참여 신청에서 제외된다 */
+  forceDeleteActivity: (activityId: number) =>
+    apiClient.post<AdminActivityResponse>(`/api/admin/activities/${activityId}/force-delete`),
+
+  /** 7.3.1 전체 공간 목록 (ADMIN) — 강제 삭제된 공간도 포함한다 */
+  spaces: () => apiClient.get<AdminSpaceResponse[]>('/api/admin/spaces'),
+
+  /** 7.3.3 공간 강제 삭제 (ADMIN) — 진행 중인 개최 요청은 모두 자동 거절된다 */
+  forceDeleteSpace: (spaceId: number) =>
+    apiClient.post<AdminSpaceResponse>(`/api/admin/spaces/${spaceId}/force-delete`),
 };

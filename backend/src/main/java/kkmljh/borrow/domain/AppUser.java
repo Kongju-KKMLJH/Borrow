@@ -8,10 +8,14 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import kkmljh.borrow.common.exception.BusinessException;
+import kkmljh.borrow.common.exception.ErrorCode;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
 
 /**
  * 회원 계정. Spring Security의 {@code User}와 헷갈리므로 클래스명은 AppUser 로 고정한다.
@@ -46,16 +50,47 @@ public class AppUser {
     @Column(nullable = false)
     private Role role;
 
+    /** 가입일 — 관리자 회원 목록의 표시 항목 (기능명세 7.1.1 display) */
+    private LocalDateTime createdAt;
+
+    /**
+     * 관리자가 만든 임시(mock) 회원인지 (기능명세 7.1.2).
+     * 관리자 콘솔의 수정·삭제는 이 값이 true 인 회원에게만 허용한다.
+     */
+    @Column(nullable = false)
+    private boolean mock;
+
+    /** 강제 탈퇴 처리 일시 — null 이면 정상 회원 (기능명세 7.1.3 dataSpec) */
+    private LocalDateTime withdrawnAt;
+
     @Builder
-    private AppUser(String loginId, String password, String nickname, Role role) {
+    private AppUser(String loginId, String password, String nickname, Role role, boolean mock) {
         this.loginId = loginId;
         this.password = password;
         this.nickname = nickname;
         this.role = role;
+        this.mock = mock;
+        this.createdAt = LocalDateTime.now();
     }
 
     /** 예술가가 개설한 활동은 CLASS + 인증 배지(F-01) */
     public boolean isArtist() {
         return this.role == Role.ARTIST;
+    }
+
+    /**
+     * 관리자의 강제 탈퇴 (기능명세 7.1.3). 데이터는 지우지 않고 비활성 상태로만 남긴다 —
+     * 탈퇴 회원이 개설했던 활동·참여 내역이 함께 사라지면 남은 참여자 화면이 깨진다.
+     * 로그인 차단은 {@code AppUserDetailsService} 가 이 값을 보고 처리한다.
+     */
+    public void withdraw() {
+        if (isWithdrawn()) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "이미 탈퇴 처리된 회원입니다.");
+        }
+        this.withdrawnAt = LocalDateTime.now();
+    }
+
+    public boolean isWithdrawn() {
+        return this.withdrawnAt != null;
     }
 }

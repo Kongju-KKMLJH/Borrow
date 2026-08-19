@@ -102,6 +102,19 @@ class ActivityRepositoryTest {
         }
 
         @Test
+        @DisplayName("관리자가 강제 삭제한 활동은 목록에서 빠진다 (기능명세 7.2.3)")
+        void excludesForceDeleted() {
+            published("살아 있는 모임");
+            Activity deleted = published("강제 삭제된 모임");
+            deleted.forceDelete();
+            em.persistAndFlush(deleted);
+
+            List<Activity> result = activityRepository.search(null, null, null, null, null, null);
+
+            assertThat(result).extracting(Activity::getTitle).containsExactly("살아 있는 모임");
+        }
+
+        @Test
         @DisplayName("유형 필터")
         void filterByType() {
             published("취미 모임");

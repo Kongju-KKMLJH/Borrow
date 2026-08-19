@@ -26,6 +26,7 @@ public class TestUsers {
     public static final String MEMBER = "member1";
     public static final String HOST = "host1";
     public static final String ARTIST = "artist1";
+    public static final String ADMIN = "admin1";
 
     /** 일반 회원(MEMBER)으로 인증한다. */
     public static RequestPostProcessor member() {
@@ -42,6 +43,11 @@ public class TestUsers {
         return httpBasic(ARTIST, PASSWORD);
     }
 
+    /** 관리자(ADMIN)로 인증한다 — 관리자 콘솔(기능명세 7) 전용. */
+    public static RequestPostProcessor admin() {
+        return httpBasic(ADMIN, PASSWORD);
+    }
+
     /** 임의의 로그인 아이디로 인증한다(소유권 검증 테스트에서 "남의 계정" 역할). */
     public static RequestPostProcessor as(String loginId) {
         return httpBasic(loginId, PASSWORD);
@@ -54,6 +60,7 @@ public class TestUsers {
                 User.withUsername(MEMBER).password(encoded).authorities(Role.MEMBER.authority()).build(),
                 User.withUsername(HOST).password(encoded).authorities(Role.HOST.authority()).build(),
                 User.withUsername(ARTIST).password(encoded).authorities(Role.ARTIST.authority()).build(),
+                User.withUsername(ADMIN).password(encoded).authorities(Role.ADMIN.authority()).build(),
                 // 소유권(내 것인지) 검증용 — 역할은 있지만 남의 리소스에 접근하는 계정
                 User.withUsername("other-host").password(encoded).authorities(Role.HOST.authority()).build(),
                 User.withUsername("other-member").password(encoded).authorities(Role.MEMBER.authority()).build()
