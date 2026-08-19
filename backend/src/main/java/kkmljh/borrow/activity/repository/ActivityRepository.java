@@ -16,6 +16,9 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
      * U-01 모집 목록 + U-02 유형/분야 필터 + 키워드 검색 + 기능명세 4.1 지역·일정 필터.
      * PUBLISHED(S-01 공개) 상태만 노출. 파라미터가 null이면 해당 조건 무시.
      *
+     * <p>관리자가 강제 삭제한 활동은 제외한다 (기능명세 7.2.3) — 행은 남아 있고
+     * 관리자 목록에만 삭제 상태로 보인다.
+     *
      * <p><b>지역 기준은 승인된 공간의 {@code Space.region}(실제 개최지)</b>이지
      * {@code Activity.requirement.region}(희망 지역)이 아니다 — 시민이 고르는 것은 "어디서 열리는가"다.
      * 희망 지역으로 거르면 승인 결과와 다른 동네가 걸린다.
@@ -31,6 +34,7 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
     @Query("""
             SELECT a FROM Activity a
             WHERE a.status = kkmljh.borrow.domain.ActivityStatus.PUBLISHED
+              AND a.forceDeletedAt IS NULL
               AND (:type IS NULL OR a.type = :type)
               AND (:field IS NULL OR a.field = :field)
               AND (:keyword IS NULL

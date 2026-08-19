@@ -50,9 +50,11 @@ public class SpaceService {
     /**
      * 목록·상세는 비로그인 열람이므로 소유자로 거르지 않는다.
      * 그래서 주소 전문 없이 동 단위(region)까지만 내려준다 (기능명세 6.1 rules).
+     *
+     * <p>관리자가 강제 삭제한 공간은 빠진다 (기능명세 7.3.3).
      */
     public List<SpaceResponse> findAll() {
-        return spaceRepository.findAll().stream()
+        return spaceRepository.findByForceDeletedAtIsNull().stream()
                 .map(SpaceResponse::from)
                 .toList();
     }
@@ -93,8 +95,10 @@ public class SpaceService {
         spaceRepository.delete(space);
     }
 
+    /** 강제 삭제된 공간은 소유 HOST 에게도 없는 것으로 취급한다 (기능명세 7.3.3). */
     private Space getSpace(Long id) {
         return spaceRepository.findById(id)
+                .filter(space -> !space.isForceDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.SPACE_NOT_FOUND));
     }
 

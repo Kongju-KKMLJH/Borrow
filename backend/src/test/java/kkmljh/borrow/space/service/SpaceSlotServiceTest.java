@@ -56,7 +56,7 @@ class SpaceSlotServiceTest {
         @DisplayName("공간의 슬롯을 요일·시각 순으로 돌려준다")
         void findBySpace() {
             Space space = TestFixtures.space(1L, OWNER);
-            given(spaceRepository.existsById(1L)).willReturn(true);
+            given(spaceRepository.existsByIdAndForceDeletedAtIsNull(1L)).willReturn(true);
             given(spaceSlotRepository.findBySpaceIdOrderByDayOfWeekAscStartTimeAsc(1L)).willReturn(List.of(
                     TestFixtures.slot(10L, space, DayOfWeek.SATURDAY, LocalTime.of(9, 0), LocalTime.of(12, 0)),
                     TestFixtures.slot(11L, space, DayOfWeek.SUNDAY, LocalTime.of(9, 0), LocalTime.of(12, 0))));
@@ -72,7 +72,7 @@ class SpaceSlotServiceTest {
         @Test
         @DisplayName("목록 조회는 비로그인 열람이므로 소유자를 따지지 않는다")
         void readDoesNotCheckOwner() {
-            given(spaceRepository.existsById(1L)).willReturn(true);
+            given(spaceRepository.existsByIdAndForceDeletedAtIsNull(1L)).willReturn(true);
             given(spaceSlotRepository.findBySpaceIdOrderByDayOfWeekAscStartTimeAsc(1L)).willReturn(List.of());
 
             assertThat(spaceSlotService.findBySpace(1L)).isEmpty();
@@ -82,7 +82,7 @@ class SpaceSlotServiceTest {
         @Test
         @DisplayName("없는 공간이면 SPACE_NOT_FOUND")
         void spaceNotFound() {
-            given(spaceRepository.existsById(99L)).willReturn(false);
+            given(spaceRepository.existsByIdAndForceDeletedAtIsNull(99L)).willReturn(false);
 
             assertThatThrownBy(() -> spaceSlotService.findBySpace(99L))
                     .isInstanceOf(BusinessException.class)

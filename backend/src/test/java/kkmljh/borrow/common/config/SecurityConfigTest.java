@@ -1,5 +1,8 @@
 package kkmljh.borrow.common.config;
 
+import kkmljh.borrow.auth.repository.AppUserRepository;
+import kkmljh.borrow.domain.AppUser;
+import kkmljh.borrow.domain.Role;
 import kkmljh.borrow.support.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -7,6 +10,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -35,9 +39,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SecurityConfigTest {
 
     private static final String PW = "pw1234";
+    private static final String ADMIN_ID = "admin1";
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private AppUserRepository appUserRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     private void signup(String loginId, String role) throws Exception {
         mockMvc.perform(post("/api/auth/signup")
@@ -53,6 +64,13 @@ class SecurityConfigTest {
         signup("member1", "MEMBER");
         signup("host1", "HOST");
         signup("artist1", "ARTIST");
+        // ADMIN 은 가입 API 로 만들 수 없으므로(그게 규칙이다) 운영의 시드 러너처럼 직접 저장한다.
+        appUserRepository.save(AppUser.builder()
+                .loginId(ADMIN_ID)
+                .password(passwordEncoder.encode(PW))
+                .nickname("관리자")
+                .role(Role.ADMIN)
+                .build());
     }
 
     private int statusOf(RequestBuilder request) throws Exception {
@@ -386,6 +404,115 @@ class SecurityConfigTest {
             mockMvc.perform(get("/api/host/home").with(httpBasic("host1", PW))).andExpect(status().isOk());
             mockMvc.perform(get("/api/host/schedules").with(httpBasic("host1", PW))).andExpect(status().isOk());
             mockMvc.perform(get("/api/host/requests").with(httpBasic("host1", PW))).andExpect(status().isOk());
+        }
+    }
+
+    @Nested
+    @DisplayName("관리자 콘솔은 ADMIN 전용 (기능명세 7)")
+    class AdminConsole {
+
+        private static final String[] READ_PATHS = {
+                "/api/admin/users", "/api/admin/activities", "/api/admin/spaces",
+                "/api/admin/artist-verifications"
+        };
+
+        @Test
+        @DisplayName("비로그인은 401")
+        void anonymousBlocked() throws Exception {
+            for (String path : READ_PATHS) {
+                assertUnauthorized(get(path));
+            }
+            assertUnauthorized(post("/api/admin/users/1/withdraw"));
+        }
+
+        @Test
+        @DisplayName("MEMBER · HOST · ARTIST 는 403 — 로그인해도 관리자 경로에 들어오지 못한다")
+        void otherRolesForbidden() throws Exception {
+            for (String loginId : new String[]{"member1", "host1", "artist1"}) {
+                for (String path : READ_PATHS) {
+                    assertForbidden(get(path).with(httpBasic(loginId, PW)));
+                }
+                assertForbidden(post("/api/admin/activities/1/force-delete").with(httpBasic(loginId, PW)));
+                assertForbidden(post("/api/admin/spaces/1/force-delete").with(httpBasic(loginId, PW)));
+            }
+        }
+
+        @Test
+        @DisplayName("ADMIN 은 통과한다")
+        void adminAllowed() throws Exception {
+            for (String path : READ_PATHS) {
+                assertAllowed(get(path).with(httpBasic(ADMIN_ID, PW)));
+            }
+        }
+
+        @Test
+        @DisplayName("임시 데이터 CRUD 경로도 ADMIN 전용이다 (기능명세 7.1.2 · 7.2.2 · 7.3.2)")
+        void mockCrudIsAdminOnly() throws Exception {
+            String[] collections = {"/api/admin/users", "/api/admin/activities", "/api/admin/spaces"};
+
+            for (String path : collections) {
+                assertUnauthorized(post(path).contentType(MediaType.APPLICATION_JSON).content("{}"));
+                assertUnauthorized(put(path + "/1").contentType(MediaType.APPLICATION_JSON).content("{}"));
+                assertUnauthorized(delete(path + "/1"));
+
+                for (String loginId : new String[]{"member1", "host1", "artist1"}) {
+                    assertForbidden(post(path).with(httpBasic(loginId, PW))
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"));
+                    assertForbidden(put(path + "/1").with(httpBasic(loginId, PW))
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"));
+                    assertForbidden(delete(path + "/1").with(httpBasic(loginId, PW)));
+                }
+
+                // ADMIN 은 인가를 통과한다 — 본문이 비어 400 이 나는 것은 통과로 친다.
+                assertAllowed(post(path).with(httpBasic(ADMIN_ID, PW))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"));
+            }
+        }
+
+        @Test
+        @DisplayName("관리자 콘솔에서도 ADMIN 계정은 만들 수 없다")
+        void consoleCannotCreateAdmin() throws Exception {
+            mockMvc.perform(post("/api/admin/users").with(httpBasic(ADMIN_ID, PW))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"loginId":"mockadmin","password":"pw1234","nickname":"가짜관리자","role":"ADMIN"}
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+        }
+
+        @Test
+        @DisplayName("관리자는 다른 역할의 경로를 쓰지 못한다 — 대신 편집하지 않는다는 범위 제외를 지킨다")
+        void adminHasNoOtherRolePower() throws Exception {
+            assertForbidden(get("/api/spaces/mine").with(httpBasic(ADMIN_ID, PW)));
+            assertForbidden(get("/api/host/home").with(httpBasic(ADMIN_ID, PW)));
+            assertForbidden(post("/api/activities").with(httpBasic(ADMIN_ID, PW))
+                    .contentType(MediaType.APPLICATION_JSON).content("{}"));
+            assertForbidden(delete("/api/activities/1").with(httpBasic(ADMIN_ID, PW)));
+        }
+
+        @Test
+        @DisplayName("회원가입으로는 ADMIN 이 될 수 없다 — 비로그인 가입 경로가 관리자 승격 통로가 되면 안 된다")
+        void signupCannotClaimAdmin() throws Exception {
+            mockMvc.perform(post("/api/auth/signup")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"loginId":"sneaky","password":"pw1234","nickname":"침입자","role":"ADMIN"}
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+        }
+
+        @Test
+        @DisplayName("강제 탈퇴된 회원은 로그인 자체가 막힌다 (기능명세 7.1.3)")
+        void withdrawnUserCannotAuthenticate() throws Exception {
+            AppUser member = appUserRepository.findByLoginId("member1").orElseThrow();
+            mockMvc.perform(post("/api/admin/users/" + member.getId() + "/withdraw")
+                            .with(httpBasic(ADMIN_ID, PW)))
+                    .andExpect(status().isOk());
+
+            assertUnauthorized(get("/api/auth/me").with(httpBasic("member1", PW)));
         }
     }
 

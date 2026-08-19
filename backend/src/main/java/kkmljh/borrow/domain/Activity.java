@@ -21,6 +21,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -91,12 +92,20 @@ public class Activity {
     @Embedded
     private SpaceRequirement requirement;
 
+    /** 관리자가 만든 임시(mock) 프로그램인지 (기능명세 7.2.2) */
+    @Column(nullable = false)
+    private boolean mock;
+
+    /** 관리자의 강제 삭제 처리 일시 — null 이면 정상 (기능명세 7.2.3 dataSpec) */
+    private LocalDateTime forceDeletedAt;
+
     @Builder
     private Activity(String guestId, String hostNickname, boolean hostCertified,
                      ActivityType type, ActivityField field,
                      String title, String description, List<String> imageUrls, LocalDate date,
                      LocalTime startTime, LocalTime endTime,
-                     int capacity, int entryFee, SpaceRequirement requirement) {
+                     int capacity, int entryFee, SpaceRequirement requirement, boolean mock) {
+        this.mock = mock;
         this.guestId = guestId;
         this.hostNickname = hostNickname;
         this.hostCertified = hostCertified;
@@ -180,5 +189,43 @@ public class Activity {
 
     public boolean isPublished() {
         return this.status == ActivityStatus.PUBLISHED;
+    }
+
+    /**
+     * 관리자의 임시(mock) 프로그램 담당자 변경 (기능명세 7.2.2).
+     * 유형·인증 배지는 <b>담당 계정의 역할에서 서버가 정한 값</b>을 받는다 — 호출부가 계산한다.
+     * 실제 프로그램의 개설자는 바뀌지 않는다. 호출부가 임시 프로그램인지 먼저 확인한다.
+     */
+    public void updateHostByAdmin(String guestId, String hostNickname, boolean artist) {
+        this.guestId = guestId;
+        this.hostNickname = hostNickname;
+        this.hostCertified = artist;
+        this.type = artist ? ActivityType.CLASS : ActivityType.HOBBY;
+    }
+
+    /**
+     * 임시 프로그램 수정 시 상태를 초기로 되돌린다 (기능명세 7.2.2).
+     *
+     * <p>전이 메서드({@code markPending} 등)는 앞 상태를 검사하므로, 수정으로 상태가 바뀔 때
+     * 한 번 원점으로 돌려야 다시 순서대로 밟을 수 있다. <b>임시 프로그램 전용</b>이다 —
+     * 실제 프로그램의 상태는 개최 요청·결제 경로로만 움직인다.
+     */
+    public void resetToDraftByAdmin() {
+        this.status = ActivityStatus.DRAFT;
+    }
+
+    /**
+     * 관리자의 강제 삭제 (기능명세 7.2.3). 행을 지우지 않고 삭제 상태로만 표시한다 —
+     * 기존 참여 신청 내역은 보존하고(확정 정책), 시민 탐색·상세·참여 신청에서만 빠진다.
+     */
+    public void forceDelete() {
+        if (isForceDeleted()) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "이미 삭제 처리된 활동입니다.");
+        }
+        this.forceDeletedAt = LocalDateTime.now();
+    }
+
+    public boolean isForceDeleted() {
+        return this.forceDeletedAt != null;
     }
 }

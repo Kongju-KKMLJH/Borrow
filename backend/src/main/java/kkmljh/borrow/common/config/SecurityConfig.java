@@ -104,6 +104,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/spaces/**").hasRole("HOST")
                         .requestMatchers("/api/host/**").hasRole("HOST")
 
+                        // --- 관리자 콘솔: ADMIN 전용 (기능명세 7) ---
+                        // 관리자는 자기 경로만 쓴다 — 위의 MEMBER/HOST/ARTIST 줄에 ADMIN을 섞지 않는다.
+                        // 섞으면 관리자가 남의 활동을 개설자 자격으로 고칠 수 있게 되고,
+                        // "관리자는 대신 편집하지 않는다"는 기능명세 7.2 범위 제외가 깨진다.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                         .anyRequest().authenticated())
                 .httpBasic(basic -> basic.authenticationEntryPoint(authenticationEntryPoint()))
                 .exceptionHandling(ex -> ex
