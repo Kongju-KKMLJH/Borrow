@@ -16,4 +16,7 @@ import java.util.List;
 public interface AdminActivityRepository extends JpaRepository<Activity, Long> {
 
     List<Activity> findAllByOrderByIdDesc();
+
+    /** 임시 회원 삭제 전 확인 — 이 회원이 개설한 활동이 남아 있는지 (기능명세 7.1.2). */
+    boolean existsByGuestId(String guestId);
 }

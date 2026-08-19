@@ -107,6 +107,20 @@ public class ArtistVerification {
         this.updatedAt = LocalDateTime.now();
     }
 
+    /**
+     * 관리자가 만든 임시(mock) 회원의 인증 상태를 <b>전이 규칙을 건너뛰고</b> 맞춘다
+     * (기능명세 7.1.2 dataSpec).
+     *
+     * <p>{@link #approve()}·{@link #reject(String)} 는 PENDING 에서만 움직이는데, 시연 데이터는
+     * "이미 승인된 예술가"를 한 번에 만들어야 한다. <b>임시 회원에게만 쓴다</b> —
+     * 실제 심사는 {@code approve()} 를 거치고, 그 전이 규칙을 무르게 만들지 않기 위해 진입점을 나눈다.
+     */
+    public void forceStatus(ArtistVerificationStatus status) {
+        this.status = status;
+        this.reason = (status == ArtistVerificationStatus.REJECTED) ? "관리자가 지정한 임시 상태" : null;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public boolean isApproved() {
         return this.status == ArtistVerificationStatus.APPROVED;
     }

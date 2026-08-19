@@ -2,13 +2,18 @@ package kkmljh.borrow.admin.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import kkmljh.borrow.admin.dto.AdminActivityRequest;
 import kkmljh.borrow.admin.dto.AdminActivityResponse;
 import kkmljh.borrow.admin.service.AdminActivityService;
 import kkmljh.borrow.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,6 +33,29 @@ public class AdminActivityController {
     @GetMapping("/activities")
     public ApiResponse<List<AdminActivityResponse>> activities() {
         return ApiResponse.ok(adminActivityService.findAll());
+    }
+
+    @Operation(summary = "7.2.2 임시(mock) 프로그램 생성",
+            description = "담당 예술가·공간·일정·상태를 지정해 만든다. 유형과 인증 배지는 담당 계정의 역할에서 서버가 정한다.")
+    @PostMapping("/activities")
+    public ApiResponse<AdminActivityResponse> createActivity(@Valid @RequestBody AdminActivityRequest req) {
+        return ApiResponse.ok(adminActivityService.create(req));
+    }
+
+    @Operation(summary = "7.2.2 임시 프로그램 수정",
+            description = "임시 프로그램만 수정할 수 있다. 개최 요청은 지우고 다시 만든다.")
+    @PutMapping("/activities/{activityId}")
+    public ApiResponse<AdminActivityResponse> updateActivity(@PathVariable Long activityId,
+                                                             @Valid @RequestBody AdminActivityRequest req) {
+        return ApiResponse.ok(adminActivityService.update(activityId, req));
+    }
+
+    @Operation(summary = "7.2.2 임시 프로그램 삭제",
+            description = "임시 프로그램만 삭제할 수 있다. 참여 신청이 있으면 거절한다.")
+    @DeleteMapping("/activities/{activityId}")
+    public ApiResponse<Void> deleteActivity(@PathVariable Long activityId) {
+        adminActivityService.delete(activityId);
+        return ApiResponse.ok();
     }
 
     @Operation(summary = "7.2.3 프로그램 강제 삭제",

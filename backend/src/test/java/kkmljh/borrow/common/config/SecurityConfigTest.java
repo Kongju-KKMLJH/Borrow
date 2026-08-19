@@ -446,6 +446,42 @@ class SecurityConfigTest {
         }
 
         @Test
+        @DisplayName("임시 데이터 CRUD 경로도 ADMIN 전용이다 (기능명세 7.1.2 · 7.2.2 · 7.3.2)")
+        void mockCrudIsAdminOnly() throws Exception {
+            String[] collections = {"/api/admin/users", "/api/admin/activities", "/api/admin/spaces"};
+
+            for (String path : collections) {
+                assertUnauthorized(post(path).contentType(MediaType.APPLICATION_JSON).content("{}"));
+                assertUnauthorized(put(path + "/1").contentType(MediaType.APPLICATION_JSON).content("{}"));
+                assertUnauthorized(delete(path + "/1"));
+
+                for (String loginId : new String[]{"member1", "host1", "artist1"}) {
+                    assertForbidden(post(path).with(httpBasic(loginId, PW))
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"));
+                    assertForbidden(put(path + "/1").with(httpBasic(loginId, PW))
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"));
+                    assertForbidden(delete(path + "/1").with(httpBasic(loginId, PW)));
+                }
+
+                // ADMIN 은 인가를 통과한다 — 본문이 비어 400 이 나는 것은 통과로 친다.
+                assertAllowed(post(path).with(httpBasic(ADMIN_ID, PW))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"));
+            }
+        }
+
+        @Test
+        @DisplayName("관리자 콘솔에서도 ADMIN 계정은 만들 수 없다")
+        void consoleCannotCreateAdmin() throws Exception {
+            mockMvc.perform(post("/api/admin/users").with(httpBasic(ADMIN_ID, PW))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"loginId":"mockadmin","password":"pw1234","nickname":"가짜관리자","role":"ADMIN"}
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+        }
+
+        @Test
         @DisplayName("관리자는 다른 역할의 경로를 쓰지 못한다 — 대신 편집하지 않는다는 범위 제외를 지킨다")
         void adminHasNoOtherRolePower() throws Exception {
             assertForbidden(get("/api/spaces/mine").with(httpBasic(ADMIN_ID, PW)));

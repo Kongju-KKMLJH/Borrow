@@ -32,7 +32,7 @@ Figma 16화면 구현 + 백엔드 REST API 매핑이 코드베이스 기준이�
 
 - `src/lib/api/` — HTTP Basic 클라이언트(`client.ts`), 백엔드 DTO 1:1 타입(`types.ts`), 8개 네임스페이스(`endpoints.ts`): `authApi`·`activityApi`·`meApi`·`spaceApi`·`hostApi`·`aiApi`·`uploadApi`·`adminApi`
 - `src/lib/auth.tsx` — `AuthProvider`: AsyncStorage 영속 자격증명, 앱 재시작 시 자동 복구, 인증 상태 기반 리다이렉트
-- 라우트: `(auth)/login`, `(user)/`(홈·활동·내활동·개설), `(provider)/`(홈·요청·공간), `(admin)/`(홈·회원·프로그램·공간 — ADMIN 전용, 레이아웃 가드), `activity/[id]`, `request/[id]`, `payment/[id]/`, `subscription/`
+- 라우트: `(auth)/login`, `(user)/`(홈·활동·내활동·개설), `(provider)/`(홈·요청·공간), `(admin)/`(홈·회원·프로그램·공간 — ADMIN 전용, 레이아웃 가드), `admin-form/`(임시 데이터 생성·수정 폼 3종), `activity/[id]`, `request/[id]`, `payment/[id]/`, `subscription/`
 - **구 API 레이어(`src/api/`, `src/lib/guest.ts`, `X-Guest-Id`)는 삭제됐다. 부활시키지 마라.**
 
 ### 결제·구독 화면은 UI만 — 백엔드 API 갭

@@ -394,3 +394,49 @@ export interface AdminSpaceResponse {
   forceDeleted: boolean;
   forceDeletedAt: string | null;
 }
+
+// ── Admin 임시(mock) 데이터 요청 (기능명세 7.1.2 · 7.2.2 · 7.3.2) ────────
+
+/** 임시 회원 생성·수정. 수정 시 password 를 비우면 기존 값을 유지한다. */
+export interface AdminUserRequest {
+  loginId: string;
+  password?: string;
+  nickname: string;
+  role: Role;
+  /** 예술가일 때만 지정할 수 있다. 비우면 "신청한 적 없음". */
+  verificationStatus?: ArtistVerificationStatus | null;
+}
+
+/** 임시 프로그램 생성·수정. 유형·인증 배지는 담당 예술가 계정의 역할에서 서버가 정한다. */
+export interface AdminActivityRequest {
+  hostLoginId: string;
+  /** 개최지. null 이면 공간 미확정. MATCHED·PUBLISHED 로 만들려면 필수. */
+  spaceId: number | null;
+  field: ActivityField;
+  title: string;
+  description?: string;
+  imageUrls?: string[];
+  date: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  entryFee: number;
+  status: ActivityStatus;
+}
+
+/** 임시 공간 생성·수정. slots 는 전체 교체된다. */
+export interface AdminSpaceRequest {
+  ownerId: string;
+  name: string;
+  region: string;
+  address?: string;
+  imageUrls?: string[];
+  capacity: number;
+  hourlyFee: number;
+  conditions?: string;
+  facilities?: FacilityType[];
+  allowedFields?: ActivityField[];
+  noiseAllowed: boolean;
+  messAllowed: boolean;
+  slots?: SpaceSlotRequest[];
+}

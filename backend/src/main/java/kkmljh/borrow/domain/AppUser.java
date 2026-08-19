@@ -79,6 +79,23 @@ public class AppUser {
     }
 
     /**
+     * 관리자의 임시(mock) 회원 정보 수정 (기능명세 7.1.2).
+     *
+     * <p>{@code loginId} 는 바꾸지 않는다 — 이 값이 활동·참여·공간의 소유자 키라서
+     * 갈아치우면 그 회원이 만든 데이터가 전부 주인을 잃는다.
+     * 호출부가 임시 회원인지 먼저 확인한다.
+     */
+    public void updateByAdmin(String nickname, Role role) {
+        this.nickname = nickname;
+        this.role = role;
+    }
+
+    /** 이미 인코딩된 해시만 받는다 (평문 저장 금지). */
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
+    /**
      * 관리자의 강제 탈퇴 (기능명세 7.1.3). 데이터는 지우지 않고 비활성 상태로만 남긴다 —
      * 탈퇴 회원이 개설했던 활동·참여 내역이 함께 사라지면 남은 참여자 화면이 깨진다.
      * 로그인 차단은 {@code AppUserDetailsService} 가 이 값을 보고 처리한다.

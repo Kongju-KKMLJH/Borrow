@@ -2,13 +2,18 @@ package kkmljh.borrow.admin.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import kkmljh.borrow.admin.dto.AdminSpaceRequest;
 import kkmljh.borrow.admin.dto.AdminSpaceResponse;
 import kkmljh.borrow.admin.service.AdminSpaceService;
 import kkmljh.borrow.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,6 +33,29 @@ public class AdminSpaceController {
     @GetMapping("/spaces")
     public ApiResponse<List<AdminSpaceResponse>> spaces() {
         return ApiResponse.ok(adminSpaceService.findAll());
+    }
+
+    @Operation(summary = "7.3.2 임시(mock) 공간 생성",
+            description = "등록자를 지정해 만든다. 이용 가능 시간을 함께 넣어야 AI 추천 후보에 걸린다.")
+    @PostMapping("/spaces")
+    public ApiResponse<AdminSpaceResponse> createSpace(@Valid @RequestBody AdminSpaceRequest req) {
+        return ApiResponse.ok(adminSpaceService.create(req));
+    }
+
+    @Operation(summary = "7.3.2 임시 공간 수정",
+            description = "임시 공간만 수정할 수 있다. 이용 가능 시간은 전체 교체된다.")
+    @PutMapping("/spaces/{spaceId}")
+    public ApiResponse<AdminSpaceResponse> updateSpace(@PathVariable Long spaceId,
+                                                       @Valid @RequestBody AdminSpaceRequest req) {
+        return ApiResponse.ok(adminSpaceService.update(spaceId, req));
+    }
+
+    @Operation(summary = "7.3.2 임시 공간 삭제",
+            description = "임시 공간만 삭제할 수 있다. 개최 요청이 걸려 있으면 거절한다.")
+    @DeleteMapping("/spaces/{spaceId}")
+    public ApiResponse<Void> deleteSpace(@PathVariable Long spaceId) {
+        adminSpaceService.delete(spaceId);
+        return ApiResponse.ok();
     }
 
     @Operation(summary = "7.3.3 공간 강제 삭제",

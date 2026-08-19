@@ -139,6 +139,14 @@ public class Space {
         return this.ownerId.equals(loginId);
     }
 
+    /**
+     * 등록자 변경 — 관리자가 만든 임시(mock) 공간에만 쓴다 (기능명세 7.3.2).
+     * 실제 공간의 소유자는 바뀌지 않는다(변경 API 없음). 호출부가 임시 공간인지 먼저 확인한다.
+     */
+    public void updateOwner(String ownerId) {
+        this.ownerId = ownerId;
+    }
+
     public void updateBasicInfo(String name, String region, String address, List<String> imageUrls, int capacity) {
         this.name = name;
         this.region = region;
