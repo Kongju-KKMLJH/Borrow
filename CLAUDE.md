@@ -23,15 +23,16 @@
 - 매 요청에 `Authorization: Basic base64(loginId:password)`. 세션·토큰 없음(STATELESS).
 - **별도 로그인 API가 없다** — `POST /api/auth/signup`으로 가입하고, `GET /api/auth/me`가 200이면 로그인 성공으로 판정한다. 프론트는 이 방식으로 자격증명을 검증해 AsyncStorage에 저장한다.
 - 역할은 가입 시 하나만 선택: `MEMBER`(모임 개설·참여) / `HOST`(공간·개최요청 관리) / `ARTIST`(MEMBER + 원데이클래스 개설).
+- **`ADMIN`은 가입으로 만들 수 없다** (기능명세 7 관리자 콘솔, 이슈 #86). signup이 400으로 거부하고, 계정은 `ADMIN_LOGIN_ID`·`ADMIN_PASSWORD` 환경변수를 읽는 시드 러너가 만든다. 관리자는 `/api/admin/**`와 프론트 `(admin)` 라우트 그룹만 쓴다.
 - **자격증명이 매 요청 평문으로 흐른다**(base64는 암호화가 아니다). 외부 배포에서는 HTTPS가 사실상 필수 전제이고, 평문 HTTP 구간에서는 실제 개인정보를 넣고 시연하지 않는다.
 
 ## 프론트엔드 — 기준: PR #43 (`dev`에 머지됨)
 
 Figma 16화면 구현 + 백엔드 REST API 매핑이 코드베이스 기준이다. 화면별 API 매핑은 `frontend/docs/SCREEN_API_MAPPING.md` 참고.
 
-- `src/lib/api/` — HTTP Basic 클라이언트(`client.ts`), 백엔드 DTO 1:1 타입(`types.ts`), 7개 네임스페이스 30개 엔드포인트(`endpoints.ts`): `authApi`·`activityApi`·`meApi`·`spaceApi`·`hostApi`·`aiApi`·`uploadApi`
+- `src/lib/api/` — HTTP Basic 클라이언트(`client.ts`), 백엔드 DTO 1:1 타입(`types.ts`), 8개 네임스페이스(`endpoints.ts`): `authApi`·`activityApi`·`meApi`·`spaceApi`·`hostApi`·`aiApi`·`uploadApi`·`adminApi`
 - `src/lib/auth.tsx` — `AuthProvider`: AsyncStorage 영속 자격증명, 앱 재시작 시 자동 복구, 인증 상태 기반 리다이렉트
-- 라우트: `(auth)/login`, `(user)/`(홈·활동·내활동·개설), `(provider)/`(홈·요청·공간), `activity/[id]`, `request/[id]`, `payment/[id]/`, `subscription/`
+- 라우트: `(auth)/login`, `(user)/`(홈·활동·내활동·개설), `(provider)/`(홈·요청·공간), `(admin)/`(홈·회원·프로그램·공간 — ADMIN 전용, 레이아웃 가드), `activity/[id]`, `request/[id]`, `payment/[id]/`, `subscription/`
 - **구 API 레이어(`src/api/`, `src/lib/guest.ts`, `X-Guest-Id`)는 삭제됐다. 부활시키지 마라.**
 
 ### 결제·구독 화면은 UI만 — 백엔드 API 갭

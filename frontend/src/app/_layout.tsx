@@ -39,6 +39,7 @@ export default function RootLayout() {
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(user)" />
             <Stack.Screen name="(provider)" />
+            <Stack.Screen name="(admin)" />
             <Stack.Screen name="activity/[id]" options={{ presentation: 'card' }} />
             <Stack.Screen name="request/[id]" options={{ presentation: 'card' }} />
             <Stack.Screen name="payment/[id]" options={{ presentation: 'card' }} />
