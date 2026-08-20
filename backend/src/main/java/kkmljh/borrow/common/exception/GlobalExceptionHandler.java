@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
 @RestControllerAdvice
@@ -65,6 +66,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest()
                 .body(ApiResponse.error(ErrorCode.INVALID_REQUEST.name(),
                         "'" + e.getRequestPartName() + "' 파트는 필수입니다."));
+    }
+
+    /**
+     * 없는 정적 리소스·경로 (이슈 #8·#30 과 같은 유형 — 아래 Exception 핸들러가 먼저 잡아 500 이 되던 것).
+     *
+     * <p>깨진 이미지 한 장마다 스택트레이스가 ERROR 로 쌓여 실제 장애를 가리던 문제도 함께 사라진다.
+     * 매핑되지 않은 API 경로도 이 핸들러를 타 404 가 된다.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException e) {
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.getStatus())
+                .body(ApiResponse.error(ErrorCode.NOT_FOUND.name(), ErrorCode.NOT_FOUND.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)
