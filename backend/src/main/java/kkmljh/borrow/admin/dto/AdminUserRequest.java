@@ -7,10 +7,10 @@ import kkmljh.borrow.domain.ArtistVerificationStatus;
 import kkmljh.borrow.domain.Role;
 
 /**
- * 임시(mock) 회원 생성·수정 요청 (기능명세 7.1.2 dataSpec — 아이디·닉네임·역할·인증 상태).
+ * 관리자 콘솔의 회원 생성·수정 요청 (기능명세 7.1.2 dataSpec — 아이디·닉네임·역할·인증 상태).
  *
- * <p>제약은 {@code SignupRequest} 와 같은 값으로 맞춘다 — 임시 회원도 <b>실제로 로그인해서
- * 화면을 확인하는 용도</b>이므로 가입 경로보다 느슨하면 만들어 놓고 로그인이 안 되는 계정이 생긴다.
+ * <p>제약은 {@code SignupRequest} 와 같은 값으로 맞춘다 — 콘솔로 만든 회원도 <b>실제로 로그인해서
+ * 서비스를 쓰는 계정</b>이므로 가입 경로보다 느슨하면 만들어 놓고 로그인이 안 되는 계정이 생긴다.
  *
  * @param password           수정 시에는 비워 둘 수 있다(그대로 유지). 생성 시에는 필수.
  * @param verificationStatus 예술가 인증 상태. {@code null} 이면 "신청한 적 없음"으로 두고,

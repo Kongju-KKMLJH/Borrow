@@ -29,6 +29,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -69,8 +70,7 @@ class AdminControllerTest {
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data[0].loginId").value("artist1"))
                     .andExpect(jsonPath("$.data[0].role").value("ARTIST"))
-                    .andExpect(jsonPath("$.data[0].verificationStatus").value("PENDING"))
-                    .andExpect(jsonPath("$.data[0].withdrawn").value(false));
+                    .andExpect(jsonPath("$.data[0].verificationStatus").value("PENDING"));
         }
 
         @Test
@@ -85,13 +85,23 @@ class AdminControllerTest {
         }
 
         @Test
-        @DisplayName("7.1.3 강제 탈퇴")
-        void withdraw() throws Exception {
-            given(adminUserService.withdraw(3L)).willReturn(userResponse());
+        @DisplayName("7.1.2 회원 삭제 — 강제 탈퇴가 DELETE 로 통합됐다")
+        void deleteUser() throws Exception {
+            mockMvc.perform(delete("/api/admin/users/3").with(TestUsers.admin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+            verify(adminUserService).delete(3L);
+        }
 
-            mockMvc.perform(post("/api/admin/users/3/withdraw").with(TestUsers.admin()))
-                    .andExpect(status().isOk());
-            verify(adminUserService).withdraw(3L);
+        @Test
+        @DisplayName("관리자 계정을 지우려 하면 서비스가 403 을 던진다")
+        void deleteAdminForbidden() throws Exception {
+            willThrow(new BusinessException(ErrorCode.FORBIDDEN, "관리자 계정은 콘솔에서 수정·삭제할 수 없습니다."))
+                    .given(adminUserService).delete(1L);
+
+            mockMvc.perform(delete("/api/admin/users/1").with(TestUsers.admin()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error.code").value(ErrorCode.FORBIDDEN.name()));
         }
 
         @Test
@@ -151,27 +161,24 @@ class AdminControllerTest {
             mockMvc.perform(get("/api/admin/activities").with(TestUsers.admin()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data[0].title").value("수채화 모임"))
-                    .andExpect(jsonPath("$.data[0].status").value("DRAFT"))
-                    .andExpect(jsonPath("$.data[0].forceDeleted").value(false));
+                    .andExpect(jsonPath("$.data[0].status").value("DRAFT"));
         }
 
         @Test
-        @DisplayName("7.2.3 강제 삭제")
-        void forceDelete() throws Exception {
-            given(adminActivityService.forceDelete(1L)).willReturn(
-                    AdminActivityResponse.of(TestFixtures.activity(), null));
-
-            mockMvc.perform(post("/api/admin/activities/1/force-delete").with(TestUsers.admin()))
-                    .andExpect(status().isOk());
-            verify(adminActivityService).forceDelete(1L);
+        @DisplayName("7.2.2 프로그램 삭제 — 강제 삭제가 DELETE 로 통합됐다")
+        void deleteActivity() throws Exception {
+            mockMvc.perform(delete("/api/admin/activities/1").with(TestUsers.admin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+            verify(adminActivityService).delete(1L);
         }
 
         @Test
-        @DisplayName("ARTIST 는 강제 삭제를 실행할 수 없다")
+        @DisplayName("ARTIST 는 프로그램을 삭제할 수 없다 — 관리자 경로는 다른 역할에 닫혀 있다")
         void artistForbidden() throws Exception {
-            mockMvc.perform(post("/api/admin/activities/1/force-delete").with(TestUsers.artist()))
+            mockMvc.perform(delete("/api/admin/activities/1").with(TestUsers.artist()))
                     .andExpect(status().isForbidden());
-            verify(adminActivityService, never()).forceDelete(any());
+            verify(adminActivityService, never()).delete(any());
         }
     }
 
@@ -193,22 +200,20 @@ class AdminControllerTest {
         }
 
         @Test
-        @DisplayName("7.3.3 강제 삭제")
-        void forceDelete() throws Exception {
-            given(adminSpaceService.forceDelete(1L))
-                    .willReturn(AdminSpaceResponse.from(TestFixtures.space()));
-
-            mockMvc.perform(post("/api/admin/spaces/1/force-delete").with(TestUsers.admin()))
-                    .andExpect(status().isOk());
-            verify(adminSpaceService).forceDelete(1L);
+        @DisplayName("7.3.2 공간 삭제 — 강제 삭제가 DELETE 로 통합됐다")
+        void deleteSpace() throws Exception {
+            mockMvc.perform(delete("/api/admin/spaces/1").with(TestUsers.admin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+            verify(adminSpaceService).delete(1L);
         }
 
         @Test
-        @DisplayName("HOST 는 남의 공간을 강제 삭제할 수 없다 — 관리자 경로는 HOST 에게 닫혀 있다")
+        @DisplayName("HOST 는 남의 공간을 삭제할 수 없다 — 관리자 경로는 HOST 에게 닫혀 있다")
         void hostForbidden() throws Exception {
-            mockMvc.perform(post("/api/admin/spaces/1/force-delete").with(TestUsers.host()))
+            mockMvc.perform(delete("/api/admin/spaces/1").with(TestUsers.host()))
                     .andExpect(status().isForbidden());
-            verify(adminSpaceService, never()).forceDelete(any());
+            verify(adminSpaceService, never()).delete(any());
         }
 
         @Test

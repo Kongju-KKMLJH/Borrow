@@ -2,14 +2,11 @@ package kkmljh.borrow.admin.service;
 
 import kkmljh.borrow.admin.dto.AdminSpaceRequest;
 import kkmljh.borrow.admin.dto.AdminSpaceResponse;
-import kkmljh.borrow.admin.repository.AdminHostingRequestRepository;
 import kkmljh.borrow.admin.repository.AdminSpaceSlotRepository;
 import kkmljh.borrow.admin.repository.AdminSpaceRepository;
 import kkmljh.borrow.admin.repository.AdminUserRepository;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
-import kkmljh.borrow.domain.HostingRequest;
-import kkmljh.borrow.domain.RequestStatus;
 import kkmljh.borrow.domain.Space;
 import kkmljh.borrow.domain.SpaceSlot;
 import kkmljh.borrow.space.dto.SpaceSlotRequest;
@@ -25,15 +22,12 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class AdminSpaceService {
 
-    /** 자동 거절된 개최 요청에 남기는 사유 — 파트너가 거절한 것과 구분되게 문구로 밝힌다. */
-    private static final String FORCE_DELETE_REASON = "공간이 관리자에 의해 삭제되어 개최할 수 없습니다.";
-
     private final AdminSpaceRepository spaceRepository;
-    private final AdminHostingRequestRepository hostingRequestRepository;
     private final AdminSpaceSlotRepository spaceSlotRepository;
     private final AdminUserRepository userRepository;
+    private final AdminCascadeDeleter cascadeDeleter;
 
-    /** 기능명세 7.3.1 전체 공간 목록. 강제 삭제된 공간도 상태를 달고 포함한다. */
+    /** 기능명세 7.3.1 전체 공간 목록. */
     public List<AdminSpaceResponse> findAll() {
         return spaceRepository.findAllByOrderByIdDesc().stream()
                 .map(AdminSpaceResponse::from)
@@ -41,7 +35,7 @@ public class AdminSpaceService {
     }
 
     /**
-     * 기능명세 7.3.2 임시(mock) 공간 생성. 등록자는 관리자가 지정한다.
+     * 기능명세 7.3.2 공간 생성. 등록자는 관리자가 지정한다.
      *
      * <p>이용 가능 시간을 함께 만든다 — A-02 매칭이 슬롯 시간 겹침으로 후보를 거르므로,
      * 슬롯 없는 공간은 "AI 추천 후보에 즉시 반영된다"(7.3.2 outcome)를 만족하지 못한다.
@@ -63,7 +57,6 @@ public class AdminSpaceService {
                 .allowedFields(req.allowedFieldsOrEmpty())
                 .noiseAllowed(req.noiseAllowed())
                 .messAllowed(req.messAllowed())
-                .mock(true)
                 .build());
 
         replaceSlots(space, req.slotsOrEmpty());
@@ -71,13 +64,11 @@ public class AdminSpaceService {
     }
 
     /**
-     * 기능명세 7.3.2 임시 공간 수정. <b>임시 공간만</b> 대상이다 —
-     * 실제 파트너가 등록한 공간의 운영 정보를 관리자가 고치는 것은 범위 밖이다(7.3.2 description).
-     * 슬롯은 전체 교체한다.
+     * 기능명세 7.3.2 공간 수정. <b>모든 실제 공간</b>이 대상이다. 슬롯은 전체 교체한다.
      */
     @Transactional
     public AdminSpaceResponse update(Long spaceId, AdminSpaceRequest req) {
-        Space space = getMockSpace(spaceId);
+        Space space = getSpace(spaceId);
         ensureOwnerExists(req.ownerId());
 
         space.updateOwner(req.ownerId());
@@ -93,52 +84,22 @@ public class AdminSpaceService {
     }
 
     /**
-     * 기능명세 7.3.2 임시 공간 삭제. 강제 삭제(7.3.3)와 달리 <b>행을 실제로 지운다</b>.
+     * 기능명세 7.3.2 공간 삭제. <b>행을 실제로 지운다</b>.
      *
-     * <p>개최 요청이 걸려 있으면 거절한다 — {@code SpaceService.delete} 가 같은 이유로
-     * {@code SPACE_HAS_REQUESTS} 를 던진다. 여기서만 몰래 지우면 요청·활동이 유령 공간을 참조한다.
+     * <p>이용 시간과 개최 요청이 <b>함께 지워지고</b>, 이 공간에서 개최하기로 했던 프로그램은
+     * 거절 상태로 되돌아가 다른 공간에 재요청할 수 있게 된다
+     * ({@link AdminCascadeDeleter#deleteSpace}). 소유 HOST 본인의 삭제
+     * ({@code SpaceService.delete})가 {@code SPACE_HAS_REQUESTS} 로 거절하는 것과 정책이 다르다 —
+     * 그쪽 가드는 그대로 둔다.
      */
     @Transactional
     public void delete(Long spaceId) {
-        Space space = getMockSpace(spaceId);
-        if (hostingRequestRepository.existsBySpaceId(spaceId)) {
-            throw new BusinessException(ErrorCode.SPACE_HAS_REQUESTS);
-        }
-        spaceSlotRepository.deleteBySpaceId(spaceId);
-        spaceRepository.delete(space);
+        cascadeDeleter.deleteSpace(getSpace(spaceId));
     }
 
-    /**
-     * 기능명세 7.3.3 공간 강제 삭제. 행을 지우지 않고 삭제 상태로만 바꾼다 —
-     * 승인된 개최 요청이 이 공간을 참조하고 있어 실제 삭제는 FK를 깨뜨린다.
-     *
-     * <p>진행 중(PENDING)인 개최 요청은 <b>모두 자동 거절</b>한다(확정 정책). 그대로 두면
-     * 파트너가 승인할 수 없는 요청이 목록에 남고, 예술가는 영영 응답을 못 받는다.
-     * 이미 승인·거절된 요청은 건드리지 않는다 — 끝난 판단을 뒤집는 것이 아니다.
-     * {@code HostingRequest.reject} 가 활동을 REJECTED 로 되돌리므로 예술가는 재요청할 수 있다.
-     */
-    @Transactional
-    public AdminSpaceResponse forceDelete(Long spaceId) {
-        Space space = spaceRepository.findById(spaceId)
+    private Space getSpace(Long spaceId) {
+        return spaceRepository.findById(spaceId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SPACE_NOT_FOUND));
-
-        space.forceDelete();   // 이미 삭제 상태면 INVALID_REQUEST
-
-        List<HostingRequest> pending =
-                hostingRequestRepository.findBySpaceIdAndStatus(spaceId, RequestStatus.PENDING);
-        pending.forEach(request -> request.reject(FORCE_DELETE_REASON));
-
-        return AdminSpaceResponse.from(space);
-    }
-
-    /** 임시 공간만 수정·삭제 대상이다 (기능명세 7.3.2 rules). */
-    private Space getMockSpace(Long spaceId) {
-        Space space = spaceRepository.findById(spaceId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.SPACE_NOT_FOUND));
-        if (!space.isMock()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "임시 공간만 수정·삭제할 수 있습니다.");
-        }
-        return space;
     }
 
     /** 등록자가 실제로 있는 계정인지 — 없는 아이디로 만들면 목록의 등록자 열이 유령이 된다. */

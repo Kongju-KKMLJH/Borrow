@@ -13,7 +13,7 @@ import type { AdminVerificationLabel, Role } from '@/lib/api/types';
 import { RoleLabel, VerificationLabel } from '@/lib/admin-format';
 
 /**
- * 임시(mock) 회원 생성·수정 (기능명세 7.1.2).
+ * 관리자 회원 생성·수정 (기능명세 7.1.2).
  * `userId` 파라미터가 있으면 수정, 없으면 생성이다.
  */
 
@@ -76,7 +76,7 @@ export default function AdminUserForm() {
 
   return (
     <Screen
-      header={<ScreenHeader title={editingId !== null ? '임시 회원 수정' : '임시 회원 생성'} />}
+      header={<ScreenHeader title={editingId !== null ? '회원 수정' : '회원 생성'} />}
       contentContainerStyle={{ gap: Spacing.lg, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.huge }}>
       {error ? <AppText variant="caption" tint={theme.danger}>{error}</AppText> : null}
 

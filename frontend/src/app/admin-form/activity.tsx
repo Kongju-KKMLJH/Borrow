@@ -14,7 +14,7 @@ import { activityStatusLabel } from '@/lib/admin-format';
 import { ActivityFieldLabel } from '@/lib/format';
 
 /**
- * 임시(mock) 프로그램 생성·수정 (기능명세 7.2.2).
+ * 관리자 프로그램 생성·수정 (기능명세 7.2.2).
  *
  * 유형(HOBBY/CLASS)과 인증 배지는 여기서 고르지 않는다 — 담당 예술가 계정의 역할을 보고
  * 서버가 정한다. 클라이언트가 배지를 위조하지 못하게 하는 기존 규칙 그대로다.
@@ -98,7 +98,7 @@ export default function AdminActivityForm() {
 
   return (
     <Screen
-      header={<ScreenHeader title={editingId !== null ? '임시 프로그램 수정' : '임시 프로그램 생성'} />}
+      header={<ScreenHeader title={editingId !== null ? '프로그램 수정' : '프로그램 생성'} />}
       contentContainerStyle={{ gap: Spacing.lg, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.huge }}>
       {error ? <AppText variant="caption" tint={theme.danger}>{error}</AppText> : null}
 

@@ -14,15 +14,12 @@ import java.util.List;
  *
  * <p>DB에서 거르는 하드 조건: 수용인원 / 지역(부분 일치, 양방향) / 허용 분야.
  * 슬롯 시간 겹침과 소음·오염 제한은 서비스에서 자바로 필터링한다.
- *
- * <p>관리자가 강제 삭제한 공간은 추천 후보에서 빠진다 (기능명세 7.3.3).
  */
 public interface SpaceMatchRepository extends JpaRepository<Space, Long> {
 
     @Query("""
             select distinct s from Space s
-            where s.forceDeletedAt is null
-              and s.capacity >= :headcount
+            where s.capacity >= :headcount
               and (
                 :region = ''
                 or s.region like concat('%', :region, '%')

@@ -38,7 +38,7 @@ class AdminUserServiceTest {
     private AdminUserService adminUserService;
 
     @Test
-    @DisplayName("7.1.1 목록에 역할·가입일·인증 상태·탈퇴 상태가 함께 나온다")
+    @DisplayName("7.1.1 목록에 역할·가입일·인증 상태가 함께 나온다")
     void listShowsRoleAndStatus() {
         AppUser artist = TestFixtures.artist();
         given(userRepository.findAllByOrderByIdDesc()).willReturn(List.of(artist));
@@ -51,7 +51,6 @@ class AdminUserServiceTest {
         assertThat(result.get(0).loginId()).isEqualTo("artist1");
         assertThat(result.get(0).createdAt()).isNotNull();
         assertThat(result.get(0).verificationStatus()).isEqualTo("PENDING");
-        assertThat(result.get(0).withdrawn()).isFalse();
     }
 
     @Test
@@ -61,64 +60,6 @@ class AdminUserServiceTest {
         given(verificationRepository.findAll()).willReturn(List.of());
 
         assertThat(adminUserService.findAll().get(0).verificationStatus()).isEqualTo("NONE");
-    }
-
-    @Test
-    @DisplayName("7.1.1 목록에는 탈퇴한 회원도 상태를 달고 남는다 — 데이터를 지우지 않는다")
-    void listKeepsWithdrawnUsers() {
-        AppUser member = TestFixtures.member();
-        member.withdraw();
-        given(userRepository.findAllByOrderByIdDesc()).willReturn(List.of(member));
-        given(verificationRepository.findAll()).willReturn(List.of());
-
-        AdminUserResponse result = adminUserService.findAll().get(0);
-        assertThat(result.withdrawn()).isTrue();
-        assertThat(result.withdrawnAt()).isNotNull();
-    }
-
-    @Test
-    @DisplayName("7.1.3 강제 탈퇴하면 탈퇴 상태와 처리 일시가 남는다")
-    void withdraw() {
-        AppUser member = TestFixtures.member();
-        given(userRepository.findById(1L)).willReturn(Optional.of(member));
-        given(verificationRepository.findByLoginId(member.getLoginId())).willReturn(Optional.empty());
-
-        AdminUserResponse result = adminUserService.withdraw(1L);
-
-        assertThat(result.withdrawn()).isTrue();
-        assertThat(member.isWithdrawn()).isTrue();
-    }
-
-    @Test
-    @DisplayName("7.1.3 이미 탈퇴한 회원을 다시 탈퇴시키면 INVALID_REQUEST")
-    void withdrawTwice() {
-        AppUser member = TestFixtures.member();
-        member.withdraw();
-        given(userRepository.findById(1L)).willReturn(Optional.of(member));
-
-        assertThatThrownBy(() -> adminUserService.withdraw(1L))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_REQUEST);
-    }
-
-    @Test
-    @DisplayName("관리자 계정은 강제 탈퇴 대상이 아니다 — 콘솔 자체를 잠가 버릴 수 있다")
-    void cannotWithdrawAdmin() {
-        given(userRepository.findById(1L)).willReturn(Optional.of(TestFixtures.admin()));
-
-        assertThatThrownBy(() -> adminUserService.withdraw(1L))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_REQUEST);
-    }
-
-    @Test
-    @DisplayName("없는 회원은 USER_NOT_FOUND")
-    void withdrawMissingUser() {
-        given(userRepository.findById(99L)).willReturn(Optional.empty());
-
-        assertThatThrownBy(() -> adminUserService.withdraw(99L))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
     }
 
     @Test

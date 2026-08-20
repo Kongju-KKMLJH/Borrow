@@ -117,7 +117,7 @@ class SpaceServiceTest {
         @Test
         @DisplayName("목록은 소유자로 거르지 않는다 (비로그인 열람)")
         void findAllReturnsEveryone() {
-            given(spaceRepository.findByForceDeletedAtIsNull()).willReturn(List.of(
+            given(spaceRepository.findAll()).willReturn(List.of(
                     TestFixtures.space(1L, OWNER), TestFixtures.space(2L, OTHER)));
 
             assertThat(spaceService.findAll()).hasSize(2);
@@ -155,7 +155,7 @@ class SpaceServiceTest {
         @Test
         @DisplayName("공개 목록에는 주소 전문이 없고 동 단위(region)만 나간다 (기능명세 6.1 rules)")
         void findAllHidesAddress() {
-            given(spaceRepository.findByForceDeletedAtIsNull()).willReturn(List.of(TestFixtures.space(1L, OWNER)));
+            given(spaceRepository.findAll()).willReturn(List.of(TestFixtures.space(1L, OWNER)));
 
             assertThat(spaceService.findAll()).singleElement()
                     .satisfies(space -> {
