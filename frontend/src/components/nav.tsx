@@ -72,6 +72,10 @@ export function TabBar({ state, navigation, items }: TabBarProps) {
 /** 모드 전환 알약 — 현재 모드 반대편으로 이동. 사용자→제공자는 틸 솔리드, 제공자→사용자는 코랄 틴트. */
 export function ModeSwitch({ current }: { current: 'user' | 'provider' }) {
   const theme = useTheme();
+  const { user } = useAuth();
+  // 공간 제공자 모드는 HOST 전용이다. 레이아웃 가드가 되돌려 보내므로,
+  // 눌러도 튕겨 나올 뿐인 버튼은 아예 띄우지 않는다.
+  if (current === 'user' && user?.role !== 'HOST') return null;
   const target = current === 'user' ? 'provider' : 'user';
   const toProvider = target === 'provider';
   const label = toProvider ? '공간 제공자' : '일반 사용자';

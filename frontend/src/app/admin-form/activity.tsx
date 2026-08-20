@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { ChipGroup, TextField } from '@/components/form';
+import { ImageUploadField } from '@/components/image-upload-field';
 import { ScreenHeader } from '@/components/nav';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
@@ -39,6 +40,7 @@ export default function AdminActivityForm() {
   const [field, setField] = useState<ActivityField>('ART');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [date, setDate] = useState('2026-12-12');
   const [startTime, setStartTime] = useState('14:00');
   const [endTime, setEndTime] = useState('16:00');
@@ -53,9 +55,14 @@ export default function AdminActivityForm() {
     if (editingId === null || loaded) return null;
     const found = (await adminApi.activities()).find((a) => a.id === editingId);
     if (found) {
+      // 수정 요청은 전체 교체다 — 여기서 채우지 않은 값은 저장하는 순간 서버에서 지워진다.
       setHostLoginId(found.hostLoginId);
       setSpaceId(found.spaceId !== null ? String(found.spaceId) : '');
+      setField(found.field);
       setTitle(found.title);
+      setDescription(found.description ?? '');
+      setImageUrls(found.imageUrls ?? []);
+      setEntryFee(String(found.entryFee));
       setDate(found.date);
       setStartTime(found.startTime.slice(0, 5));
       setEndTime(found.endTime.slice(0, 5));
@@ -79,6 +86,7 @@ export default function AdminActivityForm() {
         field,
         title: title.trim(),
         description: description.trim() || undefined,
+        imageUrls,
         date: date.trim(),
         startTime: startTime.trim(),
         endTime: endTime.trim(),
@@ -110,6 +118,9 @@ export default function AdminActivityForm() {
       />
       <TextField label="프로그램명" value={title} onChangeText={setTitle} />
       <TextField label="설명" value={description} onChangeText={setDescription} multiline />
+
+      <ImageUploadField label="프로그램 사진" value={imageUrls} onChange={setImageUrls} max={5} />
+
 
       <ChipGroup
         label="분야"

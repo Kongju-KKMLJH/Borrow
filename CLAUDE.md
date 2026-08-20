@@ -83,16 +83,23 @@ npx expo start                # 폰은 LAN IP로 접속 (frontend/BUILD.md 참�
 npx tsc --noEmit              # 타입 체크
 ```
 
-## 배포 현황 (2026-08-18)
+## 배포 현황 (2026-08-20)
 
-가비아 클라우드 서버를 제공받아 배포를 준비 중이다. `dev`가 배포 후보 브랜치이며 백엔드·프론트 최신이 모두 들어와 있다.
+**운영 중이다.** https://artmin.duckdns.org — `main` push마다 `.github/workflows/deploy.yml`이 백엔드 이미지와 프론트 웹 번들을 빌드해 자동 배포한다. `dev`가 배포 후보 브랜치다.
 
-**아직 만들지 않은 것** (`DEPLOYMENT.md` Part 1): `backend/Dockerfile`, `.dockerignore`, `application-prod.yml`, `deploy/`(compose·Caddyfile·.env.example), CD 워크플로.
+### 업로드 저장소 — 되돌리면 안 되는 두 가지
+
+업로드 이미지는 루트 디스크가 아니라 **블록 볼륨**(`/dev/vdb` → `/mnt/borrow-data/uploads`)에 둔다. 이미지가 루트를 채우면 MySQL과 도커가 함께 죽는다.
+
+1. **호스트 업로드 디렉터리는 컨테이너 유저 uid `999` 소유여야 한다.** `backend/Dockerfile`이 `chown -R app:app /app`을 하지만 compose의 bind mount가 그 위를 덮어써서 무효가 된다. 안 맞추면 업로드가 전부 `Permission denied`로 실패하고 화면에는 "업로드 실패"만 뜬다.
+2. **fstab에 `nofail`을 반드시 넣는다.** 빠뜨리면 볼륨이 분리됐을 때 부팅이 emergency shell에서 멈춰 서버에 접속조차 못 한다.
+
+CD는 배포마다 `docker-compose.prod.yml`·`Caddyfile`을 리포지토리 버전으로 덮어쓰지만 서버 `.env`는 건드리지 않는다. 그래서 경로는 **compose가 아니라 `.env`의 `UPLOAD_HOST_DIR`로** 지정한다 — compose를 고치면 다음 배포에 지워진다. 전체 절차는 로컬 `DEPLOYMENT.md`(gitignore) "3-A. 업로드 저장소" 참고.
 
 **배포 전 처리 목록**
 
-- 프론트 웹 대응 3건 — 웹 이미지 업로드 FormData 플랫폼 분기(현재 RN 전용 객체라 웹에서 업로드가 깨진다), `app.json` `web.output`을 `single`로, 웹은 같은 오리진(`''`)을 쓰도록 base URL 처리
-- `platform.fee.matching` 설정값 — 없으면 매칭 이용료가 0원으로 표시된다
+- 프론트 웹 대응 — ~~웹 이미지 업로드 FormData 플랫폼 분기~~(이슈 #102 에서 해결), `app.json` `web.output`을 `single`로, 웹은 같은 오리진(`''`)을 쓰도록 base URL 처리
+- `platform.fee.matching` 설정값 — **비어 있으면 앱이 기동에 실패한다.** primitive `int` 라 빈 환경변수가 바인딩 오류를 내고 크래시 루프에 빠진다(0원 표시가 아니다). 2026-08-20 운영에서 실제 발생
 - OpenAI 키 로테이션 후 `.env`로만 관리 (`${VAR:실제값}` 기본값 패턴 금지)
 - 로컬 프로덕션 리허설(전체 플로우 완주)을 거친 뒤 서버에 올린다
 
