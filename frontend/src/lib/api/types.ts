@@ -415,6 +415,11 @@ export interface AdminActivityResponse {
   endTime: string;
   capacity: number;
   status: ActivityStatus;
+  /** 아래 4개는 수정 폼 프리필용 — 없으면 저장할 때 원본이 지워진다 (기능명세 7.2.2) */
+  field: ActivityField;
+  description: string | null;
+  entryFee: number;
+  imageUrls: string[];
 }
 
 /** 7.3.1 관리자 공간 목록의 한 줄. 관리 목적이므로 주소 전문을 포함한다. */
@@ -427,6 +432,15 @@ export interface AdminSpaceResponse {
   capacity: number;
   hourlyFee: number;
   createdAt: string | null;
+  /** 아래 7개는 수정 폼 프리필용 — 없으면 저장할 때 원본이 지워진다 (기능명세 7.3.2).
+   *  특히 slots 가 비면 이용 시간이 폼 기본값으로 덮여 AI 추천에서 빠진다. */
+  imageUrls: string[];
+  conditions: string | null;
+  facilities: FacilityType[];
+  allowedFields: ActivityField[];
+  noiseAllowed: boolean;
+  messAllowed: boolean;
+  slots: SpaceSlotResponse[];
 }
 
 // ── Admin 데이터 생성·수정 요청 (기능명세 7.1.2 · 7.2.2 · 7.3.2) ────────
