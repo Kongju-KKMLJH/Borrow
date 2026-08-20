@@ -57,16 +57,6 @@ class AppUserDetailsServiceTest {
     }
 
     @Test
-    @DisplayName("강제 탈퇴된 회원은 비활성 계정이 되어 인증이 거부된다 (기능명세 7.1.3)")
-    void withdrawnUserIsDisabled() {
-        AppUser withdrawn = user("hong", Role.MEMBER);
-        withdrawn.withdraw();
-        given(appUserRepository.findByLoginId("hong")).willReturn(Optional.of(withdrawn));
-
-        assertThat(appUserDetailsService.loadUserByUsername("hong").isEnabled()).isFalse();
-    }
-
-    @Test
     @DisplayName("정상 회원은 활성 계정이다")
     void activeUserIsEnabled() {
         given(appUserRepository.findByLoginId("hong")).willReturn(Optional.of(user("hong", Role.MEMBER)));

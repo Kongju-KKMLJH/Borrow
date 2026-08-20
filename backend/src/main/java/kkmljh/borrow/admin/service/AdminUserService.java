@@ -3,10 +3,7 @@ package kkmljh.borrow.admin.service;
 import kkmljh.borrow.admin.dto.AdminUserResponse;
 import kkmljh.borrow.admin.dto.AdminVerificationResponse;
 import kkmljh.borrow.admin.dto.AdminUserRequest;
-import kkmljh.borrow.admin.repository.AdminActivityRepository;
 import kkmljh.borrow.admin.repository.AdminArtistVerificationRepository;
-import kkmljh.borrow.admin.repository.AdminParticipationRepository;
-import kkmljh.borrow.admin.repository.AdminSpaceRepository;
 import kkmljh.borrow.admin.repository.AdminUserRepository;
 import kkmljh.borrow.common.exception.BusinessException;
 import kkmljh.borrow.common.exception.ErrorCode;
@@ -30,18 +27,22 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class AdminUserService {
 
-    /** 임시 인증 신청의 포트폴리오 자리 — 실제 링크가 아님을 화면에서 바로 알아볼 수 있게 둔다. */
-    private static final String MOCK_PORTFOLIO_URL = "https://example.com/mock-portfolio";
+    /**
+     * 관리자가 인증 상태를 직접 지정할 때 만들어지는 신청 행의 포트폴리오 자리 —
+     * 신청자가 올린 링크가 아님을 화면에서 바로 알아볼 수 있게 둔다.
+     */
+    private static final String ADMIN_PORTFOLIO_URL = "https://example.com/admin-portfolio";
+
+    /** 위와 같은 경로로 만들어지는 신청 행의 경력 자리. */
+    private static final String ADMIN_CAREER = "관리자 콘솔에서 지정한 인증 상태";
 
     private final AdminUserRepository userRepository;
     private final AdminArtistVerificationRepository verificationRepository;
-    private final AdminActivityRepository activityRepository;
-    private final AdminSpaceRepository spaceRepository;
-    private final AdminParticipationRepository participationRepository;
+    private final AdminCascadeDeleter cascadeDeleter;
     private final PasswordEncoder passwordEncoder;
 
     /**
-     * 기능명세 7.1.1 전체 회원 목록. 탈퇴 회원도 포함해 상태만 표시한다.
+     * 기능명세 7.1.1 전체 회원 목록.
      *
      * <p>인증 상태는 신청 전체를 <b>한 번에</b> 읽어 loginId 로 맞춘다 —
      * 회원마다 개별 조회하면 목록에서 N+1이 된다.
@@ -57,7 +58,7 @@ public class AdminUserService {
     }
 
     /**
-     * 기능명세 7.1.2 임시(mock) 회원 생성.
+     * 기능명세 7.1.2 회원 생성. 실제로 로그인하고 서비스를 쓰는 회원이 만들어진다.
      *
      * <p>가입 API 와 같은 규칙을 지킨다 — 아이디 중복 거절, BCrypt 해시 저장, ADMIN 거부.
      * 관리자 콘솔이라고 해서 관리자를 찍어낼 수 있게 두면 1단계에서 막은 구멍이 옆문으로 다시 열린다.
@@ -77,22 +78,20 @@ public class AdminUserService {
                 .password(passwordEncoder.encode(req.password()))
                 .nickname(req.nickname())
                 .role(req.role())
-                .mock(true)
                 .build());
 
         return AdminUserResponse.of(user, applyVerification(user, req.verificationStatus()));
     }
 
     /**
-     * 기능명세 7.1.2 임시 회원 수정. <b>임시 회원만</b> 대상이다 —
-     * 실제 회원의 개인정보를 관리자가 고치는 것은 명시적으로 범위 밖이다(7.1.2 description).
+     * 기능명세 7.1.2 회원 수정. 관리자 계정을 뺀 <b>모든 실제 회원</b>이 대상이다.
      *
      * <p>아이디는 바꾸지 않는다. {@code loginId} 가 활동·참여·공간의 소유자 키라서
      * 여기서 갈아치우면 그 회원이 만든 데이터가 전부 주인을 잃는다.
      */
     @Transactional
     public AdminUserResponse update(Long userId, AdminUserRequest req) {
-        AppUser user = getMockUser(userId);
+        AppUser user = getManagedUser(userId);
         ensureNotAdminRole(req.role());
 
         user.updateByAdmin(req.nickname(), req.role());
@@ -103,53 +102,16 @@ public class AdminUserService {
     }
 
     /**
-     * 기능명세 7.1.2 임시 회원 삭제. 강제 탈퇴(7.1.3)와 달리 <b>행을 실제로 지운다</b> —
+     * 기능명세 7.1.2 회원 삭제. <b>행을 실제로 지운다</b> —
      * "회원 목록과 관련 역할 데이터에서 제거된다"(7.1.2 outcome).
      *
-     * <p>이 회원이 남긴 활동·공간·참여가 있으면 지우지 않고 거절한다. 말없이 함께 지우면
-     * 남의 참여 내역까지 사라진다 — {@code SpaceService.delete}·{@code ActivityService.delete} 가
-     * 자식 데이터를 두고 삭제를 거부하는 것과 같은 판단이다.
+     * <p>이 회원이 남긴 인증 신청·참여 신청·개설 프로그램·등록 공간이 <b>함께 지워진다</b>
+     * ({@link AdminCascadeDeleter#deleteUser}). 관리자 삭제는 자기 데이터 삭제와 정책이 다르다 —
+     * {@code SpaceService.delete}·{@code ActivityService.delete} 의 "자식이 있으면 거절"은 그대로 둔다.
      */
     @Transactional
     public void delete(Long userId) {
-        AppUser user = getMockUser(userId);
-        String loginId = user.getLoginId();
-
-        if (activityRepository.existsByGuestId(loginId)) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST,
-                    "이 회원이 개설한 프로그램을 먼저 삭제해야 합니다.");
-        }
-        if (spaceRepository.existsByOwnerId(loginId)) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST,
-                    "이 회원이 등록한 공간을 먼저 삭제해야 합니다.");
-        }
-        if (participationRepository.existsByGuestId(loginId)) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST,
-                    "이 회원의 참여 신청 내역이 있어 삭제할 수 없습니다.");
-        }
-
-        // 인증 신청은 회원당 1행이고 FK 가 없어 함께 정리한다(남기면 유령 행이 된다).
-        verificationRepository.findByLoginId(loginId).ifPresent(verificationRepository::delete);
-        userRepository.delete(user);
-    }
-
-    /**
-     * 기능명세 7.1.3 회원 강제 탈퇴. 데이터는 지우지 않고 비활성 상태로만 남긴다(확정 정책) —
-     * 로그인 차단은 {@code AppUserDetailsService} 가 {@code withdrawnAt} 을 보고 처리한다.
-     *
-     * <p>관리자 계정은 대상이 아니다. 콘솔에서 서로를(혹은 자신을) 잠가 버리면
-     * 되돌릴 API가 없어 콘솔 자체에 들어갈 수 없게 된다.
-     */
-    @Transactional
-    public AdminUserResponse withdraw(Long userId) {
-        AppUser user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        if (user.getRole() == Role.ADMIN) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST, "관리자 계정은 강제 탈퇴할 수 없습니다.");
-        }
-
-        user.withdraw();   // 이미 탈퇴 상태면 INVALID_REQUEST
-        return AdminUserResponse.of(user, verificationStatusOf(user.getLoginId()));
+        cascadeDeleter.deleteUser(getManagedUser(userId));
     }
 
     /** 기능명세 7.1.4 인증 신청 목록. status 가 null 이면 심사 대기(PENDING)만 본다. */
@@ -187,12 +149,18 @@ public class AdminUserService {
         }
     }
 
-    /** 임시 회원만 수정·삭제 대상이다 (기능명세 7.1.2 rules). */
-    private AppUser getMockUser(Long userId) {
+    /**
+     * 콘솔이 손댈 수 있는 회원인지 (기능명세 7.1.2 rules).
+     *
+     * <p><b>관리자 계정은 대상이 아니다.</b> 콘솔에서 서로를(혹은 자신을) 지우거나 역할을 바꿔 버리면
+     * 되돌릴 API 가 없어 콘솔 자체에 들어갈 수 없게 된다.
+     */
+    private AppUser getManagedUser(Long userId) {
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        if (!user.isMock()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "임시 회원만 수정·삭제할 수 있습니다.");
+        if (user.getRole() == Role.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "관리자 계정은 콘솔에서 수정·삭제할 수 없습니다.");
         }
         return user;
     }
@@ -225,17 +193,11 @@ public class AdminUserService {
         ArtistVerification verification = existing.orElseGet(() -> verificationRepository.save(
                 ArtistVerification.builder()
                         .loginId(user.getLoginId())
-                        .portfolioUrl(MOCK_PORTFOLIO_URL)
-                        .career("관리자가 만든 임시 인증 신청")
+                        .portfolioUrl(ADMIN_PORTFOLIO_URL)
+                        .career(ADMIN_CAREER)
                         .build()));
         verification.forceStatus(status);
         return status;
-    }
-
-    private ArtistVerificationStatus verificationStatusOf(String loginId) {
-        return verificationRepository.findByLoginId(loginId)
-                .map(ArtistVerification::getStatus)
-                .orElse(null);
     }
 
     private String nicknameOf(String loginId) {

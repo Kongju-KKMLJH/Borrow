@@ -30,12 +30,8 @@ public class AppUserDetailsService implements UserDetailsService {
         AppUser user = appUserRepository.findByLoginId(loginId)
                 .orElseThrow(() -> new UsernameNotFoundException("존재하지 않는 아이디입니다."));
 
-        // 강제 탈퇴된 회원은 로그인과 서비스 이용이 차단된다 (기능명세 7.1.3).
-        // 계정을 비활성으로 표시하면 이후 필터가 인증을 거부해 401이 나간다 —
-        // 여기서 막아야 모든 엔드포인트가 한 번에 닫힌다.
         return User.withUsername(user.getLoginId())
                 .password(user.getPassword())
-                .disabled(user.isWithdrawn())
                 .authorities(List.of(new SimpleGrantedAuthority(user.getRole().authority())))
                 .build();
     }

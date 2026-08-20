@@ -2,7 +2,6 @@ package kkmljh.borrow.admin.service;
 
 import kkmljh.borrow.admin.dto.AdminSpaceRequest;
 import kkmljh.borrow.admin.dto.AdminSpaceResponse;
-import kkmljh.borrow.admin.repository.AdminHostingRequestRepository;
 import kkmljh.borrow.admin.repository.AdminSpaceRepository;
 import kkmljh.borrow.admin.repository.AdminSpaceSlotRepository;
 import kkmljh.borrow.admin.repository.AdminUserRepository;
@@ -36,18 +35,18 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("AdminSpaceService — 임시(mock) 공간 CRUD (기능명세 7.3.2)")
-class AdminSpaceMockCrudTest {
+@DisplayName("AdminSpaceService — 공간 CRUD (기능명세 7.3.2)")
+class AdminSpaceCrudTest {
 
     @Mock private AdminSpaceRepository spaceRepository;
-    @Mock private AdminHostingRequestRepository hostingRequestRepository;
     @Mock private AdminSpaceSlotRepository spaceSlotRepository;
     @Mock private AdminUserRepository userRepository;
+    @Mock private AdminCascadeDeleter cascadeDeleter;
 
     @InjectMocks private AdminSpaceService adminSpaceService;
 
     private static AdminSpaceRequest request(List<SpaceSlotRequest> slots) {
-        return new AdminSpaceRequest("owner1", "임시 스튜디오", "천안시 서북구 불당동", "불당대로 1",
+        return new AdminSpaceRequest("owner1", "관리자 스튜디오", "천안시 서북구 불당동", "불당대로 1",
                 List.of(), 10, 10_000, "음료 주문", Set.of(FacilityType.TABLE),
                 Set.of(ActivityField.ART), true, true, slots);
     }
@@ -61,14 +60,8 @@ class AdminSpaceMockCrudTest {
                 .willAnswer(inv -> TestFixtures.withId(inv.getArgument(0), 5L));
     }
 
-    private Space mockSpace() {
-        return TestFixtures.withId(Space.builder()
-                .ownerId("owner1").name("임시 스튜디오").region("천안시 서북구 불당동")
-                .address("불당대로 1").capacity(10).hourlyFee(10_000).mock(true).build(), 5L);
-    }
-
     @Test
-    @DisplayName("임시 공간으로 저장하고 이용 가능 시간을 함께 만든다 — 슬롯이 없으면 AI 추천에 걸리지 않는다")
+    @DisplayName("실제 공간으로 저장하고 이용 가능 시간을 함께 만든다 — 슬롯이 없으면 AI 추천에 걸리지 않는다")
     void createWithSlots() {
         given(userRepository.findByLoginId("owner1")).willReturn(Optional.of(TestFixtures.host()));
         echoSavedSpace();
@@ -76,8 +69,8 @@ class AdminSpaceMockCrudTest {
         AdminSpaceResponse result = adminSpaceService.create(
                 request(List.of(slot(LocalTime.of(10, 0), LocalTime.of(18, 0)))));
 
-        assertThat(result.mock()).isTrue();
         assertThat(result.ownerId()).isEqualTo("owner1");
+        assertThat(result.name()).isEqualTo("관리자 스튜디오");
         verify(spaceSlotRepository).save(any(SpaceSlot.class));
     }
 
@@ -108,7 +101,7 @@ class AdminSpaceMockCrudTest {
     @Test
     @DisplayName("수정하면 슬롯을 전체 교체한다")
     void updateReplacesSlots() {
-        given(spaceRepository.findById(5L)).willReturn(Optional.of(mockSpace()));
+        given(spaceRepository.findById(5L)).willReturn(Optional.of(TestFixtures.space(5L, "owner1")));
         given(userRepository.findByLoginId("owner1")).willReturn(Optional.of(TestFixtures.host()));
 
         adminSpaceService.update(5L, request(List.of(
@@ -120,47 +113,58 @@ class AdminSpaceMockCrudTest {
     }
 
     @Test
-    @DisplayName("실제 공간은 수정할 수 없다 (7.3.2 exceptions)")
-    void cannotUpdateRealSpace() {
-        given(spaceRepository.findById(1L)).willReturn(Optional.of(TestFixtures.space()));
+    @DisplayName("HOST 가 등록한 실제 공간도 수정할 수 있다 — super admin 이므로 대상 제한이 없다")
+    void updatesRealSpace() {
+        Space real = TestFixtures.space(1L, "owner1");
+        given(spaceRepository.findById(1L)).willReturn(Optional.of(real));
+        given(userRepository.findByLoginId("owner1")).willReturn(Optional.of(TestFixtures.host()));
 
-        assertThatThrownBy(() -> adminSpaceService.update(1L, request(List.of())))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+        AdminSpaceResponse result = adminSpaceService.update(1L, request(List.of()));
+
+        assertThat(result.name()).isEqualTo("관리자 스튜디오");
+        assertThat(real.getName()).isEqualTo("관리자 스튜디오");
     }
 
     @Test
-    @DisplayName("삭제하면 슬롯을 먼저 지우고 행을 실제로 지운다")
+    @DisplayName("없는 공간을 수정하면 SPACE_NOT_FOUND")
+    void updateMissingSpace() {
+        given(spaceRepository.findById(99L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> adminSpaceService.update(99L, request(List.of())))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.SPACE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("삭제는 슬롯·개최 요청까지 연쇄 삭제기에 맡긴다 (7.3.2 outcome)")
     void delete() {
-        Space space = mockSpace();
+        Space space = TestFixtures.space(5L, "owner1");
         given(spaceRepository.findById(5L)).willReturn(Optional.of(space));
-        given(hostingRequestRepository.existsBySpaceId(5L)).willReturn(false);
 
         adminSpaceService.delete(5L);
 
-        verify(spaceSlotRepository).deleteBySpaceId(5L);
-        verify(spaceRepository).delete(space);
+        verify(cascadeDeleter).deleteSpace(space);
     }
 
     @Test
-    @DisplayName("개최 요청이 걸려 있으면 삭제하지 않는다 — SpaceService.delete 와 같은 판단")
-    void refusesWhenRequestsRemain() {
-        given(spaceRepository.findById(5L)).willReturn(Optional.of(mockSpace()));
-        given(hostingRequestRepository.existsBySpaceId(5L)).willReturn(true);
+    @DisplayName("개최 요청이 걸려 있어도 거절하지 않는다 — 자기 공간 삭제(SpaceService)와 정책이 다르다")
+    void deletesSpaceWithRequests() {
+        Space real = TestFixtures.space(1L, "owner1");
+        given(spaceRepository.findById(1L)).willReturn(Optional.of(real));
 
-        assertThatThrownBy(() -> adminSpaceService.delete(5L))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.SPACE_HAS_REQUESTS);
-        verify(spaceRepository, never()).delete(any());
+        adminSpaceService.delete(1L);
+
+        verify(cascadeDeleter).deleteSpace(real);
     }
 
     @Test
-    @DisplayName("실제 공간은 삭제할 수 없다 — 그건 강제 삭제(7.3.3)의 몫이다")
-    void cannotDeleteRealSpace() {
-        given(spaceRepository.findById(1L)).willReturn(Optional.of(TestFixtures.space()));
+    @DisplayName("없는 공간을 삭제하면 SPACE_NOT_FOUND")
+    void deleteMissingSpace() {
+        given(spaceRepository.findById(99L)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> adminSpaceService.delete(1L))
+        assertThatThrownBy(() -> adminSpaceService.delete(99L))
                 .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+                .extracting("errorCode").isEqualTo(ErrorCode.SPACE_NOT_FOUND);
+        verify(cascadeDeleter, never()).deleteSpace(any());
     }
 }

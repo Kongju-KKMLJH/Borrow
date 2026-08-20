@@ -12,9 +12,9 @@ import { useAuth } from '@/lib/auth';
 
 /** 관리자 홈 — 회원·프로그램·공간 관리로 들어가는 허브 (유저플로우 "관리자 콘솔") */
 const MENUS = [
-  { href: '/(admin)/members', label: '회원 관리', desc: '전체 회원 · 강제 탈퇴 · 예술가 인증 승인', icon: 'people-outline' },
-  { href: '/(admin)/activities', label: '프로그램 관리', desc: '전체 프로그램 · 강제 삭제', icon: 'documents-outline' },
-  { href: '/(admin)/spaces', label: '공간 관리', desc: '전체 공간 · 강제 삭제', icon: 'storefront-outline' },
+  { href: '/(admin)/members', label: '회원 관리', desc: '전체 회원 · 수정·삭제 · 예술가 인증 승인', icon: 'people-outline' },
+  { href: '/(admin)/activities', label: '프로그램 관리', desc: '전체 프로그램 · 수정·삭제', icon: 'documents-outline' },
+  { href: '/(admin)/spaces', label: '공간 관리', desc: '전체 공간 · 수정·삭제', icon: 'storefront-outline' },
 ] as const;
 
 export default function AdminHome() {

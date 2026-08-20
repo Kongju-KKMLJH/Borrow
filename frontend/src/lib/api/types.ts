@@ -386,9 +386,6 @@ export interface AdminUserResponse {
   role: Role;
   createdAt: string | null;
   verificationStatus: AdminVerificationLabel;
-  mock: boolean;
-  withdrawn: boolean;
-  withdrawnAt: string | null;
 }
 
 /** 7.1.4 예술가 인증 신청 */
@@ -418,9 +415,6 @@ export interface AdminActivityResponse {
   endTime: string;
   capacity: number;
   status: ActivityStatus;
-  mock: boolean;
-  forceDeleted: boolean;
-  forceDeletedAt: string | null;
 }
 
 /** 7.3.1 관리자 공간 목록의 한 줄. 관리 목적이므로 주소 전문을 포함한다. */
@@ -433,14 +427,11 @@ export interface AdminSpaceResponse {
   capacity: number;
   hourlyFee: number;
   createdAt: string | null;
-  mock: boolean;
-  forceDeleted: boolean;
-  forceDeletedAt: string | null;
 }
 
-// ── Admin 임시(mock) 데이터 요청 (기능명세 7.1.2 · 7.2.2 · 7.3.2) ────────
+// ── Admin 데이터 생성·수정 요청 (기능명세 7.1.2 · 7.2.2 · 7.3.2) ────────
 
-/** 임시 회원 생성·수정. 수정 시 password 를 비우면 기존 값을 유지한다. */
+/** 회원 생성·수정. 수정 시 password 를 비우면 기존 값을 유지한다. */
 export interface AdminUserRequest {
   loginId: string;
   password?: string;
@@ -450,7 +441,7 @@ export interface AdminUserRequest {
   verificationStatus?: ArtistVerificationStatus | null;
 }
 
-/** 임시 프로그램 생성·수정. 유형·인증 배지는 담당 예술가 계정의 역할에서 서버가 정한다. */
+/** 프로그램 생성·수정. 유형·인증 배지는 담당 예술가 계정의 역할에서 서버가 정한다. */
 export interface AdminActivityRequest {
   hostLoginId: string;
   /** 개최지. null 이면 공간 미확정. MATCHED·PUBLISHED 로 만들려면 필수. */
@@ -467,7 +458,7 @@ export interface AdminActivityRequest {
   status: ActivityStatus;
 }
 
-/** 임시 공간 생성·수정. slots 는 전체 교체된다. */
+/** 공간 생성·수정. slots 는 전체 교체된다. */
 export interface AdminSpaceRequest {
   ownerId: string;
   name: string;
