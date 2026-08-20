@@ -14,7 +14,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /** 관리자 콘솔 — 공간 관리 (기능명세 7.3) */
 @Service
@@ -27,10 +30,25 @@ public class AdminSpaceService {
     private final AdminUserRepository userRepository;
     private final AdminCascadeDeleter cascadeDeleter;
 
-    /** 기능명세 7.3.1 전체 공간 목록. */
+    /**
+     * 기능명세 7.3.1 전체 공간 목록.
+     *
+     * <p>슬롯을 함께 내려준다 — 콘솔의 수정 폼이 이 응답을 프리필 소스로 쓰는데,
+     * 슬롯이 비어 오면 저장할 때 원본 이용 시간이 기본값으로 덮여 AI 매칭에서 빠진다.
+     * 공간마다 따로 조회하면 N+1 이므로 한 번에 읽어 공간별로 나눈다.
+     */
     public List<AdminSpaceResponse> findAll() {
-        return spaceRepository.findAllByOrderByIdDesc().stream()
-                .map(AdminSpaceResponse::from)
+        List<Space> spaces = spaceRepository.findAllByOrderByIdDesc();
+        if (spaces.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<SpaceSlot>> slotsBySpace = spaceSlotRepository
+                .findBySpaceIdInOrderByDayOfWeekAscStartTimeAsc(spaces.stream().map(Space::getId).toList())
+                .stream()
+                .collect(Collectors.groupingBy(slot -> slot.getSpace().getId()));
+
+        return spaces.stream()
+                .map(space -> AdminSpaceResponse.of(space, slotsBySpace.getOrDefault(space.getId(), List.of())))
                 .toList();
     }
 
@@ -59,8 +77,7 @@ public class AdminSpaceService {
                 .messAllowed(req.messAllowed())
                 .build());
 
-        replaceSlots(space, req.slotsOrEmpty());
-        return AdminSpaceResponse.from(space);
+        return AdminSpaceResponse.of(space, replaceSlots(space, req.slotsOrEmpty()));
     }
 
     /**
@@ -79,8 +96,7 @@ public class AdminSpaceService {
         space.updateFeeAndConditions(req.hourlyFee(), req.conditions());
 
         spaceSlotRepository.deleteBySpaceId(spaceId);
-        replaceSlots(space, req.slotsOrEmpty());
-        return AdminSpaceResponse.from(space);
+        return AdminSpaceResponse.of(space, replaceSlots(space, req.slotsOrEmpty()));
     }
 
     /**
@@ -109,17 +125,22 @@ public class AdminSpaceService {
         }
     }
 
-    private void replaceSlots(Space space, List<SpaceSlotRequest> slots) {
+    /** 저장한 슬롯을 그대로 돌려준다 — 생성·수정 응답이 프리필에 쓰일 수 있게. */
+    private List<SpaceSlot> replaceSlots(Space space, List<SpaceSlotRequest> slots) {
+        List<SpaceSlot> saved = new ArrayList<>();
         for (SpaceSlotRequest slot : slots) {
             if (!slot.endTime().isAfter(slot.startTime())) {
                 throw new BusinessException(ErrorCode.INVALID_REQUEST, "종료 시각은 시작 시각보다 늦어야 합니다.");
             }
-            spaceSlotRepository.save(SpaceSlot.builder()
+            SpaceSlot entity = SpaceSlot.builder()
                     .space(space)
                     .dayOfWeek(slot.dayOfWeek())
                     .startTime(slot.startTime())
                     .endTime(slot.endTime())
-                    .build());
+                    .build();
+            spaceSlotRepository.save(entity);
+            saved.add(entity);
         }
+        return saved;
     }
 }
