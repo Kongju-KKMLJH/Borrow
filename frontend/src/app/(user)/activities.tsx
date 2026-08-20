@@ -6,6 +6,7 @@ import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { activityApi } from '@/lib/api';
 import { ActivityCard } from '@/components/activity-card';
 import { SelectChip } from '@/components/form';
+import { DialField } from '@/components/date-time-field';
 import { AppText, Card, Screen } from '@/components/ui';
 import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import type { ActivityField, ActivitySummaryResponse, ActivityType } from '@/lib/api/types';
@@ -94,8 +95,8 @@ export default function Activities() {
       </ScrollView>
 
       <View style={{ paddingHorizontal: Spacing.xl, gap: Spacing.sm }}>
-        <TextInput value={dateFrom} onChangeText={setDateFrom} placeholder="시작일 YYYY-MM-DD" placeholderTextColor={theme.textMuted} style={{ backgroundColor: theme.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, color: theme.text, fontFamily: FontFamily.regular }} />
-        <TextInput value={dateTo} onChangeText={setDateTo} placeholder="종료일 YYYY-MM-DD (선택)" placeholderTextColor={theme.textMuted} style={{ backgroundColor: theme.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, color: theme.text, fontFamily: FontFamily.regular }} />
+        <DialField label="시작일" mode="date" value={dateFrom} onChange={setDateFrom} />
+        <DialField label="종료일" mode="date" value={dateTo} onChange={setDateTo} />
         {filterError && <AppText variant="caption" tint={theme.danger}>{filterError}</AppText>}
       </View>
 

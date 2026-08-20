@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Modal, Platform, Pressable, View } from 'react-native';
 
-import { Field, TextField } from '@/components/form';
+import { Field } from '@/components/form';
 import { AppText, Button } from '@/components/ui';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 function pad(n: number) {
@@ -16,7 +16,7 @@ function pad(n: number) {
  * 날짜/시간 선택 필드. 탭하면 팝업이 뜬다.
  * - iOS: 바텀시트 모달 — 날짜는 인라인 캘린더, 시간은 전폭 휠 스피너(반폭 컬럼 잘림 방지).
  * - Android: 네이티브 다이얼로그(캘린더/시계).
- * - 웹: 스피너 미지원 → 포맷 힌트가 있는 텍스트 입력으로 폴백.
+ * - 웹: 네이티브 HTML input type=date/time 입력.
  *
  * value 포맷 — date: "YYYY-MM-DD", time: "HH:mm" (백엔드 LocalDate/LocalTime와 동일).
  */
@@ -26,26 +26,62 @@ export function DialField({
   value,
   onChange,
   placeholder,
+  minimumDate,
 }: {
   label: string;
   mode: 'date' | 'time';
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  minimumDate?: Date;
 }) {
   const theme = useTheme();
   const [show, setShow] = useState(false);
   const [draft, setDraft] = useState<Date | null>(null);
 
-  // 웹 폴백: 텍스트 입력
+  const fmt = (d: Date): string =>
+    mode === 'date'
+      ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      : `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  // 웹: 네이티브 HTML date/time 입력
   if (Platform.OS === 'web') {
     return (
-      <TextField
-        label={label}
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder ?? (mode === 'date' ? '2026-08-01' : '14:00')}
-      />
+      <Field label={label}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: theme.surfaceMuted,
+            borderRadius: Radius.md,
+            paddingHorizontal: 14,
+            paddingVertical: 13,
+            borderWidth: 1,
+            borderColor: 'transparent',
+          }}>
+          {React.createElement('input', {
+            type: mode,
+            value,
+            onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value),
+            'aria-label': label,
+            placeholder: placeholder ?? (mode === 'date' ? '2026-08-01' : '14:00'),
+            min: mode === 'date' && minimumDate ? fmt(minimumDate) : undefined,
+            style: {
+              flex: 1,
+              border: 'none',
+              backgroundColor: 'transparent',
+              fontFamily: FontFamily.regular,
+              fontSize: 15,
+              color: theme.text,
+              outline: 'none',
+              padding: 0,
+              margin: 0,
+            } as React.CSSProperties,
+          })}
+          <Ionicons name={mode === 'date' ? 'calendar-outline' : 'time-outline'} size={18} color={theme.textMuted} />
+        </View>
+      </Field>
     );
   }
 
@@ -61,11 +97,6 @@ export function DialField({
     }
     return base;
   };
-
-  const fmt = (d: Date): string =>
-    mode === 'date'
-      ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-      : `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
   const displayText = (): string => {
     if (!value) return placeholder ?? (mode === 'date' ? '날짜 선택' : '시간 선택');
@@ -118,7 +149,7 @@ export function DialField({
             mode={mode}
             display={mode === 'date' ? 'calendar' : 'clock'}
             minuteInterval={mode === 'time' ? 5 : undefined}
-            minimumDate={mode === 'date' ? new Date() : undefined}
+            minimumDate={mode === 'date' ? minimumDate : undefined}
             onChange={handleChange}
           />
         )}
@@ -162,7 +193,7 @@ export function DialField({
                 mode={mode}
                 display={mode === 'date' ? 'inline' : 'spinner'}
                 minuteInterval={mode === 'time' ? 5 : undefined}
-                minimumDate={mode === 'date' ? new Date() : undefined}
+                minimumDate={mode === 'date' ? minimumDate : undefined}
                 onChange={(_, selected) => selected && setDraft(selected)}
                 themeVariant="light"
                 accentColor={theme.primary}
