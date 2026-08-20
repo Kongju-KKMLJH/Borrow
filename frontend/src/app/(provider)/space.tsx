@@ -29,14 +29,15 @@ export default function ProviderSpace() {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [address, setAddress] = useState('');
   const [conditions, setConditions] = useState('');
-  const [capacity, setCapacity] = useState('12');
+  const [capacity, setCapacity] = useState('');
   const [region, setRegion] = useState('천안');
-  const [hourlyFee, setHourlyFee] = useState('15000');
+  const [hourlyFee, setHourlyFee] = useState('');
   const [facilities, setFacilities] = useState<FacilityType[]>(['TABLE', 'NATURAL_LIGHT', 'OUTLET']);
   const [allowedFields, setAllowedFields] = useState<ActivityField[]>(['ART', 'PHOTO']);
   const [noiseAllowed, setNoiseAllowed] = useState(false);
   const [messAllowed, setMessAllowed] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!existing) return;
@@ -58,17 +59,30 @@ export default function ProviderSpace() {
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
   const save = async () => {
+    const capacityNum = Number(capacity);
+    const hourlyFeeNum = Number(hourlyFee);
+    if (!capacity.trim() || !Number.isInteger(capacityNum) || capacityNum < 1) {
+      setError('최대 수용 인원을 1명 이상 입력해주세요.');
+      return;
+    }
+    if (!hourlyFee.trim() || !Number.isFinite(hourlyFeeNum) || hourlyFeeNum < 0) {
+      setError('시간당 이용료를 입력해주세요.');
+      return;
+    }
+    setError(null);
     setSaving(true);
     try {
       const payload = {
         name, region, address: address || null, imageUrls,
-        capacity: Number(capacity) || 0,
-        hourlyFee: Number(hourlyFee) || 0, conditions: conditions || null,
+        capacity: capacityNum,
+        hourlyFee: hourlyFeeNum, conditions: conditions || null,
         facilities, allowedFields, noiseAllowed, messAllowed,
       };
       const saved = spaceId ? await spaceApi.update(spaceId, payload) : await spaceApi.create(payload);
       setSpaceId(saved.id);
       router.back();
+    } catch {
+      setError('공간 정보 저장에 실패했어요. 입력값을 확인해주세요.');
     } finally {
       setSaving(false);
     }
@@ -117,6 +131,7 @@ export default function ProviderSpace() {
       </ScrollView>
 
       <View style={{ padding: Spacing.xl, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: theme.border }}>
+        {error && <AppText variant="caption" tint={theme.danger}>{error}</AppText>}
         <Button label={saving ? '' : '공간 정보 저장'} loading={saving} fullWidth onPress={save} />
       </View>
     </SafeAreaView>

@@ -13,7 +13,7 @@ import { adminApi } from '@/lib/api';
 import type { AdminUserResponse, AdminVerificationResponse, Role } from '@/lib/api/types';
 import { RoleLabel, VerificationLabel, userSubtitle } from '@/lib/admin-format';
 
-/** 기능명세 7.1 회원 관리 — 목록 조회, 강제 탈퇴, 예술가 인증 승인 */
+/** 기능명세 7.1 회원 관리 — 목록 조회, 회원 수정·삭제, 예술가 인증 승인 */
 
 const FILTERS: { label: string; value?: Role }[] = [
   { label: '전체' },
@@ -25,7 +25,6 @@ const FILTERS: { label: string; value?: Role }[] = [
 export default function AdminMembers() {
   const theme = useTheme();
   const [idx, setIdx] = useState(0);
-  const [target, setTarget] = useState<AdminUserResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUserResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +67,7 @@ export default function AdminMembers() {
             }}>
             <AppText variant="h2">회원 관리</AppText>
             <Button
-              label="임시 회원 생성"
+              label="회원 생성"
               size="sm"
               icon="add"
               onPress={() => router.push('/admin-form/user')}
@@ -117,7 +116,6 @@ export default function AdminMembers() {
             <MemberRow
               key={u.id}
               user={u}
-              onWithdraw={() => setTarget(u)}
               onEdit={() => router.push({ pathname: '/admin-form/user', params: { userId: String(u.id) } })}
               onDelete={() => setDeleteTarget(u)}
             />
@@ -133,9 +131,9 @@ export default function AdminMembers() {
 
       <ConfirmModal
         visible={deleteTarget !== null}
-        title="임시 회원을 삭제할까요?"
+        title="회원을 삭제할까요?"
         target={deleteTarget ? `${deleteTarget.nickname} (${deleteTarget.loginId})` : undefined}
-        message="임시 회원 데이터가 목록에서 완전히 지워집니다. 이 회원이 남긴 프로그램·공간·참여가 있으면 삭제되지 않습니다."
+        message="이 회원이 남긴 프로그램·공간·참여 신청·인증 신청이 모두 함께 삭제됩니다. 되돌릴 수 없습니다."
         confirmLabel="삭제"
         loading={busy}
         onCancel={() => setDeleteTarget(null)}
@@ -148,36 +146,16 @@ export default function AdminMembers() {
           });
         }}
       />
-
-      <ConfirmModal
-        visible={target !== null}
-        title="회원을 강제 탈퇴시킬까요?"
-        target={target ? `${target.nickname} (${target.loginId})` : undefined}
-        message="탈퇴 처리된 회원은 로그인과 서비스 이용이 차단됩니다. 기존 데이터는 삭제되지 않고 비활성 상태로 남습니다."
-        confirmLabel="강제 탈퇴"
-        loading={busy}
-        onCancel={() => setTarget(null)}
-        onConfirm={() => {
-          const user = target;
-          if (!user) return;
-          run(() => adminApi.withdrawUser(user.id), () => {
-            setTarget(null);
-            refetch();
-          });
-        }}
-      />
     </>
   );
 }
 
 function MemberRow({
   user,
-  onWithdraw,
   onEdit,
   onDelete,
 }: {
   user: AdminUserResponse;
-  onWithdraw: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -189,15 +167,12 @@ function MemberRow({
           <AppText variant="caption" color="textMuted">{userSubtitle(user)}</AppText>
         </View>
         <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
-          {/* 임시 회원은 수정·삭제, 실제 회원은 강제 탈퇴 — 대상이 다르다 (7.1.2 vs 7.1.3) */}
-          {user.mock ? (
+          {/* 관리자 계정은 수정·삭제 대상이 아니다 — 서버도 403 으로 막는다 */}
+          {user.role === 'ADMIN' ? null : (
             <>
               <Button label="수정" variant="outline" size="sm" onPress={onEdit} />
               <Button label="삭제" variant="outline" size="sm" onPress={onDelete} />
             </>
-          ) : null}
-          {user.withdrawn || user.role === 'ADMIN' ? null : (
-            <Button label="강제 탈퇴" variant="outline" size="sm" onPress={onWithdraw} />
           )}
         </View>
       </View>
@@ -211,8 +186,6 @@ function MemberRow({
             icon={user.verificationStatus === 'APPROVED' ? 'ribbon' : undefined}
           />
         ) : null}
-        {user.mock ? <Badge label="임시 회원" tone="accent" /> : null}
-        {user.withdrawn ? <Badge label="탈퇴" tone="danger" /> : null}
       </View>
     </Card>
   );

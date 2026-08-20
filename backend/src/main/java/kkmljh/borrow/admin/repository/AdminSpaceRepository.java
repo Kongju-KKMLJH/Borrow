@@ -10,12 +10,14 @@ import java.util.List;
  * Space 엔티티는 space 도메인 소유지만 전용 리포지토리를 둔다
  * (빈 이름 충돌 회피 — SpaceMatchRepository와 같은 패턴).
  *
- * <p>공개 목록과 달리 <b>강제 삭제된 공간도 포함</b>한다 (기능명세 7.3.1 rules).
  */
 public interface AdminSpaceRepository extends JpaRepository<Space, Long> {
 
     List<Space> findAllByOrderByIdDesc();
 
-    /** 임시 회원 삭제 전 확인 — 이 회원이 등록한 공간이 남아 있는지 (기능명세 7.1.2). */
-    boolean existsByOwnerId(String ownerId);
+    /**
+     * 회원 삭제 시 함께 지울 등록 공간 (기능명세 7.1.2, {@code AdminCascadeDeleter}).
+     * Space 도 @ElementCollection(이미지·시설·허용분야)을 들고 있어 엔티티 단위로 지워야 한다.
+     */
+    List<Space> findByOwnerId(String ownerId);
 }

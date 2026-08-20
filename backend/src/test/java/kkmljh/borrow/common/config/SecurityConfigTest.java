@@ -422,7 +422,7 @@ class SecurityConfigTest {
             for (String path : READ_PATHS) {
                 assertUnauthorized(get(path));
             }
-            assertUnauthorized(post("/api/admin/users/1/withdraw"));
+            assertUnauthorized(delete("/api/admin/users/1"));
         }
 
         @Test
@@ -432,8 +432,8 @@ class SecurityConfigTest {
                 for (String path : READ_PATHS) {
                     assertForbidden(get(path).with(httpBasic(loginId, PW)));
                 }
-                assertForbidden(post("/api/admin/activities/1/force-delete").with(httpBasic(loginId, PW)));
-                assertForbidden(post("/api/admin/spaces/1/force-delete").with(httpBasic(loginId, PW)));
+                assertForbidden(delete("/api/admin/activities/1").with(httpBasic(loginId, PW)));
+                assertForbidden(delete("/api/admin/spaces/1").with(httpBasic(loginId, PW)));
             }
         }
 
@@ -446,8 +446,8 @@ class SecurityConfigTest {
         }
 
         @Test
-        @DisplayName("임시 데이터 CRUD 경로도 ADMIN 전용이다 (기능명세 7.1.2 · 7.2.2 · 7.3.2)")
-        void mockCrudIsAdminOnly() throws Exception {
+        @DisplayName("실제 데이터 CRUD 경로도 ADMIN 전용이다 (기능명세 7.1.2 · 7.2.2 · 7.3.2)")
+        void dataCrudIsAdminOnly() throws Exception {
             String[] collections = {"/api/admin/users", "/api/admin/activities", "/api/admin/spaces"};
 
             for (String path : collections) {
@@ -504,15 +504,30 @@ class SecurityConfigTest {
                     .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
         }
 
+        /**
+         * 소프트 삭제(강제 탈퇴)를 걷어낸 뒤에도 <b>지워진 회원은 못 들어온다</b>는 결론은 그대로다.
+         * 다만 그 근거가 {@code .disabled(...)} 플래그가 아니라 <b>행이 사라져서</b>로 바뀌었다 —
+         * {@code AppUserDetailsService} 가 조회에 실패해 401 이 난다.
+         */
         @Test
-        @DisplayName("강제 탈퇴된 회원은 로그인 자체가 막힌다 (기능명세 7.1.3)")
-        void withdrawnUserCannotAuthenticate() throws Exception {
+        @DisplayName("삭제된 회원은 로그인 자체가 막힌다 (기능명세 7.1.2)")
+        void deletedUserCannotAuthenticate() throws Exception {
             AppUser member = appUserRepository.findByLoginId("member1").orElseThrow();
-            mockMvc.perform(post("/api/admin/users/" + member.getId() + "/withdraw")
+            mockMvc.perform(delete("/api/admin/users/" + member.getId())
                             .with(httpBasic(ADMIN_ID, PW)))
                     .andExpect(status().isOk());
 
             assertUnauthorized(get("/api/auth/me").with(httpBasic("member1", PW)));
+        }
+
+        @Test
+        @DisplayName("관리자 계정은 콘솔에서 삭제할 수 없다 — 콘솔 자체가 잠긴다 (403)")
+        void consoleCannotDeleteAdmin() throws Exception {
+            AppUser admin = appUserRepository.findByLoginId(ADMIN_ID).orElseThrow();
+
+            mockMvc.perform(delete("/api/admin/users/" + admin.getId()).with(httpBasic(ADMIN_ID, PW)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
         }
     }
 

@@ -51,7 +51,7 @@ export default function EditActivity() {
       <TextField label="분야 (ART / PHOTO)" value={field} onChangeText={(v) => setField(v === 'PHOTO' ? 'PHOTO' : 'ART')} />
       <TextField label="활동 제목" value={title} onChangeText={setTitle} />
       <TextField label="활동 설명" value={description} onChangeText={setDescription} multiline />
-      <DialField label="활동 날짜" mode="date" value={date} onChange={setDate} />
+      <DialField label="활동 날짜" mode="date" value={date} onChange={setDate} minimumDate={new Date()} />
       <View style={{ flexDirection: 'row', gap: Spacing.sm }}><View style={{ flex: 1 }}><DialField label="시작 시간" mode="time" value={startTime} onChange={setStartTime} /></View><View style={{ flex: 1 }}><DialField label="종료 시간" mode="time" value={endTime} onChange={setEndTime} /></View></View>
       <View style={{ flexDirection: 'row', gap: Spacing.sm }}><View style={{ flex: 1 }}><TextField label="모집 인원" value={capacity} onChangeText={setCapacity} keyboardType="numeric" /></View><View style={{ flex: 1 }}><TextField label="참가비" value={entryFee} onChangeText={setEntryFee} keyboardType="numeric" /></View></View>
       {error && <AppText variant="caption" tint={theme.danger}>{error}</AppText>}

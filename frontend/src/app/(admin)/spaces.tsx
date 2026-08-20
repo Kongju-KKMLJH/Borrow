@@ -1,11 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 
 import { ConfirmModal } from '@/components/confirm-modal';
-import { SelectChip } from '@/components/form';
-import { AppText, Badge, Button, Card, Screen } from '@/components/ui';
+import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useAsync } from '@/hooks/use-async';
 import { useTheme } from '@/hooks/use-theme';
@@ -14,38 +13,16 @@ import type { AdminSpaceResponse } from '@/lib/api/types';
 import { formatDateOnly } from '@/lib/admin-format';
 import { formatCurrency } from '@/lib/format';
 
-/** 기능명세 7.3 공간 관리 — 전체 목록 조회와 강제 삭제 */
-
-const FILTERS = [
-  { label: '전체', match: () => true },
-  { label: '운영 중', match: (s: AdminSpaceResponse) => !s.forceDeleted },
-  { label: '삭제됨', match: (s: AdminSpaceResponse) => s.forceDeleted },
-];
+/** 기능명세 7.3 공간 관리 — 전체 목록 조회와 수정·삭제 */
 
 export default function AdminSpaces() {
   const theme = useTheme();
-  const [idx, setIdx] = useState(0);
-  const [target, setTarget] = useState<AdminSpaceResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminSpaceResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data: spaces, refetch } = useAsync(() => adminApi.spaces(), [], { refetchOnFocus: true });
-  const list = (spaces ?? []).filter(FILTERS[idx].match);
-
-  async function forceDelete(space: AdminSpaceResponse) {
-    setBusy(true);
-    setError(null);
-    try {
-      await adminApi.forceDeleteSpace(space.id);
-      setTarget(null);
-      refetch();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '처리 중 오류가 발생했어요.');
-    } finally {
-      setBusy(false);
-    }
-  }
+  const list = spaces ?? [];
 
   return (
     <>
@@ -62,7 +39,7 @@ export default function AdminSpaces() {
             }}>
             <AppText variant="h2">공간 관리</AppText>
             <Button
-              label="임시 생성"
+              label="공간 생성"
               size="sm"
               icon="add"
               onPress={() => router.push('/admin-form/space')}
@@ -76,21 +53,11 @@ export default function AdminSpaces() {
           </View>
         ) : null}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: Spacing.sm, paddingHorizontal: Spacing.xl }}>
-          {FILTERS.map((f, i) => (
-            <SelectChip key={f.label} label={f.label} active={idx === i} onPress={() => setIdx(i)} />
-          ))}
-        </ScrollView>
-
         <View style={{ paddingHorizontal: Spacing.xl, gap: Spacing.md }}>
           {list.map((s) => (
             <SpaceRow
               key={s.id}
               space={s}
-              onForceDelete={() => setTarget(s)}
               onEdit={() => router.push({ pathname: '/admin-form/space', params: { spaceId: String(s.id) } })}
               onDelete={() => setDeleteTarget(s)}
             />
@@ -106,9 +73,9 @@ export default function AdminSpaces() {
 
       <ConfirmModal
         visible={deleteTarget !== null}
-        title="임시 공간을 삭제할까요?"
+        title="공간을 삭제할까요?"
         target={deleteTarget ? `${deleteTarget.name} (${deleteTarget.region})` : undefined}
-        message="임시 공간 데이터가 목록에서 완전히 지워집니다. 개최 요청이 걸려 있으면 삭제되지 않습니다."
+        message="이용 가능 시간과 개최 요청이 함께 삭제되고, 이 공간에서 승인됐던 프로그램은 거절 상태로 되돌아갑니다. 되돌릴 수 없습니다."
         confirmLabel="삭제"
         loading={busy}
         onCancel={() => setDeleteTarget(null)}
@@ -128,29 +95,16 @@ export default function AdminSpaces() {
           }
         }}
       />
-
-      <ConfirmModal
-        visible={target !== null}
-        title="공간을 강제 삭제할까요?"
-        target={target ? `${target.name} (${target.region})` : undefined}
-        message="AI 추천과 개최 요청 대상에서 제외되고, 진행 중인 개최 요청은 모두 자동 거절됩니다."
-        confirmLabel="강제 삭제"
-        loading={busy}
-        onCancel={() => setTarget(null)}
-        onConfirm={() => target && forceDelete(target)}
-      />
     </>
   );
 }
 
 function SpaceRow({
   space,
-  onForceDelete,
   onEdit,
   onDelete,
 }: {
   space: AdminSpaceResponse;
-  onForceDelete: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -171,21 +125,9 @@ function SpaceRow({
           </AppText>
         </View>
         <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
-          {space.mock ? (
-            <>
-              <Button label="수정" variant="outline" size="sm" onPress={onEdit} />
-              <Button label="삭제" variant="outline" size="sm" onPress={onDelete} />
-            </>
-          ) : null}
-          {space.forceDeleted ? null : (
-            <Button label="강제 삭제" variant="outline" size="sm" onPress={onForceDelete} />
-          )}
+          <Button label="수정" variant="outline" size="sm" onPress={onEdit} />
+          <Button label="삭제" variant="outline" size="sm" onPress={onDelete} />
         </View>
-      </View>
-
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs }}>
-        {space.mock ? <Badge label="임시 공간" tone="accent" /> : null}
-        {space.forceDeleted ? <Badge label="삭제됨" tone="danger" /> : null}
       </View>
     </Card>
   );

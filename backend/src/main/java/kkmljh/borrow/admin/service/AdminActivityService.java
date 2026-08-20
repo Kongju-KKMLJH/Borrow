@@ -5,7 +5,6 @@ import kkmljh.borrow.admin.dto.AdminActivityRequest;
 import kkmljh.borrow.admin.dto.AdminActivityResponse;
 import kkmljh.borrow.admin.repository.AdminActivityRepository;
 import kkmljh.borrow.admin.repository.AdminHostingRequestRepository;
-import kkmljh.borrow.admin.repository.AdminParticipationRepository;
 import kkmljh.borrow.admin.repository.AdminSpaceRepository;
 import kkmljh.borrow.admin.repository.AdminUserRepository;
 import kkmljh.borrow.common.exception.BusinessException;
@@ -30,16 +29,16 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class AdminActivityService {
 
-    /** 임시 프로그램을 만들 때 자동 생성되는 개최 요청의 거절 사유 (상태를 REJECTED 로 지정한 경우) */
-    private static final String MOCK_REJECT_REASON = "관리자가 만든 임시 데이터입니다.";
+    /** 관리자가 상태를 REJECTED 로 지정했을 때 자동 생성되는 개최 요청에 남기는 거절 사유 */
+    private static final String ADMIN_REJECT_REASON = "관리자 콘솔에서 지정한 거절 상태입니다.";
 
     private final AdminActivityRepository activityRepository;
     private final AdminHostingRequestRepository hostingRequestRepository;
     private final AdminSpaceRepository spaceRepository;
     private final AdminUserRepository userRepository;
-    private final AdminParticipationRepository participationRepository;
+    private final AdminCascadeDeleter cascadeDeleter;
 
-    /** 기능명세 7.2.1 전체 프로그램 목록. 상태·삭제 여부로 거르지 않는다. */
+    /** 기능명세 7.2.1 전체 프로그램 목록. 상태로 거르지 않는다. */
     public List<AdminActivityResponse> findAll() {
         List<Activity> activities = activityRepository.findAllByOrderByIdDesc();
         Map<Long, ConfirmedSpace> spaces = confirmedSpaces(activities);
@@ -50,7 +49,7 @@ public class AdminActivityService {
     }
 
     /**
-     * 기능명세 7.2.2 임시(mock) 프로그램 생성.
+     * 기능명세 7.2.2 프로그램 생성. 실제 프로그램이 만들어지고 시민 탐색에도 그대로 노출된다.
      *
      * <p>유형(HOBBY/CLASS)·인증 배지·표시 이름은 <b>담당 예술가 계정의 역할에서 서버가 정한다</b> —
      * 요청 DTO 로 받으면 배지를 위조할 수 있다는 기존 규칙을 관리자 경로에서도 지킨다.
@@ -77,7 +76,6 @@ public class AdminActivityService {
                 .endTime(req.endTime())
                 .capacity(req.capacity())
                 .entryFee(req.entryFee())
-                .mock(true)
                 .build());
 
         applyStatus(activity, req);
@@ -85,15 +83,16 @@ public class AdminActivityService {
     }
 
     /**
-     * 기능명세 7.2.2 임시 프로그램 수정. <b>임시 프로그램만</b> 대상이다 —
-     * 실제 예술가가 등록한 프로그램의 내용을 관리자가 편집하는 것은 범위 밖이다(7.2.2 description).
+     * 기능명세 7.2.2 프로그램 수정. <b>모든 실제 프로그램</b>이 대상이다.
      *
      * <p>개최 요청을 지우고 다시 만든다. 상태와 개최지가 함께 바뀌는데 기존 요청을 남겨 두면
      * "거절된 요청이 붙은 모집 중 프로그램" 같은 앞뒤 안 맞는 데이터가 생긴다.
+     * <b>승인 이력이 사라지는 것은 의도된 super admin 동작</b>이다 —
+     * 파트너가 내렸던 판단을 관리자가 다시 쓰는 것이므로 수정 전 상태를 확인하고 쓴다.
      */
     @Transactional
     public AdminActivityResponse update(Long activityId, AdminActivityRequest req) {
-        Activity activity = getMockActivity(activityId);
+        Activity activity = getActivity(activityId);
         validate(req);
         AppUser host = getUser(req.hostLoginId());
 
@@ -109,34 +108,15 @@ public class AdminActivityService {
     }
 
     /**
-     * 기능명세 7.2.2 임시 프로그램 삭제. 강제 삭제(7.2.3)와 달리 <b>행을 실제로 지운다</b>.
+     * 기능명세 7.2.2 프로그램 삭제. <b>행을 실제로 지운다</b>.
      *
-     * <p>참여 신청이 있으면 거절한다 — {@code ActivityService.delete} 와 같은 판단이다.
-     * 개최 요청은 자식이므로 먼저 지운다(FK 위반 회피).
+     * <p>참여 신청과 개최 요청이 <b>함께 지워진다</b> ({@link AdminCascadeDeleter#deleteActivity}).
+     * 개설자 본인의 삭제({@code ActivityService.delete})가 참여 신청을 두고 거절하는 것과 정책이
+     * 다르다 — 그쪽 가드는 그대로 둔다.
      */
     @Transactional
     public void delete(Long activityId) {
-        Activity activity = getMockActivity(activityId);
-        if (participationRepository.existsByActivityId(activityId)) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST,
-                    "참여 신청이 있는 프로그램은 삭제할 수 없습니다.");
-        }
-        hostingRequestRepository.deleteByActivityId(activityId);
-        activityRepository.delete(activity);
-    }
-
-    /**
-     * 기능명세 7.2.3 프로그램 강제 삭제. 행을 지우지 않고 삭제 상태로만 바꾼다 —
-     * 기존 참여 신청 내역은 보존한다(확정 정책). 시민 탐색·상세·참여 신청에서는
-     * 활동 조회 시점에 걸러진다.
-     */
-    @Transactional
-    public AdminActivityResponse forceDelete(Long activityId) {
-        Activity activity = activityRepository.findById(activityId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND));
-
-        activity.forceDelete();   // 이미 삭제 상태면 INVALID_REQUEST
-        return AdminActivityResponse.of(activity, confirmedSpaces(List.of(activity)).get(activityId));
+        cascadeDeleter.deleteActivity(getActivity(activityId));
     }
 
     /** 개최지는 활동 id를 모아 한 번에 읽는다 — 활동마다 조회하면 목록에서 N+1이 된다. */
@@ -150,14 +130,9 @@ public class AdminActivityService {
                         (first, second) -> first));
     }
 
-    /** 임시 프로그램만 수정·삭제 대상이다 (기능명세 7.2.2 rules). */
-    private Activity getMockActivity(Long activityId) {
-        Activity activity = activityRepository.findById(activityId)
+    private Activity getActivity(Long activityId) {
+        return activityRepository.findById(activityId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND));
-        if (!activity.isMock()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "임시 프로그램만 수정·삭제할 수 있습니다.");
-        }
-        return activity;
     }
 
     private AppUser getUser(String loginId) {
@@ -195,7 +170,6 @@ public class AdminActivityService {
         }
 
         Space space = spaceRepository.findById(req.spaceId())
-                .filter(s -> !s.isForceDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.SPACE_NOT_FOUND));
 
         if (req.status() == ActivityStatus.DRAFT) {
@@ -211,7 +185,7 @@ public class AdminActivityService {
 
         switch (req.status()) {
             case PENDING -> { /* 요청만 보낸 상태 */ }
-            case REJECTED -> request.reject(MOCK_REJECT_REASON);
+            case REJECTED -> request.reject(ADMIN_REJECT_REASON);
             case MATCHED -> request.approve();
             case PUBLISHED -> {
                 request.approve();

@@ -4,7 +4,6 @@ import kkmljh.borrow.admin.dto.AdminActivityRequest;
 import kkmljh.borrow.admin.dto.AdminActivityResponse;
 import kkmljh.borrow.admin.repository.AdminActivityRepository;
 import kkmljh.borrow.admin.repository.AdminHostingRequestRepository;
-import kkmljh.borrow.admin.repository.AdminParticipationRepository;
 import kkmljh.borrow.admin.repository.AdminSpaceRepository;
 import kkmljh.borrow.admin.repository.AdminUserRepository;
 import kkmljh.borrow.common.exception.BusinessException;
@@ -14,7 +13,6 @@ import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.ActivityStatus;
 import kkmljh.borrow.domain.ActivityType;
 import kkmljh.borrow.domain.HostingRequest;
-import kkmljh.borrow.domain.RequestStatus;
 import kkmljh.borrow.domain.Space;
 import kkmljh.borrow.support.TestFixtures;
 import org.junit.jupiter.api.DisplayName;
@@ -39,19 +37,19 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("AdminActivityService — 임시(mock) 프로그램 CRUD (기능명세 7.2.2)")
-class AdminActivityMockCrudTest {
+@DisplayName("AdminActivityService — 프로그램 CRUD (기능명세 7.2.2)")
+class AdminActivityCrudTest {
 
     @Mock private AdminActivityRepository activityRepository;
     @Mock private AdminHostingRequestRepository hostingRequestRepository;
     @Mock private AdminSpaceRepository spaceRepository;
     @Mock private AdminUserRepository userRepository;
-    @Mock private AdminParticipationRepository participationRepository;
+    @Mock private AdminCascadeDeleter cascadeDeleter;
 
     @InjectMocks private AdminActivityService adminActivityService;
 
     private static AdminActivityRequest request(String hostLoginId, Long spaceId, ActivityStatus status) {
-        return new AdminActivityRequest(hostLoginId, spaceId, ActivityField.ART, "임시 클래스", "설명",
+        return new AdminActivityRequest(hostLoginId, spaceId, ActivityField.ART, "관리자 클래스", "설명",
                 List.of(), LocalDate.of(2026, 12, 12), LocalTime.of(14, 0), LocalTime.of(16, 0),
                 5, 10_000, status);
     }
@@ -84,7 +82,6 @@ class AdminActivityMockCrudTest {
             AdminActivityResponse result =
                     adminActivityService.create(request("artist1", null, ActivityStatus.DRAFT));
 
-            assertThat(result.mock()).isTrue();
             assertThat(result.type()).isEqualTo(ActivityType.CLASS);
             assertThat(result.status()).isEqualTo(ActivityStatus.DRAFT);
             assertThat(result.hostNickname()).isEqualTo("예술가");
@@ -125,8 +122,7 @@ class AdminActivityMockCrudTest {
             given(userRepository.findByLoginId("artist1")).willReturn(Optional.of(TestFixtures.artist()));
             given(spaceRepository.findById(3L)).willReturn(Optional.of(space));
             echoSavedActivity();
-            given(hostingRequestRepository.save(any(HostingRequest.class)))
-                    .willAnswer(inv -> TestFixtures.withId(inv.getArgument(0), 70L));
+            echoSavedRequest();
             noConfirmedSpaces();
 
             AdminActivityResponse result =
@@ -149,7 +145,7 @@ class AdminActivityMockCrudTest {
         @DisplayName("종료 시각이 시작보다 이르면 저장하지 않는다")
         void invalidTimeRange() {
             AdminActivityRequest req = new AdminActivityRequest("artist1", null, ActivityField.ART,
-                    "임시", null, List.of(), LocalDate.of(2026, 12, 12),
+                    "관리자 클래스", null, List.of(), LocalDate.of(2026, 12, 12),
                     LocalTime.of(16, 0), LocalTime.of(14, 0), 5, 0, ActivityStatus.DRAFT);
 
             assertThatThrownBy(() -> adminActivityService.create(req))
@@ -170,12 +166,10 @@ class AdminActivityMockCrudTest {
         }
 
         @Test
-        @DisplayName("강제 삭제된 공간은 개최지로 쓸 수 없다")
-        void forceDeletedSpaceRejected() {
-            Space space = TestFixtures.space(3L, "owner1");
-            space.forceDelete();
+        @DisplayName("없는 공간을 개최지로 지정하면 SPACE_NOT_FOUND")
+        void unknownSpace() {
             given(userRepository.findByLoginId("artist1")).willReturn(Optional.of(TestFixtures.artist()));
-            given(spaceRepository.findById(3L)).willReturn(Optional.of(space));
+            given(spaceRepository.findById(3L)).willReturn(Optional.empty());
             echoSavedActivity();
 
             assertThatThrownBy(() ->
@@ -189,19 +183,19 @@ class AdminActivityMockCrudTest {
     @DisplayName("수정·삭제")
     class Modify {
 
-        private Activity mockActivity() {
+        private Activity activity() {
             return TestFixtures.withId(Activity.builder()
                     .guestId("artist1").hostNickname("예술가").hostCertified(true)
-                    .type(ActivityType.CLASS).field(ActivityField.ART).title("임시")
+                    .type(ActivityType.CLASS).field(ActivityField.ART).title("관리자 클래스")
                     .date(LocalDate.of(2026, 12, 12))
                     .startTime(LocalTime.of(14, 0)).endTime(LocalTime.of(16, 0))
-                    .capacity(5).entryFee(0).mock(true).build(), 7L);
+                    .capacity(5).entryFee(0).build(), 7L);
         }
 
         @Test
         @DisplayName("수정 시 기존 개최 요청을 지우고 상태를 다시 밟는다")
         void updateRebuildsRequest() {
-            Activity activity = mockActivity();
+            Activity activity = activity();
             activity.markPending();   // 수정 전 상태를 흐트러뜨려 둔다
             given(activityRepository.findById(7L)).willReturn(Optional.of(activity));
             given(userRepository.findByLoginId("artist1")).willReturn(Optional.of(TestFixtures.artist()));
@@ -215,49 +209,65 @@ class AdminActivityMockCrudTest {
         }
 
         @Test
-        @DisplayName("실제 프로그램은 수정할 수 없다 (7.2.2 exceptions)")
-        void cannotUpdateRealActivity() {
-            given(activityRepository.findById(1L)).willReturn(Optional.of(TestFixtures.activity()));
+        @DisplayName("개설자가 만든 실제 프로그램도 수정할 수 있다 — super admin 이므로 대상 제한이 없다")
+        void updatesRealActivity() {
+            Activity real = TestFixtures.publishedActivity(1L, "member1");
+            given(activityRepository.findById(1L)).willReturn(Optional.of(real));
+            given(userRepository.findByLoginId("artist1")).willReturn(Optional.of(TestFixtures.artist()));
+            noConfirmedSpaces();
 
-            assertThatThrownBy(() ->
-                    adminActivityService.update(1L, request("artist1", null, ActivityStatus.DRAFT)))
-                    .isInstanceOf(BusinessException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+            AdminActivityResponse result =
+                    adminActivityService.update(1L, request("artist1", null, ActivityStatus.DRAFT));
+
+            assertThat(result.title()).isEqualTo("관리자 클래스");
+            assertThat(result.status()).isEqualTo(ActivityStatus.DRAFT);
+            // 담당도 갈아 끼운다 — 요청이 아니라 지정한 계정의 역할이 유형·배지를 정한다.
+            assertThat(result.hostLoginId()).isEqualTo("artist1");
+            assertThat(result.type()).isEqualTo(ActivityType.CLASS);
         }
 
         @Test
-        @DisplayName("삭제하면 개최 요청을 먼저 지우고 행을 실제로 지운다")
+        @DisplayName("없는 프로그램을 수정하면 ACTIVITY_NOT_FOUND")
+        void updateMissingActivity() {
+            given(activityRepository.findById(99L)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() ->
+                    adminActivityService.update(99L, request("artist1", null, ActivityStatus.DRAFT)))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.ACTIVITY_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("삭제는 참여 신청·개최 요청까지 연쇄 삭제기에 맡긴다 (7.2.2 outcome)")
         void delete() {
-            Activity activity = mockActivity();
+            Activity activity = activity();
             given(activityRepository.findById(7L)).willReturn(Optional.of(activity));
-            given(participationRepository.existsByActivityId(7L)).willReturn(false);
 
             adminActivityService.delete(7L);
 
-            verify(hostingRequestRepository).deleteByActivityId(7L);
-            verify(activityRepository).delete(activity);
+            verify(cascadeDeleter).deleteActivity(activity);
         }
 
         @Test
-        @DisplayName("참여 신청이 있으면 삭제하지 않는다 — ActivityService.delete 와 같은 판단")
-        void refusesWhenParticipationsRemain() {
-            given(activityRepository.findById(7L)).willReturn(Optional.of(mockActivity()));
-            given(participationRepository.existsByActivityId(7L)).willReturn(true);
+        @DisplayName("참여 신청이 있어도 거절하지 않는다 — 자기 프로그램 삭제(ActivityService)와 정책이 다르다")
+        void deletesPublishedActivityWithParticipants() {
+            Activity real = TestFixtures.publishedActivity(1L, "member1");
+            given(activityRepository.findById(1L)).willReturn(Optional.of(real));
 
-            assertThatThrownBy(() -> adminActivityService.delete(7L))
-                    .isInstanceOf(BusinessException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.INVALID_REQUEST);
-            verify(activityRepository, never()).delete(any());
+            adminActivityService.delete(1L);
+
+            verify(cascadeDeleter).deleteActivity(real);
         }
 
         @Test
-        @DisplayName("실제 프로그램은 삭제할 수 없다 — 그건 강제 삭제(7.2.3)의 몫이다")
-        void cannotDeleteRealActivity() {
-            given(activityRepository.findById(1L)).willReturn(Optional.of(TestFixtures.activity()));
+        @DisplayName("없는 프로그램을 삭제하면 ACTIVITY_NOT_FOUND")
+        void deleteMissingActivity() {
+            given(activityRepository.findById(99L)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> adminActivityService.delete(1L))
+            assertThatThrownBy(() -> adminActivityService.delete(99L))
                     .isInstanceOf(BusinessException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+                    .extracting("errorCode").isEqualTo(ErrorCode.ACTIVITY_NOT_FOUND);
+            verify(cascadeDeleter, never()).deleteActivity(any());
         }
     }
 }
