@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { ChipGroup, TextField, ToggleRow } from '@/components/form';
+import { ImageUploadField } from '@/components/image-upload-field';
 import { ScreenHeader } from '@/components/nav';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
@@ -39,6 +40,7 @@ export default function AdminSpaceForm() {
   const [name, setName] = useState('');
   const [region, setRegion] = useState('');
   const [address, setAddress] = useState('');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [capacity, setCapacity] = useState('10');
   const [hourlyFee, setHourlyFee] = useState('10000');
   const [conditions, setConditions] = useState('');
@@ -57,12 +59,26 @@ export default function AdminSpaceForm() {
     if (editingId === null || loaded) return null;
     const found = (await adminApi.spaces()).find((s) => s.id === editingId);
     if (found) {
+      // 수정 요청은 전체 교체다 — 여기서 채우지 않은 값은 저장하는 순간 서버에서 지워진다.
       setOwnerId(found.ownerId);
       setName(found.name);
       setRegion(found.region);
       setAddress(found.address ?? '');
+      setImageUrls(found.imageUrls ?? []);
       setCapacity(String(found.capacity));
       setHourlyFee(String(found.hourlyFee));
+      setConditions(found.conditions ?? '');
+      setFacilities(found.facilities ?? []);
+      setAllowedFields(found.allowedFields ?? []);
+      setNoiseAllowed(found.noiseAllowed);
+      setMessAllowed(found.messAllowed);
+      if (found.slots.length > 0) {
+        // 이 폼은 "여러 요일 + 하나의 시간대" 모델이라 요일별로 시간이 다르면 첫 슬롯 기준으로 모인다.
+        // 그대로 저장하면 나머지 요일의 시간대가 첫 슬롯 값으로 통일된다 — 아래 안내 문구 참고.
+        setDays([...new Set(found.slots.map((slot) => slot.dayOfWeek))]);
+        setSlotStart(found.slots[0].startTime.slice(0, 5));
+        setSlotEnd(found.slots[0].endTime.slice(0, 5));
+      }
     }
     setLoaded(true);
     return found ?? null;
@@ -81,6 +97,7 @@ export default function AdminSpaceForm() {
         name: name.trim(),
         region: region.trim(),
         address: address.trim() || undefined,
+        imageUrls,
         capacity: Number(capacity) || 0,
         hourlyFee: Number(hourlyFee) || 0,
         conditions: conditions.trim() || undefined,
@@ -111,6 +128,9 @@ export default function AdminSpaceForm() {
       <TextField label="공간명" value={name} onChangeText={setName} />
       <TextField label="지역" value={region} onChangeText={setRegion} placeholder="천안시 서북구 불당동" />
       <TextField label="주소" value={address} onChangeText={setAddress} />
+
+      <ImageUploadField label="공간 사진" value={imageUrls} onChange={setImageUrls} max={5} />
+
       <TextField label="수용 인원" value={capacity} onChangeText={setCapacity} keyboardType="numeric" />
       <TextField label="시간당 이용료" value={hourlyFee} onChangeText={setHourlyFee} keyboardType="numeric" />
       <TextField label="이용 조건" value={conditions} onChangeText={setConditions} multiline />
@@ -140,6 +160,7 @@ export default function AdminSpaceForm() {
         />
         <AppText variant="caption" color="textMuted">
           선택한 요일에 아래 시간대가 똑같이 만들어져요. AI 추천은 이 시간대로 걸러집니다.
+          기존 공간을 수정하면 요일별로 달랐던 시간대도 아래 값으로 통일됩니다.
         </AppText>
       </View>
       <TextField label="시작 시각" value={slotStart} onChangeText={setSlotStart} placeholder="10:00" />
