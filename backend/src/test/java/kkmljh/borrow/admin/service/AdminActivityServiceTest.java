@@ -5,6 +5,7 @@ import kkmljh.borrow.admin.dto.AdminActivityResponse;
 import kkmljh.borrow.admin.repository.AdminActivityRepository;
 import kkmljh.borrow.admin.repository.AdminHostingRequestRepository;
 import kkmljh.borrow.domain.Activity;
+import kkmljh.borrow.domain.ActivityField;
 import kkmljh.borrow.domain.ActivityStatus;
 import kkmljh.borrow.support.TestFixtures;
 import org.junit.jupiter.api.DisplayName;
@@ -62,6 +63,21 @@ class AdminActivityServiceTest {
 
         assertThat(result.spaceId()).isEqualTo(7L);
         assertThat(result.spaceName()).isEqualTo("불당동 스튜디오");
+    }
+
+    @Test
+    @DisplayName("7.2.1 목록은 수정 폼이 프리필할 필드를 모두 담는다 — 빠지면 저장 시 원본이 지워진다")
+    void listCarriesEditableFields() {
+        given(activityRepository.findAllByOrderByIdDesc())
+                .willReturn(List.of(TestFixtures.activity(1L, "artist1")));
+        given(hostingRequestRepository.findConfirmedSpaces(anyCollection())).willReturn(List.of());
+
+        AdminActivityResponse result = adminActivityService.findAll().get(0);
+
+        assertThat(result.field()).isEqualTo(ActivityField.ART);
+        assertThat(result.description()).isEqualTo("초보자 환영 수채화 모임입니다.");
+        assertThat(result.entryFee()).isEqualTo(10_000);
+        assertThat(result.imageUrls()).containsExactly("/files/a.jpg");
     }
 
     @Test
