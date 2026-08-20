@@ -3,6 +3,8 @@
  * 각 함수는 백엔드 컨트롤러 엔드포인트와 1:1 매핑.
  */
 
+import { Platform } from 'react-native';
+
 import { apiClient } from './client';
 import type {
   SignupRequest,
@@ -242,16 +244,30 @@ export const aiApi = {
 // ── Upload ─────────────────────────────────────────────────────────────
 
 export const uploadApi = {
-  /** 이미지 업로드 (multipart, 파트명 "files") → 상대 URL 배열 */
-  upload: (uris: string[]): Promise<UploadResponse> => {
+  /**
+   * 이미지 업로드 (multipart, 파트명 "files") → 상대 URL 배열.
+   *
+   * 플랫폼마다 FormData 에 넣을 수 있는 값이 다르다.
+   * - 네이티브: RN 이 {uri,name,type} 객체를 파일 파트로 바꿔준다.
+   * - 웹: 같은 객체를 넣으면 "[object Object]" 문자열 필드가 되어 파일 파트가 아예 생기지
+   *   않는다. 서버의 @RequestPart("files") 바인딩이 실패해 400 이 떨어진다.
+   *   ImagePicker 가 주는 blob:/data: URI 를 실제 Blob 으로 바꿔 넣어야 한다.
+   */
+  upload: async (uris: string[]): Promise<UploadResponse> => {
     const formData = new FormData();
     for (const uri of uris) {
       const name = uri.split('/').pop() ?? 'photo.jpg';
-      formData.append('files', {
-        uri,
-        name,
-        type: 'image/jpeg',
-      } as unknown as Blob);
+      if (Platform.OS === 'web') {
+        // Blob 의 실제 MIME 이 그대로 넘어가 PNG·WebP 도 확장자가 맞게 저장된다.
+        const blob = await (await fetch(uri)).blob();
+        formData.append('files', blob, name);
+      } else {
+        formData.append('files', {
+          uri,
+          name,
+          type: 'image/jpeg',
+        } as unknown as Blob);
+      }
     }
     return apiClient.upload<UploadResponse>('/api/uploads', formData);
   },
